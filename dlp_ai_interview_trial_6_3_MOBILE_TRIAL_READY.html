@@ -1,0 +1,1791 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Loker Pelaut - AI Interview Simulator Trial 6.3 Mobile Trial</title>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #122033;
+      --muted: #64748b;
+      --line: #dce4ef;
+      --navy: #0f2a43;
+      --blue: #1769aa;
+      --blue2: #0d8bd8;
+      --green: #15803d;
+      --red: #b91c1c;
+      --amber: #b45309;
+      --soft: #edf6ff;
+      --shadow: 0 18px 45px rgba(15, 42, 67, 0.10);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(13, 139, 216, 0.14), transparent 34%),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 22px 0 54px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--navy), var(--blue2));
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 800;
+      box-shadow: var(--shadow);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+    }
+
+    .brand p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.72);
+      color: var(--muted);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.02fr 0.98fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(220,228,239,0.92);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .setup {
+      padding: 22px;
+    }
+
+    .setup h2, .panel h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      letter-spacing: -0.03em;
+    }
+
+    .setup .sub, .panel .sub {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .field label {
+      display: block;
+      margin: 0 0 7px;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    select, input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      color: var(--text);
+      padding: 12px 13px;
+      font: inherit;
+      outline: none;
+      transition: 0.18s ease;
+    }
+
+    select:focus, input:focus, textarea:focus {
+      border-color: rgba(13, 139, 216, 0.72);
+      box-shadow: 0 0 0 4px rgba(13, 139, 216, 0.12);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 15px;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.14s ease, opacity 0.14s ease, background 0.14s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.48; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      color: white;
+    }
+
+    .btn-dark { background: var(--navy); color: white; }
+    .btn-soft { background: #edf2f7; color: #1e293b; }
+    .btn-danger { background: #fee2e2; color: var(--red); }
+    .btn-green { background: #dcfce7; color: var(--green); }
+
+    .voice-card {
+      padding: 22px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .voice-card::before {
+      content: "";
+      position: absolute;
+      inset: -70px -70px auto auto;
+      width: 220px;
+      height: 220px;
+      border-radius: 999px;
+      background: rgba(13,139,216,0.12);
+    }
+
+    .orb {
+      width: 138px;
+      height: 138px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 34% 28%, #7dd3fc, #0d8bd8 40%, #0f2a43 100%);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-size: 44px;
+      box-shadow: 0 26px 70px rgba(13, 139, 216, 0.32);
+      margin: 8px auto 16px;
+      position: relative;
+    }
+
+    .orb.live { animation: pulse 1.7s ease-in-out infinite; }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(13, 139, 216, 0.24), 0 26px 70px rgba(13, 139, 216, 0.32); }
+      50% { box-shadow: 0 0 0 18px rgba(13, 139, 216, 0.04), 0 26px 70px rgba(13, 139, 216, 0.32); }
+    }
+
+    .timer {
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      margin: 4px 0;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 6px;
+      max-width: 100%;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+
+    .dot.ok { background: var(--green); }
+    .dot.warn { background: var(--amber); }
+    .dot.err { background: var(--red); }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .mini-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: end;
+    }
+
+    .mini-actions button {
+      padding: 8px 10px;
+      border-radius: 11px;
+      font-size: 12px;
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 16px;
+      padding: 14px;
+      min-height: 270px;
+      max-height: 430px;
+      overflow: auto;
+      white-space: pre-wrap;
+      line-height: 1.48;
+      font-size: 14px;
+    }
+
+    .transcript-item {
+      padding: 10px 0;
+      border-bottom: 1px dashed #e2e8f0;
+    }
+
+    .transcript-item:last-child { border-bottom: 0; }
+
+    .role {
+      display: inline-block;
+      font-weight: 900;
+      color: var(--navy);
+      margin-bottom: 3px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .role.user { color: var(--blue); }
+    .role.assistant { color: var(--green); }
+
+    .debug {
+      margin-top: 18px;
+      padding: 16px;
+    }
+
+    .debug summary {
+      cursor: pointer;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .debug pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #0f172a;
+      color: #dbeafe;
+      padding: 14px;
+      border-radius: 14px;
+      max-height: 280px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .warnbox {
+      margin-top: 14px;
+      border: 1px solid #fde68a;
+      background: #fffbeb;
+      color: #92400e;
+      padding: 12px 13px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .hidden-frame { display: none; }
+
+    audio { display: none; }
+
+
+    .mobile-tip {
+      display: none;
+      margin-top: 12px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1e3a8a;
+      padding: 12px 13px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        background: #f6f9fd;
+      }
+
+      .wrap {
+        width: min(100% - 18px, 520px);
+        padding: 12px 0 32px;
+      }
+
+      .topbar {
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .brand {
+        align-items: start;
+      }
+
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        flex: 0 0 auto;
+      }
+
+      .brand h1 {
+        font-size: 16px;
+      }
+
+      .brand p {
+        font-size: 12px;
+      }
+
+      .pill {
+        width: 100%;
+        text-align: center;
+        padding: 7px 10px;
+        font-size: 12px;
+      }
+
+      .card {
+        border-radius: 16px;
+        box-shadow: 0 10px 28px rgba(15, 42, 67, 0.08);
+      }
+
+      .setup,
+      .voice-card,
+      .panel {
+        padding: 15px;
+      }
+
+      .setup h2,
+      .panel h2 {
+        font-size: 19px;
+      }
+
+      .setup .sub,
+      .panel .sub {
+        font-size: 13px;
+        margin-bottom: 14px;
+      }
+
+      select,
+      input,
+      textarea {
+        min-height: 46px;
+        font-size: 16px;
+        border-radius: 13px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 9px;
+      }
+
+      .actions button {
+        width: 100%;
+        min-height: 48px;
+        font-size: 15px;
+        border-radius: 13px;
+      }
+
+      .voice-card {
+        min-height: 255px;
+      }
+
+      .orb {
+        width: 104px;
+        height: 104px;
+        font-size: 32px;
+        margin-bottom: 12px;
+      }
+
+      .timer {
+        font-size: 34px;
+      }
+
+      .status {
+        width: 100%;
+        justify-content: center;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.35;
+      }
+
+      .section-grid {
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .panel-head {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .mini-actions {
+        width: 100%;
+        justify-content: start;
+      }
+
+      .mini-actions button {
+        min-height: 38px;
+        flex: 1 1 auto;
+      }
+
+      .box {
+        min-height: 180px;
+        max-height: 300px;
+        font-size: 13px;
+        padding: 12px;
+        border-radius: 14px;
+      }
+
+      .mobile-tip { display: block; }
+
+      .debug {
+        margin-top: 12px;
+        padding: 13px;
+      }
+
+      .debug pre {
+        max-height: 180px;
+        font-size: 11px;
+      }
+    }
+
+    @media (max-width: 920px) {
+      .hero, .section-grid { grid-template-columns: 1fr; }
+      .topbar { align-items: start; flex-direction: column; }
+      .grid { grid-template-columns: 1fr; }
+      .actions button { flex: 1 1 auto; }
+      .timer { font-size: 30px; }
+      .orb { width: 118px; height: 118px; font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">DLP</div>
+        <div>
+          <h1>Daily Loker Pelaut - AI Interview Simulator</h1>
+          <p>Trial 6.3 Mobile Trial · Yuliana Voice Interview</p>
+        </div>
+      </div>
+      <div class="pill" id="versionPill">Backend: not checked</div>
+    </header>
+
+    <main class="hero">
+      <section class="card setup">
+        <h2>Interview Setup</h2>
+        <p class="sub">Pilih category, mode, dan rank. Gunakan earphone jika memungkinkan, lalu tunggu Yuliana bicara sebelum menjawab.</p>
+
+        <div class="mobile-tip">Tips: izinkan microphone, jangan tutup layar selama interview, dan klik Get Feedback setelah sesi selesai.</div>
+
+        <div class="grid">
+          <div class="field">
+            <label for="category">Category</label>
+            <select id="category">
+              <option value="Deck Officer">Deck Officer</option>
+              <option value="Engineer Officer">Engineer Officer</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="mode">Mode</label>
+            <select id="mode">
+              <option value="HR / Crewing">HR / Crewing Interview</option>
+              <option value="Technical">Technical Interview</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="rank">Rank</label>
+            <select id="rank"></select>
+          </div>
+
+          <div class="field">
+            <label for="durationMinutes">Duration</label>
+            <select id="durationMinutes">
+              <option value="7">7 minutes</option>
+              <option value="5">5 minutes</option>
+            </select>
+          </div>
+
+          <div class="field" style="grid-column: 1 / -1;">
+            <label for="vesselType">Vessel Type / Context (optional)</label>
+            <input id="vesselType" placeholder="Example: Bulk Carrier, Chemical Tanker, Container, Dredger" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn-soft" id="previewBtn" type="button">Preview</button>
+          <button class="btn-primary" id="startBtn" type="button">Start Interview</button>
+          <button class="btn-danger" id="stopBtn" type="button" disabled>Stop Voice</button>
+          <button class="btn-green" id="feedbackBtn" type="button" disabled>Get Feedback</button>
+        </div>
+
+        <div class="warnbox" id="configWarning" style="display:none;"></div>
+      </section>
+
+      <section class="card voice-card">
+        <div>
+          <div class="orb" id="orb">🎙️</div>
+          <div class="timer" id="timer">07:00</div>
+          <div class="status" id="status"><span class="dot" id="statusDot"></span><span id="statusText">Ready</span></div>
+          <p class="sub" style="margin:14px auto 0; max-width: 420px;">Status voice akan muncul di sini. Saat Yuliana selesai bicara, jawab dalam English sejelas mungkin.</p>
+        </div>
+      </section>
+    </main>
+
+    <section class="section-grid">
+      <section class="card panel">
+        <div class="panel-head">
+          <div>
+            <h2>Live Transcript</h2>
+            <p class="sub">Transcript dari user dan Yuliana akan muncul di sini.</p>
+          </div>
+          <div class="mini-actions">
+            <button class="btn-soft" id="copyTranscriptBtn" type="button">Copy</button>
+            <button class="btn-soft" id="clearBtn" type="button">Clear</button>
+          </div>
+        </div>
+        <div class="box" id="transcriptBox">Belum ada transcript.</div>
+      </section>
+
+      <section class="card panel">
+        <div class="panel-head">
+          <div>
+            <h2>Written Feedback</h2>
+            <p class="sub">Feedback muncul setelah transcript tersimpan ke Google Sheets.</p>
+          </div>
+          <div class="mini-actions">
+            <button class="btn-soft" id="copyFeedbackBtn" type="button">Copy</button>
+            <button class="btn-soft" id="downloadBtn" type="button">Download JSON</button>
+          </div>
+        </div>
+        <div class="box" id="feedbackBox">Belum ada feedback.</div>
+      </section>
+    </section>
+
+    <details class="card debug">
+      <summary>Trial 6.3 Debug Info</summary>
+      <pre id="debugBox">Waiting...</pre>
+    </details>
+  </div>
+
+  <audio id="remoteAudio" autoplay playsinline></audio>
+  <iframe class="hidden-frame" name="hiddenSaveFrame" id="hiddenSaveFrame"></iframe>
+
+  <script>
+    /**********************************************************************
+     * IMPORTANT: paste your Apps Script Web App URL below.
+     * Example:
+     * const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
+     **********************************************************************/
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOlOt2ZxBC08RJnh0KNoKii29Myx8NJYu1TKfAc01T8TC2Eg_cKAJu-LTc_nPulCc/exec';
+
+    const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
+
+    const el = (id) => document.getElementById(id);
+
+    const state = {
+      pc: null,
+      dc: null,
+      localStream: null,
+      sessionId: '',
+      clientSecret: '',
+      sessionMeta: null,
+      transcript: [],
+      feedback: '',
+      startedAt: null,
+      endedAt: null,
+      timerInterval: null,
+      remainingSeconds: 7 * 60,
+      connected: false,
+      openingSent: false,
+      assistantTurns: 0,
+      userTurns: 0,
+      lastError: '',
+      awaitingAssistant: false,
+      pendingUserText: '',
+      lastAssistantAt: 0,
+      debugLog: [],
+      controller: {
+        enabled: true,
+        currentQuestionIndex: 0,
+        followUpsByIndex: {},
+        secondFollowUpsUsed: 0,
+        answeredTopics: [],
+        askedQuestionTexts: [],
+        backupQuestionIndex: 0,
+        timeStage: 'normal',
+        lastUserText: '',
+        lastAssistantText: '',
+        lastPlannedQuestionText: '',
+        lastPlannedQuestionType: ''
+      }
+    };
+
+    const deckRanks = [
+      ['3rd Officer', '3rd Officer'],
+      ['2nd Officer', '2nd Officer'],
+      ['Chief Officer', 'Chief Officer']
+    ];
+
+    const engineerRanks = [
+      ['4th Engineer', '4th Engineer'],
+      ['3rd Engineer', '3rd Engineer'],
+      ['2nd Engineer', '2nd Engineer'],
+      ['Chief Engineer', 'Chief Engineer']
+    ];
+
+    function isConfigured() {
+      return WEB_APP_URL && WEB_APP_URL.indexOf('PASTE_YOUR_WEB_APP_URL_HERE') < 0;
+    }
+
+    function setStatus(text, type = '') {
+      el('statusText').textContent = text;
+      const dot = el('statusDot');
+      dot.className = 'dot ' + (type || '');
+      logDebug('STATUS: ' + text);
+    }
+
+    function logDebug(data) {
+      const box = el('debugBox');
+      const line = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+      const stamped = '[' + new Date().toLocaleTimeString() + '] ' + line;
+      if (state && Array.isArray(state.debugLog)) {
+        state.debugLog.push(stamped);
+        if (state.debugLog.length > 300) state.debugLog = state.debugLog.slice(-300);
+      }
+      const current = box.textContent === 'Waiting...' ? '' : box.textContent + '\n';
+      box.textContent = (current + stamped).slice(-18000);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function updateRankOptions() {
+      const category = el('category').value;
+      const ranks = category === 'Engineer Officer' ? engineerRanks : deckRanks;
+      el('rank').innerHTML = ranks.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+    }
+
+    function formatTime(seconds) {
+      const s = Math.max(0, seconds | 0);
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
+    }
+
+    function updateTimerDisplay() {
+      el('timer').textContent = formatTime(state.remainingSeconds);
+    }
+
+    function startTimer() {
+      stopTimer();
+      const minutes = parseInt(el('durationMinutes').value || '7', 10);
+      state.remainingSeconds = minutes * 60;
+      updateTimerDisplay();
+      state.timerInterval = setInterval(() => {
+        state.remainingSeconds -= 1;
+        updateTimerDisplay();
+        updateControllerTimeStage();
+        if (state.remainingSeconds <= 0) {
+          state.remainingSeconds = 0;
+          updateTimerDisplay();
+          updateControllerTimeStage();
+          stopTimer();
+          state.controller.enabled = false;
+          setStatus('Time ended. Stopping voice...', 'warn');
+          stopVoice(true).then(() => {
+            setStatus('Time ended. You can get feedback now.', 'warn');
+          });
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      state.timerInterval = null;
+    }
+
+    function setButtons(stage) {
+      const busy = stage === 'busy';
+      el('startBtn').disabled = busy || stage === 'live';
+      el('previewBtn').disabled = busy || stage === 'live';
+      el('stopBtn').disabled = !(stage === 'live');
+      el('feedbackBtn').disabled = !(stage === 'live' || stage === 'stopped' || state.transcript.length > 0);
+    }
+
+    function buildParams(extra = {}) {
+      const params = {
+        category: el('category').value,
+        mode: el('mode').value,
+        rank: el('rank').value,
+        durationMinutes: el('durationMinutes').value,
+        vesselType: el('vesselType').value.trim()
+      };
+      return Object.assign(params, extra);
+    }
+
+    function jsonp(action, params = {}) {
+      if (!isConfigured()) {
+        return Promise.reject(new Error('WEB_APP_URL belum diisi di HTML. Paste Web App URL Apps Script dulu.'));
+      }
+
+      return new Promise((resolve, reject) => {
+        const callbackName = '__dlpJsonp_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+        const url = new URL(WEB_APP_URL);
+        url.searchParams.set('action', action);
+        url.searchParams.set('callback', callbackName);
+        Object.keys(params).forEach((key) => {
+          if (params[key] !== undefined && params[key] !== null) url.searchParams.set(key, params[key]);
+        });
+
+        const script = document.createElement('script');
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('JSONP timeout for action=' + action));
+        }, 30000);
+
+        function cleanup() {
+          clearTimeout(timeout);
+          try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+
+        window[callbackName] = (data) => {
+          cleanup();
+          if (!data || data.ok === false) reject(new Error((data && data.error) || 'Unknown JSONP error'));
+          else resolve(data);
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error('JSONP script load failed for action=' + action));
+        };
+
+        script.src = url.toString();
+        document.body.appendChild(script);
+      });
+    }
+
+    async function previewQuestions() {
+      try {
+        setStatus('Previewing questions...', 'warn');
+        const data = await jsonp('getSelectedQuestions', buildParams());
+        state.sessionMeta = data;
+        logDebug({ previewQuestions: data });
+        renderSelectedQuestions(data);
+        setStatus('Question preview ready.', 'ok');
+      } catch (err) {
+        handleError(err);
+      }
+    }
+
+    function renderSelectedQuestions(data) {
+      const ids = data.selectedQuestionIds || '';
+      const questions = data.selectedQuestions || [];
+      const text = [
+        'Selected Questions:',
+        ids,
+        '',
+        ...questions.map((q, idx) => (idx + 1) + '. ' + q.mainQuestion)
+      ].join('\n');
+      logDebug(text);
+    }
+
+    async function startInterview() {
+      try {
+        if (!isConfigured()) {
+          showConfigWarning('WEB_APP_URL belum diisi. Buka file HTML, cari const WEB_APP_URL, lalu paste URL Web App Apps Script kamu.');
+          return;
+        }
+
+        resetSessionUi(false);
+        setButtons('busy');
+        setStatus('Requesting microphone permission...', 'warn');
+
+        state.localStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+
+        setStatus('Creating interview session...', 'warn');
+        const sessionData = await jsonp('createRealtimeClientSecret', buildParams());
+        state.sessionMeta = sessionData;
+        state.sessionId = sessionData.sessionId;
+        state.clientSecret = sessionData.value || (sessionData.clientSecret && sessionData.clientSecret.value) || '';
+
+        if (!state.clientSecret) throw new Error('clientSecret tidak ditemukan dari backend.');
+
+        logDebug({ createRealtimeClientSecret: Object.assign({}, sessionData, { value: '[hidden]', clientSecret: { value: '[hidden]', expires_at: sessionData.expiresAt } }) });
+        renderSelectedQuestions(sessionData);
+
+        setStatus('Connecting to OpenAI Realtime...', 'warn');
+        await connectRealtime();
+
+        state.startedAt = new Date();
+        state.endedAt = null;
+        state.connected = true;
+        state.openingSent = false;
+        state.assistantTurns = 0;
+        state.userTurns = 0;
+        initInterviewController(sessionData);
+        el('orb').classList.add('live');
+        setButtons('live');
+        startTimer();
+
+        setStatus('Connected. Yuliana is starting...', 'ok');
+      } catch (err) {
+        handleError(err);
+        await stopVoice(false);
+      }
+    }
+
+    async function connectRealtime() {
+      const pc = new RTCPeerConnection();
+      state.pc = pc;
+
+      const remoteAudio = el('remoteAudio');
+      remoteAudio.autoplay = true;
+      remoteAudio.playsInline = true;
+
+      pc.ontrack = (event) => {
+        remoteAudio.srcObject = event.streams[0];
+        remoteAudio.play().catch((err) => logDebug('remoteAudio.play warning: ' + err.message));
+      };
+
+      state.localStream.getTracks().forEach((track) => pc.addTrack(track, state.localStream));
+
+      const dc = pc.createDataChannel('oai-events');
+      state.dc = dc;
+
+      dc.addEventListener('open', async () => {
+        logDebug('Data channel opened. Waiting 1000ms before initial response.');
+        setStatus('Yuliana is preparing opening...', 'warn');
+        await sleep(1000);
+        sendInitialResponse();
+      });
+
+      dc.addEventListener('message', (event) => {
+        handleRealtimeEvent(event.data);
+      });
+
+      dc.addEventListener('close', () => {
+        logDebug('Data channel closed.');
+      });
+
+      dc.addEventListener('error', (event) => {
+        logDebug('Data channel error: ' + JSON.stringify(event));
+      });
+
+      pc.onconnectionstatechange = () => {
+        logDebug('Peer connection state: ' + pc.connectionState);
+        if (pc.connectionState === 'connected') setStatus('Voice connected. Wait for Yuliana.', 'ok');
+        if (pc.connectionState === 'failed') setStatus('Connection failed.', 'err');
+        if (pc.connectionState === 'disconnected') setStatus('Voice disconnected.', 'warn');
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpResponse = await fetch(OPENAI_REALTIME_SDP_URL, {
+        method: 'POST',
+        body: offer.sdp,
+        headers: {
+          Authorization: 'Bearer ' + state.clientSecret,
+          'Content-Type': 'application/sdp'
+        }
+      });
+
+      const answerSdp = await sdpResponse.text();
+      if (!sdpResponse.ok) {
+        throw new Error('OpenAI Realtime SDP failed: HTTP ' + sdpResponse.status + ' - ' + answerSdp.slice(0, 1000));
+      }
+
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+    }
+
+    function sendInitialResponse() {
+      if (!state.dc || state.dc.readyState !== 'open') return;
+      if (state.openingSent) return;
+      state.openingSent = true;
+
+      const meta = state.sessionMeta || {};
+      const opening = meta.openingScript || 'Good day. My name is Yuliana from the crewing department. I will ask you several interview questions. Please answer in English as clearly as you can.';
+      const first = meta.firstQuestionScript || 'Please introduce yourself briefly.';
+
+      const event = {
+        type: 'response.create',
+        response: {
+          output_modalities: ['audio'],
+          instructions: 'Start the interview now. Speak English only. Say this opening exactly: "' + opening + '" Then ask this first question: "' + first + '" Do not add extra coaching. Do not switch language even if the candidate greets in another language.'
+        }
+      };
+
+      state.awaitingAssistant = true;
+      state.dc.send(JSON.stringify(event));
+      const q1 = getCurrentQuestion();
+      if (q1) {
+        rememberAskedQuestion(q1);
+        state.controller.lastPlannedQuestionText = q1.mainQuestion || first;
+        state.controller.lastPlannedQuestionType = q1.questionType || 'Introduction';
+      }
+      setStatus('Yuliana is speaking...', 'ok');
+      logDebug({ sentInitialResponse: event });
+    }
+
+    function handleRealtimeEvent(raw) {
+      let event;
+      try {
+        event = JSON.parse(raw);
+      } catch (err) {
+        logDebug('Non-JSON event: ' + raw);
+        return;
+      }
+
+      const type = event.type || '';
+
+      if (type === 'error') {
+        state.awaitingAssistant = false;
+        logDebug({ realtimeError: event });
+        const errMsg = (event.error && (event.error.message || event.error.code || event.error.type))
+          ? (event.error.message || event.error.code || event.error.type)
+          : 'Realtime error. Check debug.';
+        setStatus('Realtime error: ' + String(errMsg).slice(0, 140), 'err');
+        return;
+      }
+
+      if (type === 'input_audio_buffer.speech_started') {
+        setStatus('Listening...', 'ok');
+      }
+
+      if (type === 'input_audio_buffer.speech_stopped') {
+        setStatus('Processing answer...', 'warn');
+      }
+
+      if (type === 'conversation.item.input_audio_transcription.completed') {
+        const text = (event.transcript || '').trim();
+        if (text) {
+          addTranscript('user', text, type);
+          state.userTurns += 1;
+          state.controller.lastUserText = text;
+          setStatus('Yuliana is responding...', 'warn');
+          if (state.controller.enabled && state.openingSent) {
+            window.setTimeout(() => sendControlledInterviewerResponse(text), 120);
+          }
+        }
+      }
+
+      if (
+        type === 'response.output_audio_transcript.done' ||
+        type === 'response.audio_transcript.done' ||
+        type === 'response.output_text.done'
+      ) {
+        const text = (event.transcript || event.text || '').trim();
+        if (text) {
+          addTranscript('assistant', text, type);
+          state.controller.lastAssistantText = text;
+          state.lastAssistantAt = Date.now();
+          state.assistantTurns += 1;
+          if (state.assistantTurns === 1) setStatus('Your turn. Please answer now.', 'ok');
+          else setStatus('Your turn.', 'ok');
+        }
+      }
+
+      if (type === 'response.done') {
+        state.awaitingAssistant = false;
+        if (state.openingSent && state.assistantTurns === 0) {
+          setStatus('Yuliana finished speaking. Your turn.', 'ok');
+        }
+        if (state.pendingUserText && state.controller.enabled) {
+          const pendingText = state.pendingUserText;
+          state.pendingUserText = '';
+          window.setTimeout(() => sendControlledInterviewerResponse(pendingText), 250);
+        }
+      }
+
+      // Keep debug readable: log only key lifecycle events, not all deltas.
+      if (!type.includes('delta')) {
+        logDebug({ realtimeEvent: type });
+      }
+    }
+
+
+    /**********************************************************************
+     * Trial 6.3 Frontend State Controller
+     * Server VAD in Code.gs should use create_response:false.
+     * This client now decides when to ask follow-up, move next, or use backup.
+     **********************************************************************/
+    function initInterviewController(sessionData) {
+      state.controller = {
+        enabled: true,
+        currentQuestionIndex: 0,
+        followUpsByIndex: {},
+        secondFollowUpsUsed: 0,
+        answeredTopics: [],
+        askedQuestionTexts: [],
+        backupQuestionIndex: 0,
+        timeStage: 'normal',
+        lastUserText: '',
+        lastAssistantText: '',
+        lastPlannedQuestionText: '',
+        lastPlannedQuestionType: ''
+      };
+      updateControllerTimeStage();
+      logDebug({ controller: 'initialized', selectedQuestionIds: sessionData.selectedQuestionIds });
+    }
+
+    function updateControllerTimeStage() {
+      const c = state.controller || {};
+      if (!c) return;
+      const prev = c.timeStage;
+      if (state.remainingSeconds <= 0) c.timeStage = 'ended';
+      else if (state.remainingSeconds <= 60) c.timeStage = 'one_minute_left';
+      else if (state.remainingSeconds <= 180) c.timeStage = 'three_minutes_left';
+      else c.timeStage = 'normal';
+      if (prev !== c.timeStage && state.connected) logDebug({ timerCue: c.timeStage, remainingSeconds: state.remainingSeconds });
+    }
+
+    function getSelectedQuestionsArray() {
+      return (state.sessionMeta && Array.isArray(state.sessionMeta.selectedQuestions)) ? state.sessionMeta.selectedQuestions : [];
+    }
+
+    function getCurrentQuestion() {
+      const qs = getSelectedQuestionsArray();
+      return qs[state.controller.currentQuestionIndex] || null;
+    }
+
+    function getNextQuestion() {
+      const qs = getSelectedQuestionsArray();
+      const idx = Math.min(state.controller.currentQuestionIndex + 1, qs.length - 1);
+      return qs[idx] || null;
+    }
+
+    function rememberAskedQuestion(q) {
+      if (!q) return;
+      const txt = (q.mainQuestion || '').trim();
+      if (txt && !state.controller.askedQuestionTexts.includes(txt)) state.controller.askedQuestionTexts.push(txt);
+    }
+
+    function normalizeUserText(t) {
+      return String(t || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function canonicalQuestionText(t) {
+      return normalizeUserText(t).replace(/\b(the|a|an|please|could|can|you|your)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    function questionAlreadyAsked(text) {
+      const target = canonicalQuestionText(text);
+      if (!target) return false;
+      return state.controller.askedQuestionTexts.some((q) => canonicalQuestionText(q) === target);
+    }
+
+    function userAsksToEndOrFeedback(text) {
+      const t = normalizeUserText(text);
+      return /\b(feedback|give me feedback|can i get feedback|get feedback|end interview|finish interview|finish this interview|stop session|end session|i am done|i m done|done now)\b/.test(t);
+    }
+
+    function userWantsContinue(text) {
+      const t = normalizeUserText(text);
+      return /\b(please continue|continue please|continue|still have time|we still have time|another question|next question|go on|lanjut)\b/.test(t) || /^not yet$/.test(t) || /^not yet continue$/.test(t);
+    }
+
+    function userIsConfused(text) {
+      const t = normalizeUserText(text);
+      return /\b(i don t understand|i did not understand|i cannot understand|not understand|say it again|can you repeat|please repeat|repeat the question|what do you mean|pardon|i don t hear|i didn t hear|i cannot hear|can t hear|cannot hear|did not hear|dont hear|don t hear)\b/.test(t)
+        || /\bsorry\b.*\b(repeat|understand|pardon|hear)\b/.test(t);
+    }
+
+    function userSaysAlreadyAnswered(text) {
+      const t = normalizeUserText(text);
+      return /\b(already answered|already said|you already asked|i said it before|i told you|several times|like i mentioned before|as i mentioned before)\b/.test(t);
+    }
+
+    function wordCount(text) {
+      const t = normalizeUserText(text);
+      if (!t) return 0;
+      return t.split(' ').filter(Boolean).length;
+    }
+
+    function isShortGreetingOrNoise(text) {
+      const raw = String(text || '').trim().toLowerCase();
+      const t = normalizeUserText(text);
+      if (!t && raw.length <= 6) return true;
+      if (/^(hi|hello|hallo|halo|hey|good morning|morning|good afternoon|good evening|ok|okay|yes|ya|a|uh|um|hmm)$/i.test(t)) return true;
+      if (wordCount(text) <= 2 && /\b(hello|hallo|halo|hi|hey)\b/.test(t)) return true;
+      return false;
+    }
+
+    function isCriticalQuestion(q) {
+      const type = String(q && q.questionType || '').toLowerCase();
+      return /(availability|certificate|document|vessel|experience|safety|emergency|watchkeeping|technical|previous company|sea experience)/.test(type);
+    }
+
+    function hasConcreteAnswer(userText, q) {
+      const t = normalizeUserText(userText);
+      const wc = wordCount(userText);
+      const type = String(q && q.questionType || '').toLowerCase();
+      if (!q || wc <= 2) return false;
+
+      if (type.includes('introduction')) {
+        return wc >= 14 && /(name|from|rank|officer|engineer|sea time|years|vessel|bulk|tanker|container|cargo|offshore|tug|dredg|lng|lpg)/.test(t);
+      }
+
+      if (type.includes('availability')) {
+        if (/\b(maybe|not sure|i think|not ready|need more time|later)\b/.test(t)) return false;
+        return /(ready|available|can|able|sign on|join|within|week|weeks|day|days|tomorrow|next month|next two weeks|two weeks|seven days|asap|immediately|after)/.test(t);
+      }
+
+      if (type.includes('certificate')) {
+        return /(valid|expired|expire|medical|check up|coc|cop|seaman|book|yellow|fever|passport|visa|ready|not ready|still valid|except)/.test(t);
+      }
+
+      if (type.includes('vessel')) {
+        return /(bulk|tanker|container|cargo|offshore|tug|dredg|lng|lpg|chemical|general|carrier|dwt|grt|flag|trading|worldwide|asia|africa|europe|middle east|pacific|atlantic|mol|principal|company)/.test(t) || /\b\d{2,6}\b/.test(t);
+      }
+
+      if (type.includes('safety')) {
+        return /(safety|handover|checklist|procedure|ppe|muster|lsa|fifa|fire|alarm|permit|risk|toolbox|company procedure|sms|emergency)/.test(t) && wc >= 6;
+      }
+
+      if (type.includes('previous company')) {
+        return /(company|principal|contract|month|months|year|years|finished|complete|completed|mol|nyk|k line|msc|maersk)/.test(t) || /\b\d{1,2}\b/.test(t);
+      }
+
+      if (type.includes('vetting')) {
+        return /(yes|no|never|sire|cdi|rightship|inspection|vetting|tanker|not tanker|no experience|observation|finding)/.test(t);
+      }
+
+      if (type.includes('sea experience')) {
+        return /(month|months|year|years|contract|sign off|completed|finish|finished|early|leave|leaving)/.test(t) || /\b\d{1,2}\b/.test(t);
+      }
+
+      if (type.includes('backup')) {
+        return wc >= 8;
+      }
+
+      return wc >= 10;
+    }
+
+    function getSmartFollowUp(userText, q) {
+      const t = normalizeUserText(userText);
+      const type = String(q && q.questionType || '').toLowerCase();
+
+      if (type.includes('certificate') && /(medical|check up|mcu)/.test(t) && /(except|not ready|expired|expire|only)/.test(t)) {
+        return 'When can you complete your medical check-up?';
+      }
+
+      if (type.includes('availability') && /\b(maybe|not sure|i think|need more time|not ready)\b/.test(t)) {
+        return 'Can you give me a clear estimate — are you ready within two weeks or later?';
+      }
+
+      if (type.includes('introduction') && !/(year|years|sea time|vessel|bulk|tanker|container|cargo|offshore|tug|dredg)/.test(t)) {
+        return 'Can you add your total sea time and vessel background?';
+      }
+
+      if (type.includes('safety') && wordCount(userText) < 8) {
+        return 'Why do you check that first?';
+      }
+
+      return ((q && (q.followUpIfWeakAnswer || q.followUpIfStrongAnswer)) || '').trim();
+    }
+
+    function shouldAskFollowUp(userText, q) {
+      const idx = state.controller.currentQuestionIndex;
+      const used = state.controller.followUpsByIndex[idx] || 0;
+      if (!q) return false;
+      if (userIsConfused(userText) || userSaysAlreadyAnswered(userText) || userWantsContinue(userText)) return false;
+      if (isShortGreetingOrNoise(userText)) return false;
+      if (used >= 1) return false;
+
+      const t = normalizeUserText(userText);
+      const wc = wordCount(userText);
+      const type = String(q.questionType || '').toLowerCase();
+
+      // Ask targeted follow-up only when the answer exposes a real crewing concern.
+      if (type.includes('certificate') && /(medical|check up|mcu)/.test(t) && /(except|not ready|expired|expire|only)/.test(t)) return true;
+      if (type.includes('availability') && /\b(maybe|not sure|i think|need more time|not ready)\b/.test(t)) return true;
+
+      if (hasConcreteAnswer(userText, q)) return false;
+
+      const vague = wc <= 6 || /\b(maybe|not sure|i think|yes|no|okay|correct|because safety|important)\b/.test(t);
+      return vague && isCriticalQuestion(q);
+    }
+
+    function advanceToNextQuestion() {
+      const qs = getSelectedQuestionsArray();
+      if (state.controller.currentQuestionIndex < qs.length - 1) {
+        state.controller.currentQuestionIndex += 1;
+        return qs[state.controller.currentQuestionIndex];
+      }
+      return null;
+    }
+
+    function getBackupQuestion() {
+      const category = (el('category').value || '').toLowerCase();
+      const mode = (el('mode').value || '').toLowerCase();
+      const deckHr = [
+        'Have you ever worked with mixed nationality crew? How did you communicate with them?',
+        'Tell me about one difficult situation you faced onboard and how you handled it.',
+        'What do you usually prepare before joining a new vessel?',
+        'How do you report a problem to the Master during your watch?',
+        'As a 3rd Officer, what duty are you most confident with?',
+        'Tell me about your last contract. Was it completed as planned?'
+      ];
+      const engHr = [
+        'Tell me about your last engine room experience.',
+        'What machinery are you most confident to handle?',
+        'How do you report an engine room problem to the Second Engineer or Chief Engineer?',
+        'Have you worked with mixed nationality crew in the engine room?',
+        'What do you usually prepare before joining a new vessel?'
+      ];
+      const techDeck = [
+        'Describe a normal bridge watch handover.',
+        'When would you call the Master to the bridge?',
+        'How do you check safety equipment after joining?',
+        'Tell me one navigation risk you experienced and how you handled it.'
+      ];
+      const techEng = [
+        'Describe a normal engine room watch handover.',
+        'What would you do if you saw an abnormal alarm during watch?',
+        'How do you report a machinery problem to your senior engineer?',
+        'What safety checks do you do before maintenance work?'
+      ];
+      let pool = deckHr;
+      if (category.includes('engineer') && mode.includes('hr')) pool = engHr;
+      else if (category.includes('engineer') && mode.includes('technical')) pool = techEng;
+      else if (mode.includes('technical')) pool = techDeck;
+
+      for (let i = 0; i < pool.length; i++) {
+        const candidate = pool[state.controller.backupQuestionIndex % pool.length];
+        state.controller.backupQuestionIndex += 1;
+        if (!questionAlreadyAsked(candidate)) return candidate;
+      }
+      return 'Briefly tell me one thing you want to improve before your next contract.';
+    }
+
+    function makePlannedQuestionObject(text, type = 'Backup') {
+      return { mainQuestion: text, questionType: type };
+    }
+
+    function buildControllerInstruction(userText) {
+      const currentQ = getCurrentQuestion();
+      const idx = state.controller.currentQuestionIndex;
+      const followUpsUsed = state.controller.followUpsByIndex[idx] || 0;
+      const timeCue = state.controller.timeStage;
+      const askedList = state.controller.askedQuestionTexts.slice(-12).map((q, i) => (i + 1) + '. ' + q).join('\n');
+
+      if (timeCue === 'ended') {
+        return 'The timer has ended. Reply briefly in English: "The interview time has ended. Please click End Interview & Get Feedback on the screen." Do not ask another question.';
+      }
+
+      if (userAsksToEndOrFeedback(userText)) {
+        return 'The candidate is asking to end or receive feedback. Reply briefly in English: "Alright. Please click End Interview & Get Feedback on the screen." Do not ask another question.';
+      }
+
+      let action = 'move_next';
+      let targetQuestion = null;
+      let followupText = '';
+      let directInstruction = '';
+
+      if (isShortGreetingOrNoise(userText)) {
+        action = 'redirect_after_noise';
+        const lastQ = state.controller.lastPlannedQuestionText || (currentQ && currentQ.mainQuestion) || 'Please continue your answer.';
+        targetQuestion = makePlannedQuestionObject(lastQ, state.controller.lastPlannedQuestionType || 'Current');
+        directInstruction = 'The candidate only gave a greeting/noise/check-in. Do not change language. Briefly say you are listening, then ask the last question again in English: "' + lastQ.replace(/"/g, "'") + '"';
+      } else if (userSaysAlreadyAnswered(userText)) {
+        action = 'move_next_already_answered';
+        targetQuestion = advanceToNextQuestion() || makePlannedQuestionObject(getBackupQuestion());
+      } else if (userWantsContinue(userText)) {
+        action = 'continue_new_question';
+        targetQuestion = advanceToNextQuestion() || makePlannedQuestionObject(getBackupQuestion());
+      } else if (userIsConfused(userText)) {
+        action = 'simplify_current';
+        const lastQ = state.controller.lastPlannedQuestionText || (currentQ && currentQ.mainQuestion) || 'Please continue your answer.';
+        targetQuestion = makePlannedQuestionObject(lastQ, state.controller.lastPlannedQuestionType || 'Current');
+      } else if (shouldAskFollowUp(userText, currentQ)) {
+        action = 'ask_followup';
+        state.controller.followUpsByIndex[idx] = followUpsUsed + 1;
+        followupText = getSmartFollowUp(userText, currentQ);
+        targetQuestion = currentQ;
+      } else {
+        action = 'move_next';
+        targetQuestion = advanceToNextQuestion() || makePlannedQuestionObject(getBackupQuestion());
+      }
+
+      const qText = targetQuestion && targetQuestion.mainQuestion ? targetQuestion.mainQuestion : getBackupQuestion();
+
+      if (action !== 'ask_followup' && targetQuestion && targetQuestion.mainQuestion) rememberAskedQuestion(targetQuestion);
+      if (action === 'ask_followup' && followupText) {
+        state.controller.lastPlannedQuestionText = followupText;
+        state.controller.lastPlannedQuestionType = (targetQuestion && targetQuestion.questionType) || 'Follow-up';
+      } else if (qText) {
+        state.controller.lastPlannedQuestionText = qText;
+        state.controller.lastPlannedQuestionType = (targetQuestion && targetQuestion.questionType) || 'Backup';
+      }
+
+      const stageLine = timeCue === 'one_minute_left'
+        ? 'Time cue: about one minute left. Ask one short question only. Do not announce ending unless user asks.'
+        : timeCue === 'three_minutes_left'
+          ? 'Time cue: there is still time. Continue naturally with unrepeated questions. Do not close.'
+          : 'Time cue: continue normal interview flow.';
+
+      let nextActionLine = '- Ask this question in English: "' + qText.replace(/"/g, "'") + '"';
+      if (action === 'ask_followup') nextActionLine = '- Ask this exact follow-up in English: "' + (followupText || qText).replace(/"/g, "'") + '"';
+      if (action === 'simplify_current') nextActionLine = '- Rephrase this same question in shorter English: "' + qText.replace(/"/g, "'") + '"';
+      if (action === 'redirect_after_noise') nextActionLine = '- ' + directInstruction;
+
+      return [
+        'TRIAL 6.3 V3 FRONTEND STATE INSTRUCTION',
+        stageLine,
+        'Latest candidate answer: "' + userText.replace(/"/g, "'").slice(0, 600) + '"',
+        'Current action: ' + action,
+        'Current/planned topic: ' + ((targetQuestion && targetQuestion.questionType) || 'Backup'),
+        'Already asked question texts, do not repeat exactly:',
+        askedList || '(none)',
+        '',
+        'Your next response requirements:',
+        '- Speak as Yuliana, senior maritime crewing interviewer.',
+        '- Speak English only. Never switch to German, Korean, Indonesian, or any other language during the voice interview.',
+        '- If the candidate uses a non-English greeting or noisy transcript, stay in English and redirect to the interview question.',
+        '- Keep it short, natural, and professional.',
+        '- Never mention feedback, ending, scoring, or completion unless candidate asks.',
+        '- Do not repeat a question already answered.',
+        '- Use at most one short transition.',
+        '- Do not overuse Thank you, Understood, Good, Great, or Take your time.',
+        '- Do not coach, lecture, or give medical/legal advice during the voice interview.',
+        nextActionLine,
+        '- Ask only one question.'
+      ].filter(Boolean).join('\n');
+    }
+
+    function sendControlledInterviewerResponse(userText) {
+      if (!state.dc || state.dc.readyState !== 'open') return;
+      if (!state.controller.enabled) {
+        logDebug('Controller blocked: controller disabled.');
+        return;
+      }
+      const msSinceAssistant = state.lastAssistantAt ? Date.now() - state.lastAssistantAt : 999999;
+      if (isShortGreetingOrNoise(userText) && msSinceAssistant < 5000) {
+        logDebug('Controller ignored short greeting/noise right after assistant speech: ' + userText);
+        return;
+      }
+      if (state.awaitingAssistant) {
+        if (isShortGreetingOrNoise(userText)) {
+          logDebug('Controller ignored short greeting/noise while assistant response is pending: ' + userText);
+          return;
+        }
+        state.pendingUserText = userText;
+        logDebug('Controller queued latest user answer while assistant response is pending.');
+        return;
+      }
+      const instructions = buildControllerInstruction(userText);
+      const event = {
+        type: 'response.create',
+        response: {
+          output_modalities: ['audio'],
+          instructions
+        }
+      };
+      state.awaitingAssistant = true;
+      state.dc.send(JSON.stringify(event));
+      logDebug({ controllerResponseCreate: instructions.slice(0, 1200) });
+    }
+
+    function addTranscript(role, text, eventType) {
+      const item = {
+        role,
+        text,
+        eventType,
+        time: new Date().toISOString()
+      };
+      state.transcript.push(item);
+      renderTranscript();
+    }
+
+    function renderTranscript() {
+      const box = el('transcriptBox');
+      if (!state.transcript.length) {
+        box.textContent = 'Belum ada transcript.';
+        return;
+      }
+      box.innerHTML = state.transcript.map((item) => {
+        const roleLabel = item.role === 'assistant' ? 'AI Interviewer' : 'User';
+        const roleClass = item.role === 'assistant' ? 'assistant' : 'user';
+        return `<div class="transcript-item"><span class="role ${roleClass}">${escapeHtml(roleLabel)}</span><br>${escapeHtml(item.text)}</div>`;
+      }).join('');
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function transcriptText() {
+      return state.transcript.map((item) => {
+        const role = item.role === 'assistant' ? 'AI INTERVIEWER' : 'USER';
+        return '[' + role + '] ' + item.text;
+      }).join('\n\n');
+    }
+
+    async function stopVoice(markStopped = true) {
+      try {
+        stopTimer();
+        state.endedAt = state.endedAt || new Date();
+
+        if (state.dc && state.dc.readyState === 'open') {
+          try { state.dc.close(); } catch (e) {}
+        }
+        state.dc = null;
+
+        if (state.pc) {
+          try { state.pc.getSenders().forEach((sender) => sender.track && sender.track.stop()); } catch (e) {}
+          try { state.pc.close(); } catch (e) {}
+        }
+        state.pc = null;
+
+        if (state.localStream) {
+          state.localStream.getTracks().forEach((track) => track.stop());
+        }
+        state.localStream = null;
+
+        el('orb').classList.remove('live');
+        state.connected = false;
+        if (markStopped) {
+          setButtons('stopped');
+          setStatus('Voice stopped. You can get feedback now.', 'warn');
+        }
+      } catch (err) {
+        handleError(err);
+      }
+    }
+
+    async function endInterviewAndGetFeedback() {
+      try {
+        if (!state.sessionId) throw new Error('No sessionId. Start interview first.');
+        setButtons('busy');
+        setStatus('Stopping voice...', 'warn');
+        await stopVoice(false);
+
+        setStatus('Saving transcript to Google Sheets...', 'warn');
+        await saveTranscriptViaHiddenForm();
+        await waitForTranscriptSaved();
+
+        setStatus('Generating written feedback...', 'warn');
+        const feedbackData = await jsonp('feedback', { sessionId: state.sessionId });
+        state.feedback = feedbackData.feedback || '';
+        el('feedbackBox').textContent = state.feedback || 'Feedback kosong.';
+        logDebug({ feedbackResult: Object.assign({}, feedbackData, { feedback: '[hidden in debug]' }) });
+
+        const cached = feedbackData.feedbackCached ? 'cached' : 'new';
+        setStatus('Feedback ready (' + cached + ').', 'ok');
+        setButtons('stopped');
+      } catch (err) {
+        handleError(err);
+        setButtons('stopped');
+      }
+    }
+
+    async function waitForTranscriptSaved() {
+      if (!state.sessionId) return false;
+      for (let i = 0; i < 7; i++) {
+        await sleep(700);
+        try {
+          const data = await jsonp('getSession', { sessionId: state.sessionId });
+          const session = data.session || {};
+          const savedText = String(session.transcriptText || '').trim();
+          const savedItems = parseInt(session.transcriptItems || '0', 10) || 0;
+          if (savedText || savedItems > 0) {
+            logDebug('Transcript save confirmed in Google Sheets.');
+            return true;
+          }
+        } catch (err) {
+          logDebug('Transcript save confirmation attempt failed: ' + err.message);
+        }
+      }
+      logDebug('Transcript save was not confirmed before feedback request. Continuing, but feedback may fail if Apps Script is still writing.');
+      return false;
+    }
+
+    function saveTranscriptViaHiddenForm() {
+      return new Promise((resolve, reject) => {
+        if (!state.sessionId) return reject(new Error('No sessionId for saveTranscript.'));
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = WEB_APP_URL;
+        form.target = 'hiddenSaveFrame';
+        form.style.display = 'none';
+
+        const payload = {
+          action: 'saveTranscriptForm',
+          sessionId: state.sessionId,
+          transcriptJson: JSON.stringify(state.transcript),
+          transcriptText: transcriptText(),
+          totalItems: String(state.transcript.length),
+          startedAt: state.startedAt ? state.startedAt.toISOString() : '',
+          endedAt: state.endedAt ? state.endedAt.toISOString() : new Date().toISOString(),
+          duration: elapsedDurationLabel(),
+          notes: 'Saved from Trial 6.3 static HTML'
+        };
+
+        Object.keys(payload).forEach((key) => {
+          const input = document.createElement('textarea');
+          input.name = key;
+          input.value = payload[key];
+          form.appendChild(input);
+        });
+
+        let resolved = false;
+        const iframe = el('hiddenSaveFrame');
+        const done = () => {
+          if (resolved) return;
+          resolved = true;
+          cleanup();
+          logDebug('Transcript save form submitted.');
+          resolve(true);
+        };
+
+        function cleanup() {
+          iframe.removeEventListener('load', done);
+          if (form.parentNode) form.parentNode.removeChild(form);
+        }
+
+        iframe.addEventListener('load', done);
+        document.body.appendChild(form);
+        form.submit();
+
+        // Apps Script hidden form load can be inconsistent locally; fallback after 5000ms.
+        setTimeout(done, 5000);
+      });
+    }
+
+    function elapsedDurationLabel() {
+      if (!state.startedAt) return '';
+      const end = state.endedAt || new Date();
+      const seconds = Math.max(0, Math.round((end.getTime() - state.startedAt.getTime()) / 1000));
+      return formatTime(seconds);
+    }
+
+    function resetSessionUi(clearAll = true) {
+      if (clearAll) {
+        state.sessionId = '';
+        state.sessionMeta = null;
+        state.debugLog = [];
+      }
+      state.transcript = [];
+      state.feedback = '';
+      state.startedAt = null;
+      state.endedAt = null;
+      state.openingSent = false;
+      state.assistantTurns = 0;
+      state.userTurns = 0;
+      state.lastError = '';
+      state.pendingUserText = '';
+      el('feedbackBox').textContent = 'Belum ada feedback.';
+      renderTranscript();
+      const minutes = parseInt(el('durationMinutes').value || '7', 10);
+      state.remainingSeconds = minutes * 60;
+      updateTimerDisplay();
+      setStatus('Ready', '');
+      setButtons('ready');
+    }
+
+    function clearAll() {
+      stopVoice(false);
+      resetSessionUi(true);
+      el('debugBox').textContent = 'Waiting...';
+    }
+
+    function handleError(err) {
+      const message = err && err.message ? err.message : String(err);
+      state.lastError = message;
+      setStatus(message, 'err');
+      logDebug({ error: message, stack: err && err.stack ? err.stack : '' });
+      showConfigWarning(message);
+    }
+
+    function showConfigWarning(message) {
+      const box = el('configWarning');
+      box.style.display = 'block';
+      box.textContent = message;
+    }
+
+    function hideConfigWarning() {
+      const box = el('configWarning');
+      box.style.display = 'none';
+      box.textContent = '';
+    }
+
+    function copyText(text) {
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => setStatus('Copied.', 'ok')).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setStatus('Copied.', 'ok');
+      });
+    }
+
+    function downloadSessionJson() {
+      const data = {
+        exportedAt: new Date().toISOString(),
+        appVersion: 'trial-6.3-html-v3',
+        sessionId: state.sessionId,
+        duration: elapsedDurationLabel(),
+        totalItems: state.transcript.length,
+        feedbackGenerated: !!state.feedback,
+        sessionMeta: state.sessionMeta,
+        feedback: state.feedback,
+        transcript: state.transcript,
+        debugLog: state.debugLog || []
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dlp-ai-interview-trial6-3-v3-' + Date.now() + '.json';
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function checkBackendHealth() {
+      if (!isConfigured()) return;
+      try {
+        const data = await jsonp('health');
+        el('versionPill').textContent = 'Backend: ' + (data.appVersion || 'OK');
+        logDebug({ health: data });
+      } catch (err) {
+        el('versionPill').textContent = 'Backend: check failed';
+        logDebug('Health check failed: ' + err.message);
+      }
+    }
+
+    function init() {
+      updateRankOptions();
+      updateTimerDisplay();
+      setButtons('ready');
+
+      el('category').addEventListener('change', updateRankOptions);
+      el('durationMinutes').addEventListener('change', () => {
+        if (!state.connected) {
+          state.remainingSeconds = parseInt(el('durationMinutes').value || '7', 10) * 60;
+          updateTimerDisplay();
+        }
+      });
+      el('previewBtn').addEventListener('click', previewQuestions);
+      el('startBtn').addEventListener('click', startInterview);
+      el('stopBtn').addEventListener('click', () => stopVoice(true));
+      el('feedbackBtn').addEventListener('click', endInterviewAndGetFeedback);
+      el('copyTranscriptBtn').addEventListener('click', () => copyText(transcriptText()));
+      el('copyFeedbackBtn').addEventListener('click', () => copyText(state.feedback || el('feedbackBox').textContent));
+      el('downloadBtn').addEventListener('click', downloadSessionJson);
+      el('clearBtn').addEventListener('click', clearAll);
+
+      if (!isConfigured()) {
+        showConfigWarning('WEB_APP_URL belum diisi. Paste Web App URL Apps Script kamu di bagian atas JavaScript: const WEB_APP_URL = ...');
+        el('versionPill').textContent = 'Backend: URL not set';
+      } else {
+        hideConfigWarning();
+        checkBackendHealth();
+      }
+    }
+
+    window.addEventListener('beforeunload', () => {
+      try { stopVoice(false); } catch (e) {}
+    });
+
+    init();
+  </script>
+</body>
+</html>
