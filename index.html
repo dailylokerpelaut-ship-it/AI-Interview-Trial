@@ -239,7 +239,7 @@
           <div class="orb" id="orb">🎙️</div>
           <div class="timer" id="timer">07:00</div>
           <div class="status" id="status"><span class="dot" id="statusDot"></span><span id="statusText">Ready</span></div>
-          <p class="sub" style="margin:14px auto 0; max-width:420px;">Yuliana akan mulai dengan opening singkat, lalu bertanya seperti crewing interviewer.</p>
+          <p class="sub" style="margin:14px auto 0; max-width:420px;">Setelah koneksi siap, sapa Yuliana dulu. Contoh: “Good morning, Yuliana.” Yuliana baru akan merespons agar suara tidak saling nabrak.</p>
         </div>
       </section>
     </main>
@@ -256,7 +256,7 @@
             <button class="btn-soft" id="clearBtn" type="button">Clear</button>
           </div>
         </div>
-        <div class="box" id="transcriptBox">Belum ada transcript.</div>
+        <div class="box" id="transcriptBox">Belum ada transcript. Setelah klik Start dan status connected, sapa Yuliana dulu: “Good morning, Yuliana.”</div>
       </section>
 
       <section class="card panel">
@@ -292,7 +292,7 @@
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOlOt2ZxBC08RJnh0KNoKii29Myx8NJYu1TKfAc01T8TC2Eg_cKAJu-LTc_nPulCc/exec';
 
     const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-    const HTML_APP_VERSION = 'trial-6.2.2d-mobile-ready';
+    const HTML_APP_VERSION = 'trial-6.2.2e-mobile-ready';
 
     const el = (id) => document.getElementById(id);
 
@@ -315,7 +315,8 @@
       userTurns: 0,
       lastError: '',
       debugLog: [],
-      autoFeedbackStarted: false
+      autoFeedbackStarted: false,
+      candidateStarted: false
     };
 
     const deckRanks = [
@@ -515,13 +516,13 @@
         state.endedAt = null;
         state.connected = true;
         state.openingSent = false;
+        state.candidateStarted = false;
         state.assistantTurns = 0;
         state.userTurns = 0;
         el('orb').classList.add('live');
         setButtons('live');
-        startTimer();
-
-        setStatus('Connected. Yuliana is starting...', 'ok');
+        // Timer starts after the candidate speaks first, so the session does not feel rushed before greeting.
+        setStatus('Connected. Say hello to Yuliana when ready.', 'ok');
       } catch (err) {
         handleError(err);
         await stopVoice(false);
@@ -547,10 +548,8 @@
       state.dc = dc;
 
       dc.addEventListener('open', async () => {
-        logDebug('Data channel opened. Waiting 800ms before initial response. Subsequent turns are handled by server_vad create_response:true.');
-        setStatus('Yuliana is preparing opening...', 'warn');
-        await sleep(800);
-        sendInitialResponse();
+        logDebug('Data channel opened. Candidate-led opening enabled. No initial response.create will be sent. Server VAD create_response:true will respond after the candidate speaks.');
+        setStatus('Connected. Say hello to Yuliana when ready.', 'ok');
       });
 
       dc.addEventListener('message', (event) => handleRealtimeEvent(event.data));
@@ -631,6 +630,11 @@
       if (type === 'conversation.item.input_audio_transcription.completed') {
         const text = (event.transcript || '').trim();
         if (text) {
+          if (!state.candidateStarted) {
+            state.candidateStarted = true;
+            startTimer();
+            logDebug({ timerStarted: 'first_user_speech' });
+          }
           addTranscript('user', text, type);
           state.userTurns += 1;
           setStatus('Yuliana is responding...', 'warn');
@@ -664,7 +668,7 @@
     function renderTranscript() {
       const box = el('transcriptBox');
       if (!state.transcript.length) {
-        box.textContent = 'Belum ada transcript.';
+        box.textContent = 'Belum ada transcript. Setelah klik Start dan status connected, sapa Yuliana dulu: “Good morning, Yuliana.”';
         return;
       }
       box.innerHTML = state.transcript.map((item) => {
@@ -838,6 +842,7 @@
       state.startedAt = null;
       state.endedAt = null;
       state.openingSent = false;
+      state.candidateStarted = false;
       state.assistantTurns = 0;
       state.userTurns = 0;
       state.lastError = '';
@@ -907,7 +912,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'dlp-ai-interview-trial6-2-2d-' + Date.now() + '.json';
+      a.download = 'dlp-ai-interview-trial6-2-2e-' + Date.now() + '.json';
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
