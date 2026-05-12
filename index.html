@@ -292,7 +292,7 @@
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOlOt2ZxBC08RJnh0KNoKii29Myx8NJYu1TKfAc01T8TC2Eg_cKAJu-LTc_nPulCc/exec';
 
     const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-    const HTML_APP_VERSION = 'trial-6.2.2c-mobile-ready';
+    const HTML_APP_VERSION = 'trial-6.2.2d-mobile-ready';
 
     const el = (id) => document.getElementById(id);
 
@@ -314,7 +314,8 @@
       assistantTurns: 0,
       userTurns: 0,
       lastError: '',
-      debugLog: []
+      debugLog: [],
+      autoFeedbackStarted: false
     };
 
     const deckRanks = [
@@ -380,8 +381,8 @@
         if (state.remainingSeconds === 60) logDebug({ timerCue: 'one_minute_left' });
         if (state.remainingSeconds <= 0) {
           stopTimer();
-          setStatus('Time ended. Voice stopped. Tap Get Feedback.', 'warn');
-          stopVoice(true);
+          setStatus('Time ended. Preparing feedback...', 'warn');
+          autoEndInterviewAndGetFeedback();
         }
       }, 1000);
     }
@@ -709,8 +710,19 @@
       }
     }
 
-    async function endInterviewAndGetFeedback() {
+    async function autoEndInterviewAndGetFeedback() {
+      if (state.autoFeedbackStarted) return;
+      state.autoFeedbackStarted = true;
+      await endInterviewAndGetFeedback(true);
+    }
+
+    async function endInterviewAndGetFeedback(isAuto = false) {
       try {
+        if (state.autoFeedbackStarted && !isAuto) {
+          setStatus('Feedback is already being prepared...', 'warn');
+          return;
+        }
+        state.autoFeedbackStarted = true;
         if (!state.sessionId) throw new Error('No sessionId. Start interview first.');
         if (!state.transcript.length) throw new Error('Transcript masih kosong. Jalankan interview dulu.');
 
@@ -732,6 +744,7 @@
         setStatus('Feedback ready (' + cached + ').', 'ok');
         setButtons('stopped');
       } catch (err) {
+        state.autoFeedbackStarted = false;
         handleError(err);
         setButtons('stopped');
       }
@@ -894,7 +907,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'dlp-ai-interview-trial6-2-2c-' + Date.now() + '.json';
+      a.download = 'dlp-ai-interview-trial6-2-2d-' + Date.now() + '.json';
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
