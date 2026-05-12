@@ -2,23 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Daily Loker Pelaut - AI Interview Simulator Trial 6.3 Mobile Trial</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DLP AI Interview Simulator - Trial 6.2.2C</title>
   <style>
     :root {
-      --bg: #f4f7fb;
+      --bg: #f5f8fc;
       --card: #ffffff;
-      --text: #122033;
+      --text: #112033;
       --muted: #64748b;
-      --line: #dce4ef;
+      --line: #d8e2ee;
       --navy: #0f2a43;
       --blue: #1769aa;
       --blue2: #0d8bd8;
       --green: #15803d;
       --red: #b91c1c;
       --amber: #b45309;
-      --soft: #edf6ff;
-      --shadow: 0 18px 45px rgba(15, 42, 67, 0.10);
+      --soft: #eff6ff;
+      --shadow: 0 14px 36px rgba(15, 42, 67, 0.10);
       --radius: 20px;
     }
 
@@ -28,503 +28,141 @@
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(13, 139, 216, 0.14), transparent 34%),
-        linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+        radial-gradient(circle at top left, rgba(13, 139, 216, 0.12), transparent 34%),
+        linear-gradient(180deg, #f9fcff 0%, var(--bg) 100%);
       color: var(--text);
       min-height: 100vh;
     }
 
     .wrap {
-      width: min(1180px, calc(100% - 28px));
+      width: min(1120px, calc(100% - 24px));
       margin: 0 auto;
-      padding: 22px 0 54px;
+      padding: 18px 0 42px;
     }
 
     .topbar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 14px;
-      margin-bottom: 18px;
+      gap: 12px;
+      margin-bottom: 14px;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
 
     .brand-mark {
-      width: 42px;
-      height: 42px;
-      border-radius: 14px;
+      width: 42px; height: 42px; border-radius: 14px;
       background: linear-gradient(135deg, var(--navy), var(--blue2));
-      display: grid;
-      place-items: center;
-      color: white;
-      font-weight: 800;
-      box-shadow: var(--shadow);
+      color: white; display: grid; place-items: center;
+      font-weight: 900; box-shadow: var(--shadow); flex: 0 0 auto;
     }
 
-    .brand h1 {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.1;
-      letter-spacing: -0.01em;
-    }
-
-    .brand p {
-      margin: 4px 0 0;
-      color: var(--muted);
-      font-size: 13px;
-    }
+    .brand h1 { margin: 0; font-size: 18px; line-height: 1.15; letter-spacing: -0.02em; }
+    .brand p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 
     .pill {
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,0.72);
-      color: var(--muted);
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 13px;
-      white-space: nowrap;
+      border: 1px solid var(--line); background: rgba(255,255,255,0.78);
+      color: var(--muted); padding: 8px 12px; border-radius: 999px;
+      font-size: 12px; white-space: nowrap;
     }
 
-    .hero {
-      display: grid;
-      grid-template-columns: 1.02fr 0.98fr;
-      gap: 18px;
-      align-items: stretch;
+    .layout { display: grid; grid-template-columns: 1fr 0.92fr; gap: 16px; align-items: stretch; }
+    .card { background: rgba(255,255,255,0.94); border: 1px solid rgba(216,226,238,0.95); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .setup, .voice-card, .panel { padding: 20px; }
+    h2 { margin: 0 0 8px; font-size: 21px; letter-spacing: -0.03em; }
+    .sub { margin: 0 0 16px; color: var(--muted); line-height: 1.45; font-size: 14px; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .field label { display:block; margin: 0 0 7px; color:#334155; font-size:13px; font-weight:800; }
+    select, input {
+      width: 100%; border:1px solid var(--line); border-radius: 14px;
+      background:#fff; color: var(--text); padding: 12px 13px;
+      font: inherit; outline: none; min-height: 46px;
+    }
+    select:focus, input:focus { border-color: rgba(13,139,216,0.72); box-shadow: 0 0 0 4px rgba(13,139,216,0.12); }
+
+    .tip {
+      margin-top: 14px; border: 1px solid #bfdbfe; background: #eff6ff;
+      color: #1e3a5f; padding: 12px 13px; border-radius: 15px;
+      font-size: 13px; line-height: 1.45;
     }
 
-    .card {
-      background: rgba(255,255,255,0.92);
-      border: 1px solid rgba(220,228,239,0.92);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+    .warnbox {
+      margin-top: 14px; border: 1px solid #fde68a; background: #fffbeb;
+      color: #92400e; padding: 12px 13px; border-radius: 15px;
+      font-size: 13px; line-height: 1.45;
     }
 
-    .setup {
-      padding: 22px;
-    }
-
-    .setup h2, .panel h2 {
-      margin: 0 0 8px;
-      font-size: 22px;
-      letter-spacing: -0.03em;
-    }
-
-    .setup .sub, .panel .sub {
-      margin: 0 0 18px;
-      color: var(--muted);
-      line-height: 1.45;
-      font-size: 14px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .field label {
-      display: block;
-      margin: 0 0 7px;
-      color: #334155;
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    select, input, textarea {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: #fff;
-      color: var(--text);
-      padding: 12px 13px;
-      font: inherit;
-      outline: none;
-      transition: 0.18s ease;
-    }
-
-    select:focus, input:focus, textarea:focus {
-      border-color: rgba(13, 139, 216, 0.72);
-      box-shadow: 0 0 0 4px rgba(13, 139, 216, 0.12);
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
     button {
-      border: 0;
-      border-radius: 14px;
-      padding: 12px 15px;
-      font: inherit;
-      font-weight: 800;
-      cursor: pointer;
-      transition: transform 0.14s ease, opacity 0.14s ease, background 0.14s ease;
+      border: 0; border-radius: 14px; padding: 12px 15px;
+      font: inherit; font-weight: 900; cursor: pointer;
+      transition: transform 0.14s ease, opacity 0.14s ease;
+      min-height: 46px;
     }
-
     button:hover { transform: translateY(-1px); }
     button:disabled { opacity: 0.48; cursor: not-allowed; transform: none; }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--blue), var(--blue2));
-      color: white;
-    }
-
+    .btn-primary { background: linear-gradient(135deg, var(--blue), var(--blue2)); color: white; }
     .btn-dark { background: var(--navy); color: white; }
     .btn-soft { background: #edf2f7; color: #1e293b; }
     .btn-danger { background: #fee2e2; color: var(--red); }
     .btn-green { background: #dcfce7; color: var(--green); }
 
-    .voice-card {
-      padding: 22px;
-      display: grid;
-      place-items: center;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .voice-card::before {
-      content: "";
-      position: absolute;
-      inset: -70px -70px auto auto;
-      width: 220px;
-      height: 220px;
-      border-radius: 999px;
-      background: rgba(13,139,216,0.12);
-    }
-
+    .voice-card { display:grid; place-items:center; text-align:center; position:relative; overflow:hidden; min-height: 335px; }
+    .voice-card::before { content:""; position:absolute; inset:-70px -70px auto auto; width:220px; height:220px; border-radius:999px; background:rgba(13,139,216,0.12); }
+    .voice-inner { position: relative; z-index: 1; width: 100%; }
     .orb {
-      width: 138px;
-      height: 138px;
-      border-radius: 50%;
+      width: 134px; height: 134px; border-radius: 50%;
       background: radial-gradient(circle at 34% 28%, #7dd3fc, #0d8bd8 40%, #0f2a43 100%);
-      display: grid;
-      place-items: center;
-      color: white;
-      font-size: 44px;
-      box-shadow: 0 26px 70px rgba(13, 139, 216, 0.32);
-      margin: 8px auto 16px;
-      position: relative;
+      display:grid; place-items:center; color:white; font-size: 42px;
+      box-shadow: 0 24px 64px rgba(13,139,216,0.30);
+      margin: 6px auto 16px;
     }
-
     .orb.live { animation: pulse 1.7s ease-in-out infinite; }
-
     @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(13, 139, 216, 0.24), 0 26px 70px rgba(13, 139, 216, 0.32); }
-      50% { box-shadow: 0 0 0 18px rgba(13, 139, 216, 0.04), 0 26px 70px rgba(13, 139, 216, 0.32); }
+      0%, 100% { box-shadow: 0 0 0 0 rgba(13,139,216,0.24), 0 24px 64px rgba(13,139,216,0.30); }
+      50% { box-shadow: 0 0 0 18px rgba(13,139,216,0.04), 0 24px 64px rgba(13,139,216,0.30); }
     }
-
-    .timer {
-      font-size: 34px;
-      font-weight: 900;
-      letter-spacing: -0.04em;
-      margin: 4px 0;
-    }
-
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 999px;
-      padding: 8px 12px;
-      color: var(--muted);
-      font-size: 13px;
-      margin-top: 6px;
-      max-width: 100%;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #94a3b8;
-    }
-
+    .timer { font-size: 36px; font-weight: 950; letter-spacing: -0.04em; margin: 3px 0; }
+    .status { display:inline-flex; align-items:center; justify-content:center; gap:8px; border:1px solid var(--line); background:white; border-radius:999px; padding:8px 12px; color:var(--muted); font-size:13px; margin-top:6px; max-width:100%; }
+    .dot { width:8px; height:8px; border-radius:50%; background:#94a3b8; flex:0 0 auto; }
     .dot.ok { background: var(--green); }
     .dot.warn { background: var(--amber); }
     .dot.err { background: var(--red); }
 
-    .section-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-top: 18px;
-    }
-
-    .panel {
-      padding: 18px;
-    }
-
-    .panel-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .mini-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: end;
-    }
-
-    .mini-actions button {
-      padding: 8px 10px;
-      border-radius: 11px;
-      font-size: 12px;
-    }
-
-    .box {
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 16px;
-      padding: 14px;
-      min-height: 270px;
-      max-height: 430px;
-      overflow: auto;
-      white-space: pre-wrap;
-      line-height: 1.48;
-      font-size: 14px;
-    }
-
-    .transcript-item {
-      padding: 10px 0;
-      border-bottom: 1px dashed #e2e8f0;
-    }
-
-    .transcript-item:last-child { border-bottom: 0; }
-
-    .role {
-      display: inline-block;
-      font-weight: 900;
-      color: var(--navy);
-      margin-bottom: 3px;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-    }
-
+    .section-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .panel-head { display:flex; justify-content:space-between; align-items:start; gap:12px; margin-bottom:12px; }
+    .mini-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:end; }
+    .mini-actions button { padding: 8px 10px; border-radius: 11px; min-height: 36px; font-size: 12px; }
+    .box { border:1px solid var(--line); background:white; border-radius: 16px; padding: 14px; min-height: 250px; max-height: 430px; overflow:auto; white-space:pre-wrap; line-height: 1.48; font-size: 14px; }
+    .transcript-item { padding:10px 0; border-bottom:1px dashed #e2e8f0; }
+    .transcript-item:last-child { border-bottom:0; }
+    .role { display:inline-block; font-weight:900; color:var(--navy); margin-bottom:3px; font-size:12px; text-transform:uppercase; letter-spacing:0.06em; }
     .role.user { color: var(--blue); }
     .role.assistant { color: var(--green); }
 
-    .debug {
-      margin-top: 18px;
-      padding: 16px;
-    }
-
-    .debug summary {
-      cursor: pointer;
-      color: var(--muted);
-      font-weight: 800;
-    }
-
-    .debug pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: #0f172a;
-      color: #dbeafe;
-      padding: 14px;
-      border-radius: 14px;
-      max-height: 280px;
-      overflow: auto;
-      font-size: 12px;
-      line-height: 1.45;
-    }
-
-    .warnbox {
-      margin-top: 14px;
-      border: 1px solid #fde68a;
-      background: #fffbeb;
-      color: #92400e;
-      padding: 12px 13px;
-      border-radius: 14px;
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    .hidden-frame { display: none; }
-
-    audio { display: none; }
-
-
-    .mobile-tip {
-      display: none;
-      margin-top: 12px;
-      border: 1px solid #bfdbfe;
-      background: #eff6ff;
-      color: #1e3a8a;
-      padding: 12px 13px;
-      border-radius: 14px;
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    @media (max-width: 640px) {
-      body {
-        background: #f6f9fd;
-      }
-
-      .wrap {
-        width: min(100% - 18px, 520px);
-        padding: 12px 0 32px;
-      }
-
-      .topbar {
-        gap: 10px;
-        margin-bottom: 12px;
-      }
-
-      .brand {
-        align-items: start;
-      }
-
-      .brand-mark {
-        width: 38px;
-        height: 38px;
-        border-radius: 12px;
-        flex: 0 0 auto;
-      }
-
-      .brand h1 {
-        font-size: 16px;
-      }
-
-      .brand p {
-        font-size: 12px;
-      }
-
-      .pill {
-        width: 100%;
-        text-align: center;
-        padding: 7px 10px;
-        font-size: 12px;
-      }
-
-      .card {
-        border-radius: 16px;
-        box-shadow: 0 10px 28px rgba(15, 42, 67, 0.08);
-      }
-
-      .setup,
-      .voice-card,
-      .panel {
-        padding: 15px;
-      }
-
-      .setup h2,
-      .panel h2 {
-        font-size: 19px;
-      }
-
-      .setup .sub,
-      .panel .sub {
-        font-size: 13px;
-        margin-bottom: 14px;
-      }
-
-      select,
-      input,
-      textarea {
-        min-height: 46px;
-        font-size: 16px;
-        border-radius: 13px;
-      }
-
-      .actions {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 9px;
-      }
-
-      .actions button {
-        width: 100%;
-        min-height: 48px;
-        font-size: 15px;
-        border-radius: 13px;
-      }
-
-      .voice-card {
-        min-height: 255px;
-      }
-
-      .orb {
-        width: 104px;
-        height: 104px;
-        font-size: 32px;
-        margin-bottom: 12px;
-      }
-
-      .timer {
-        font-size: 34px;
-      }
-
-      .status {
-        width: 100%;
-        justify-content: center;
-        white-space: normal;
-        text-align: center;
-        line-height: 1.35;
-      }
-
-      .section-grid {
-        gap: 12px;
-        margin-top: 12px;
-      }
-
-      .panel-head {
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .mini-actions {
-        width: 100%;
-        justify-content: start;
-      }
-
-      .mini-actions button {
-        min-height: 38px;
-        flex: 1 1 auto;
-      }
-
-      .box {
-        min-height: 180px;
-        max-height: 300px;
-        font-size: 13px;
-        padding: 12px;
-        border-radius: 14px;
-      }
-
-      .mobile-tip { display: block; }
-
-      .debug {
-        margin-top: 12px;
-        padding: 13px;
-      }
-
-      .debug pre {
-        max-height: 180px;
-        font-size: 11px;
-      }
-    }
+    .debug { margin-top: 16px; padding: 14px 16px; }
+    .debug summary { cursor:pointer; color:var(--muted); font-weight:900; }
+    .debug pre { white-space:pre-wrap; word-break:break-word; background:#0f172a; color:#dbeafe; padding:14px; border-radius:14px; max-height:280px; overflow:auto; font-size:12px; line-height:1.45; }
+    audio { display:none; }
+    .hidden-frame { display:none; }
 
     @media (max-width: 920px) {
-      .hero, .section-grid { grid-template-columns: 1fr; }
-      .topbar { align-items: start; flex-direction: column; }
-      .grid { grid-template-columns: 1fr; }
-      .actions button { flex: 1 1 auto; }
-      .timer { font-size: 30px; }
-      .orb { width: 118px; height: 118px; font-size: 36px; }
+      .wrap { width: min(100% - 18px, 680px); padding: 12px 0 30px; }
+      .topbar { align-items:flex-start; flex-direction:column; margin-bottom: 10px; }
+      .layout, .section-grid, .grid { grid-template-columns: 1fr; }
+      .setup, .voice-card, .panel { padding: 16px; }
+      .voice-card { min-height: 280px; }
+      .orb { width: 112px; height: 112px; font-size: 34px; margin-top: 2px; }
+      .timer { font-size: 32px; }
+      .actions { display:grid; grid-template-columns: 1fr 1fr; }
+      .actions button { width:100%; }
+      #startBtn, #feedbackBtn { grid-column: 1 / -1; }
+      .box { min-height: 205px; max-height: 330px; font-size: 13px; }
+      .panel-head { flex-direction: column; }
+      .mini-actions { justify-content:flex-start; }
+      h2 { font-size: 20px; }
+      .brand h1 { font-size: 17px; }
     }
   </style>
 </head>
@@ -534,19 +172,17 @@
       <div class="brand">
         <div class="brand-mark">DLP</div>
         <div>
-          <h1>Daily Loker Pelaut - AI Interview Simulator</h1>
-          <p>Trial 6.3 Mobile Trial · Yuliana Voice Interview</p>
+          <h1>AI Speaking Interview Simulator</h1>
+          <p>Trial 6.2.2C · Yuliana Maritime Interview</p>
         </div>
       </div>
       <div class="pill" id="versionPill">Backend: not checked</div>
     </header>
 
-    <main class="hero">
+    <main class="layout">
       <section class="card setup">
         <h2>Interview Setup</h2>
-        <p class="sub">Pilih category, mode, dan rank. Gunakan earphone jika memungkinkan, lalu tunggu Yuliana bicara sebelum menjawab.</p>
-
-        <div class="mobile-tip">Tips: izinkan microphone, jangan tutup layar selama interview, dan klik Get Feedback setelah sesi selesai.</div>
+        <p class="sub">Pilih kategori, mode, rank, lalu mulai latihan speaking interview dalam Bahasa Inggris.</p>
 
         <div class="grid">
           <div class="field">
@@ -573,15 +209,19 @@
           <div class="field">
             <label for="durationMinutes">Duration</label>
             <select id="durationMinutes">
-              <option value="7">7 minutes</option>
               <option value="5">5 minutes</option>
+              <option value="7" selected>7 minutes</option>
             </select>
           </div>
 
           <div class="field" style="grid-column: 1 / -1;">
             <label for="vesselType">Vessel Type / Context (optional)</label>
-            <input id="vesselType" placeholder="Example: Bulk Carrier, Chemical Tanker, Container, Dredger" />
+            <input id="vesselType" placeholder="Example: Bulk Carrier, Chemical Tanker, Container, Tugboat" />
           </div>
+        </div>
+
+        <div class="tip">
+          Gunakan earphone jika ada. Izinkan microphone saat diminta. Setelah Yuliana selesai bicara, jawab dalam English sederhana seperti interview crewing sungguhan.
         </div>
 
         <div class="actions">
@@ -595,11 +235,11 @@
       </section>
 
       <section class="card voice-card">
-        <div>
+        <div class="voice-inner">
           <div class="orb" id="orb">🎙️</div>
           <div class="timer" id="timer">07:00</div>
           <div class="status" id="status"><span class="dot" id="statusDot"></span><span id="statusText">Ready</span></div>
-          <p class="sub" style="margin:14px auto 0; max-width: 420px;">Status voice akan muncul di sini. Saat Yuliana selesai bicara, jawab dalam English sejelas mungkin.</p>
+          <p class="sub" style="margin:14px auto 0; max-width:420px;">Yuliana akan mulai dengan opening singkat, lalu bertanya seperti crewing interviewer.</p>
         </div>
       </section>
     </main>
@@ -609,7 +249,7 @@
         <div class="panel-head">
           <div>
             <h2>Live Transcript</h2>
-            <p class="sub">Transcript dari user dan Yuliana akan muncul di sini.</p>
+            <p class="sub">Transcript user dan Yuliana akan muncul di sini.</p>
           </div>
           <div class="mini-actions">
             <button class="btn-soft" id="copyTranscriptBtn" type="button">Copy</button>
@@ -623,7 +263,7 @@
         <div class="panel-head">
           <div>
             <h2>Written Feedback</h2>
-            <p class="sub">Feedback muncul setelah transcript tersimpan ke Google Sheets.</p>
+            <p class="sub">Feedback muncul setelah sesi selesai dan transcript tersimpan.</p>
           </div>
           <div class="mini-actions">
             <button class="btn-soft" id="copyFeedbackBtn" type="button">Copy</button>
@@ -634,8 +274,8 @@
       </section>
     </section>
 
-    <details class="card debug">
-      <summary>Trial 6.3 Debug Info</summary>
+    <details class="card debug" id="debugDetails">
+      <summary>Debug Info</summary>
       <pre id="debugBox">Waiting...</pre>
     </details>
   </div>
@@ -652,6 +292,7 @@
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOlOt2ZxBC08RJnh0KNoKii29Myx8NJYu1TKfAc01T8TC2Eg_cKAJu-LTc_nPulCc/exec';
 
     const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
+    const HTML_APP_VERSION = 'trial-6.2.2c-mobile-ready';
 
     const el = (id) => document.getElementById(id);
 
@@ -673,24 +314,7 @@
       assistantTurns: 0,
       userTurns: 0,
       lastError: '',
-      awaitingAssistant: false,
-      pendingUserText: '',
-      lastAssistantAt: 0,
-      debugLog: [],
-      controller: {
-        enabled: true,
-        currentQuestionIndex: 0,
-        followUpsByIndex: {},
-        secondFollowUpsUsed: 0,
-        answeredTopics: [],
-        askedQuestionTexts: [],
-        backupQuestionIndex: 0,
-        timeStage: 'normal',
-        lastUserText: '',
-        lastAssistantText: '',
-        lastPlannedQuestionText: '',
-        lastPlannedQuestionType: ''
-      }
+      debugLog: []
     };
 
     const deckRanks = [
@@ -718,15 +342,12 @@
     }
 
     function logDebug(data) {
-      const box = el('debugBox');
       const line = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
       const stamped = '[' + new Date().toLocaleTimeString() + '] ' + line;
-      if (state && Array.isArray(state.debugLog)) {
-        state.debugLog.push(stamped);
-        if (state.debugLog.length > 300) state.debugLog = state.debugLog.slice(-300);
-      }
-      const current = box.textContent === 'Waiting...' ? '' : box.textContent + '\n';
-      box.textContent = (current + stamped).slice(-18000);
+      state.debugLog.push(stamped);
+      state.debugLog = state.debugLog.slice(-500);
+      const box = el('debugBox');
+      box.textContent = state.debugLog.join('\n');
       box.scrollTop = box.scrollHeight;
     }
 
@@ -755,17 +376,12 @@
       state.timerInterval = setInterval(() => {
         state.remainingSeconds -= 1;
         updateTimerDisplay();
-        updateControllerTimeStage();
+        if (state.remainingSeconds === 180) logDebug({ timerCue: 'three_minutes_left' });
+        if (state.remainingSeconds === 60) logDebug({ timerCue: 'one_minute_left' });
         if (state.remainingSeconds <= 0) {
-          state.remainingSeconds = 0;
-          updateTimerDisplay();
-          updateControllerTimeStage();
           stopTimer();
-          state.controller.enabled = false;
-          setStatus('Time ended. Stopping voice...', 'warn');
-          stopVoice(true).then(() => {
-            setStatus('Time ended. You can get feedback now.', 'warn');
-          });
+          setStatus('Time ended. Voice stopped. Tap Get Feedback.', 'warn');
+          stopVoice(true);
         }
       }, 1000);
     }
@@ -777,10 +393,11 @@
 
     function setButtons(stage) {
       const busy = stage === 'busy';
-      el('startBtn').disabled = busy || stage === 'live';
-      el('previewBtn').disabled = busy || stage === 'live';
-      el('stopBtn').disabled = !(stage === 'live');
-      el('feedbackBtn').disabled = !(stage === 'live' || stage === 'stopped' || state.transcript.length > 0);
+      const live = stage === 'live';
+      el('startBtn').disabled = busy || live;
+      el('previewBtn').disabled = busy || live;
+      el('stopBtn').disabled = !live;
+      el('feedbackBtn').disabled = !(live || stage === 'stopped' || state.transcript.length > 0);
     }
 
     function buildParams(extra = {}) {
@@ -798,7 +415,6 @@
       if (!isConfigured()) {
         return Promise.reject(new Error('WEB_APP_URL belum diisi di HTML. Paste Web App URL Apps Script dulu.'));
       }
-
       return new Promise((resolve, reject) => {
         const callbackName = '__dlpJsonp_' + Date.now() + '_' + Math.random().toString(16).slice(2);
         const url = new URL(WEB_APP_URL);
@@ -900,7 +516,6 @@
         state.openingSent = false;
         state.assistantTurns = 0;
         state.userTurns = 0;
-        initInterviewController(sessionData);
         el('orb').classList.add('live');
         setButtons('live');
         startTimer();
@@ -931,23 +546,15 @@
       state.dc = dc;
 
       dc.addEventListener('open', async () => {
-        logDebug('Data channel opened. Waiting 1000ms before initial response.');
+        logDebug('Data channel opened. Waiting 800ms before initial response. Subsequent turns are handled by server_vad create_response:true.');
         setStatus('Yuliana is preparing opening...', 'warn');
-        await sleep(1000);
+        await sleep(800);
         sendInitialResponse();
       });
 
-      dc.addEventListener('message', (event) => {
-        handleRealtimeEvent(event.data);
-      });
-
-      dc.addEventListener('close', () => {
-        logDebug('Data channel closed.');
-      });
-
-      dc.addEventListener('error', (event) => {
-        logDebug('Data channel error: ' + JSON.stringify(event));
-      });
+      dc.addEventListener('message', (event) => handleRealtimeEvent(event.data));
+      dc.addEventListener('close', () => logDebug('Data channel closed.'));
+      dc.addEventListener('error', (event) => logDebug('Data channel error: ' + JSON.stringify(event)));
 
       pc.onconnectionstatechange = () => {
         logDebug('Peer connection state: ' + pc.connectionState);
@@ -982,81 +589,57 @@
       state.openingSent = true;
 
       const meta = state.sessionMeta || {};
-      const opening = meta.openingScript || 'Good day. My name is Yuliana from the crewing department. I will ask you several interview questions. Please answer in English as clearly as you can.';
-      const first = meta.firstQuestionScript || 'Please introduce yourself briefly.';
+      const opening = meta.openingScript || 'Good day. My name is Yuliana. I am with the crewing department. We will do a short interview in English.';
+      const first = meta.firstQuestionScript || 'Please introduce yourself briefly. Your name, current rank, total sea time, and your last vessel.';
 
       const event = {
         type: 'response.create',
         response: {
           output_modalities: ['audio'],
-          instructions: 'Start the interview now. Speak English only. Say this opening exactly: "' + opening + '" Then ask this first question: "' + first + '" Do not add extra coaching. Do not switch language even if the candidate greets in another language.'
+          instructions: [
+            'Start the interview now.',
+            'Speak in English only.',
+            'Say this opening naturally: "' + opening.replace(/"/g, "'") + '"',
+            'Then ask this first question: "' + first.replace(/"/g, "'") + '"',
+            'Do not coach. Do not add examples. Ask only this opening and first question.'
+          ].join('\n')
         }
       };
 
-      state.awaitingAssistant = true;
       state.dc.send(JSON.stringify(event));
-      const q1 = getCurrentQuestion();
-      if (q1) {
-        rememberAskedQuestion(q1);
-        state.controller.lastPlannedQuestionText = q1.mainQuestion || first;
-        state.controller.lastPlannedQuestionType = q1.questionType || 'Introduction';
-      }
       setStatus('Yuliana is speaking...', 'ok');
       logDebug({ sentInitialResponse: event });
     }
 
     function handleRealtimeEvent(raw) {
       let event;
-      try {
-        event = JSON.parse(raw);
-      } catch (err) {
-        logDebug('Non-JSON event: ' + raw);
-        return;
-      }
+      try { event = JSON.parse(raw); }
+      catch (err) { logDebug('Non-JSON event: ' + raw); return; }
 
       const type = event.type || '';
 
       if (type === 'error') {
-        state.awaitingAssistant = false;
         logDebug({ realtimeError: event });
-        const errMsg = (event.error && (event.error.message || event.error.code || event.error.type))
-          ? (event.error.message || event.error.code || event.error.type)
-          : 'Realtime error. Check debug.';
-        setStatus('Realtime error: ' + String(errMsg).slice(0, 140), 'err');
+        setStatus('Realtime error. Check debug.', 'err');
         return;
       }
 
-      if (type === 'input_audio_buffer.speech_started') {
-        setStatus('Listening...', 'ok');
-      }
-
-      if (type === 'input_audio_buffer.speech_stopped') {
-        setStatus('Processing answer...', 'warn');
-      }
+      if (type === 'input_audio_buffer.speech_started') setStatus('Listening...', 'ok');
+      if (type === 'input_audio_buffer.speech_stopped') setStatus('Processing answer...', 'warn');
 
       if (type === 'conversation.item.input_audio_transcription.completed') {
         const text = (event.transcript || '').trim();
         if (text) {
           addTranscript('user', text, type);
           state.userTurns += 1;
-          state.controller.lastUserText = text;
           setStatus('Yuliana is responding...', 'warn');
-          if (state.controller.enabled && state.openingSent) {
-            window.setTimeout(() => sendControlledInterviewerResponse(text), 120);
-          }
         }
       }
 
-      if (
-        type === 'response.output_audio_transcript.done' ||
-        type === 'response.audio_transcript.done' ||
-        type === 'response.output_text.done'
-      ) {
+      if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done' || type === 'response.output_text.done') {
         const text = (event.transcript || event.text || '').trim();
         if (text) {
           addTranscript('assistant', text, type);
-          state.controller.lastAssistantText = text;
-          state.lastAssistantAt = Date.now();
           state.assistantTurns += 1;
           if (state.assistantTurns === 1) setStatus('Your turn. Please answer now.', 'ok');
           else setStatus('Your turn.', 'ok');
@@ -1064,418 +647,16 @@
       }
 
       if (type === 'response.done') {
-        state.awaitingAssistant = false;
         if (state.openingSent && state.assistantTurns === 0) {
           setStatus('Yuliana finished speaking. Your turn.', 'ok');
         }
-        if (state.pendingUserText && state.controller.enabled) {
-          const pendingText = state.pendingUserText;
-          state.pendingUserText = '';
-          window.setTimeout(() => sendControlledInterviewerResponse(pendingText), 250);
-        }
       }
 
-      // Keep debug readable: log only key lifecycle events, not all deltas.
-      if (!type.includes('delta')) {
-        logDebug({ realtimeEvent: type });
-      }
-    }
-
-
-    /**********************************************************************
-     * Trial 6.3 Frontend State Controller
-     * Server VAD in Code.gs should use create_response:false.
-     * This client now decides when to ask follow-up, move next, or use backup.
-     **********************************************************************/
-    function initInterviewController(sessionData) {
-      state.controller = {
-        enabled: true,
-        currentQuestionIndex: 0,
-        followUpsByIndex: {},
-        secondFollowUpsUsed: 0,
-        answeredTopics: [],
-        askedQuestionTexts: [],
-        backupQuestionIndex: 0,
-        timeStage: 'normal',
-        lastUserText: '',
-        lastAssistantText: '',
-        lastPlannedQuestionText: '',
-        lastPlannedQuestionType: ''
-      };
-      updateControllerTimeStage();
-      logDebug({ controller: 'initialized', selectedQuestionIds: sessionData.selectedQuestionIds });
-    }
-
-    function updateControllerTimeStage() {
-      const c = state.controller || {};
-      if (!c) return;
-      const prev = c.timeStage;
-      if (state.remainingSeconds <= 0) c.timeStage = 'ended';
-      else if (state.remainingSeconds <= 60) c.timeStage = 'one_minute_left';
-      else if (state.remainingSeconds <= 180) c.timeStage = 'three_minutes_left';
-      else c.timeStage = 'normal';
-      if (prev !== c.timeStage && state.connected) logDebug({ timerCue: c.timeStage, remainingSeconds: state.remainingSeconds });
-    }
-
-    function getSelectedQuestionsArray() {
-      return (state.sessionMeta && Array.isArray(state.sessionMeta.selectedQuestions)) ? state.sessionMeta.selectedQuestions : [];
-    }
-
-    function getCurrentQuestion() {
-      const qs = getSelectedQuestionsArray();
-      return qs[state.controller.currentQuestionIndex] || null;
-    }
-
-    function getNextQuestion() {
-      const qs = getSelectedQuestionsArray();
-      const idx = Math.min(state.controller.currentQuestionIndex + 1, qs.length - 1);
-      return qs[idx] || null;
-    }
-
-    function rememberAskedQuestion(q) {
-      if (!q) return;
-      const txt = (q.mainQuestion || '').trim();
-      if (txt && !state.controller.askedQuestionTexts.includes(txt)) state.controller.askedQuestionTexts.push(txt);
-    }
-
-    function normalizeUserText(t) {
-      return String(t || '')
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-
-    function canonicalQuestionText(t) {
-      return normalizeUserText(t).replace(/\b(the|a|an|please|could|can|you|your)\b/g, ' ').replace(/\s+/g, ' ').trim();
-    }
-
-    function questionAlreadyAsked(text) {
-      const target = canonicalQuestionText(text);
-      if (!target) return false;
-      return state.controller.askedQuestionTexts.some((q) => canonicalQuestionText(q) === target);
-    }
-
-    function userAsksToEndOrFeedback(text) {
-      const t = normalizeUserText(text);
-      return /\b(feedback|give me feedback|can i get feedback|get feedback|end interview|finish interview|finish this interview|stop session|end session|i am done|i m done|done now)\b/.test(t);
-    }
-
-    function userWantsContinue(text) {
-      const t = normalizeUserText(text);
-      return /\b(please continue|continue please|continue|still have time|we still have time|another question|next question|go on|lanjut)\b/.test(t) || /^not yet$/.test(t) || /^not yet continue$/.test(t);
-    }
-
-    function userIsConfused(text) {
-      const t = normalizeUserText(text);
-      return /\b(i don t understand|i did not understand|i cannot understand|not understand|say it again|can you repeat|please repeat|repeat the question|what do you mean|pardon|i don t hear|i didn t hear|i cannot hear|can t hear|cannot hear|did not hear|dont hear|don t hear)\b/.test(t)
-        || /\bsorry\b.*\b(repeat|understand|pardon|hear)\b/.test(t);
-    }
-
-    function userSaysAlreadyAnswered(text) {
-      const t = normalizeUserText(text);
-      return /\b(already answered|already said|you already asked|i said it before|i told you|several times|like i mentioned before|as i mentioned before)\b/.test(t);
-    }
-
-    function wordCount(text) {
-      const t = normalizeUserText(text);
-      if (!t) return 0;
-      return t.split(' ').filter(Boolean).length;
-    }
-
-    function isShortGreetingOrNoise(text) {
-      const raw = String(text || '').trim().toLowerCase();
-      const t = normalizeUserText(text);
-      if (!t && raw.length <= 6) return true;
-      if (/^(hi|hello|hallo|halo|hey|good morning|morning|good afternoon|good evening|ok|okay|yes|ya|a|uh|um|hmm)$/i.test(t)) return true;
-      if (wordCount(text) <= 2 && /\b(hello|hallo|halo|hi|hey)\b/.test(t)) return true;
-      return false;
-    }
-
-    function isCriticalQuestion(q) {
-      const type = String(q && q.questionType || '').toLowerCase();
-      return /(availability|certificate|document|vessel|experience|safety|emergency|watchkeeping|technical|previous company|sea experience)/.test(type);
-    }
-
-    function hasConcreteAnswer(userText, q) {
-      const t = normalizeUserText(userText);
-      const wc = wordCount(userText);
-      const type = String(q && q.questionType || '').toLowerCase();
-      if (!q || wc <= 2) return false;
-
-      if (type.includes('introduction')) {
-        return wc >= 14 && /(name|from|rank|officer|engineer|sea time|years|vessel|bulk|tanker|container|cargo|offshore|tug|dredg|lng|lpg)/.test(t);
-      }
-
-      if (type.includes('availability')) {
-        if (/\b(maybe|not sure|i think|not ready|need more time|later)\b/.test(t)) return false;
-        return /(ready|available|can|able|sign on|join|within|week|weeks|day|days|tomorrow|next month|next two weeks|two weeks|seven days|asap|immediately|after)/.test(t);
-      }
-
-      if (type.includes('certificate')) {
-        return /(valid|expired|expire|medical|check up|coc|cop|seaman|book|yellow|fever|passport|visa|ready|not ready|still valid|except)/.test(t);
-      }
-
-      if (type.includes('vessel')) {
-        return /(bulk|tanker|container|cargo|offshore|tug|dredg|lng|lpg|chemical|general|carrier|dwt|grt|flag|trading|worldwide|asia|africa|europe|middle east|pacific|atlantic|mol|principal|company)/.test(t) || /\b\d{2,6}\b/.test(t);
-      }
-
-      if (type.includes('safety')) {
-        return /(safety|handover|checklist|procedure|ppe|muster|lsa|fifa|fire|alarm|permit|risk|toolbox|company procedure|sms|emergency)/.test(t) && wc >= 6;
-      }
-
-      if (type.includes('previous company')) {
-        return /(company|principal|contract|month|months|year|years|finished|complete|completed|mol|nyk|k line|msc|maersk)/.test(t) || /\b\d{1,2}\b/.test(t);
-      }
-
-      if (type.includes('vetting')) {
-        return /(yes|no|never|sire|cdi|rightship|inspection|vetting|tanker|not tanker|no experience|observation|finding)/.test(t);
-      }
-
-      if (type.includes('sea experience')) {
-        return /(month|months|year|years|contract|sign off|completed|finish|finished|early|leave|leaving)/.test(t) || /\b\d{1,2}\b/.test(t);
-      }
-
-      if (type.includes('backup')) {
-        return wc >= 8;
-      }
-
-      return wc >= 10;
-    }
-
-    function getSmartFollowUp(userText, q) {
-      const t = normalizeUserText(userText);
-      const type = String(q && q.questionType || '').toLowerCase();
-
-      if (type.includes('certificate') && /(medical|check up|mcu)/.test(t) && /(except|not ready|expired|expire|only)/.test(t)) {
-        return 'When can you complete your medical check-up?';
-      }
-
-      if (type.includes('availability') && /\b(maybe|not sure|i think|need more time|not ready)\b/.test(t)) {
-        return 'Can you give me a clear estimate — are you ready within two weeks or later?';
-      }
-
-      if (type.includes('introduction') && !/(year|years|sea time|vessel|bulk|tanker|container|cargo|offshore|tug|dredg)/.test(t)) {
-        return 'Can you add your total sea time and vessel background?';
-      }
-
-      if (type.includes('safety') && wordCount(userText) < 8) {
-        return 'Why do you check that first?';
-      }
-
-      return ((q && (q.followUpIfWeakAnswer || q.followUpIfStrongAnswer)) || '').trim();
-    }
-
-    function shouldAskFollowUp(userText, q) {
-      const idx = state.controller.currentQuestionIndex;
-      const used = state.controller.followUpsByIndex[idx] || 0;
-      if (!q) return false;
-      if (userIsConfused(userText) || userSaysAlreadyAnswered(userText) || userWantsContinue(userText)) return false;
-      if (isShortGreetingOrNoise(userText)) return false;
-      if (used >= 1) return false;
-
-      const t = normalizeUserText(userText);
-      const wc = wordCount(userText);
-      const type = String(q.questionType || '').toLowerCase();
-
-      // Ask targeted follow-up only when the answer exposes a real crewing concern.
-      if (type.includes('certificate') && /(medical|check up|mcu)/.test(t) && /(except|not ready|expired|expire|only)/.test(t)) return true;
-      if (type.includes('availability') && /\b(maybe|not sure|i think|need more time|not ready)\b/.test(t)) return true;
-
-      if (hasConcreteAnswer(userText, q)) return false;
-
-      const vague = wc <= 6 || /\b(maybe|not sure|i think|yes|no|okay|correct|because safety|important)\b/.test(t);
-      return vague && isCriticalQuestion(q);
-    }
-
-    function advanceToNextQuestion() {
-      const qs = getSelectedQuestionsArray();
-      if (state.controller.currentQuestionIndex < qs.length - 1) {
-        state.controller.currentQuestionIndex += 1;
-        return qs[state.controller.currentQuestionIndex];
-      }
-      return null;
-    }
-
-    function getBackupQuestion() {
-      const category = (el('category').value || '').toLowerCase();
-      const mode = (el('mode').value || '').toLowerCase();
-      const deckHr = [
-        'Have you ever worked with mixed nationality crew? How did you communicate with them?',
-        'Tell me about one difficult situation you faced onboard and how you handled it.',
-        'What do you usually prepare before joining a new vessel?',
-        'How do you report a problem to the Master during your watch?',
-        'As a 3rd Officer, what duty are you most confident with?',
-        'Tell me about your last contract. Was it completed as planned?'
-      ];
-      const engHr = [
-        'Tell me about your last engine room experience.',
-        'What machinery are you most confident to handle?',
-        'How do you report an engine room problem to the Second Engineer or Chief Engineer?',
-        'Have you worked with mixed nationality crew in the engine room?',
-        'What do you usually prepare before joining a new vessel?'
-      ];
-      const techDeck = [
-        'Describe a normal bridge watch handover.',
-        'When would you call the Master to the bridge?',
-        'How do you check safety equipment after joining?',
-        'Tell me one navigation risk you experienced and how you handled it.'
-      ];
-      const techEng = [
-        'Describe a normal engine room watch handover.',
-        'What would you do if you saw an abnormal alarm during watch?',
-        'How do you report a machinery problem to your senior engineer?',
-        'What safety checks do you do before maintenance work?'
-      ];
-      let pool = deckHr;
-      if (category.includes('engineer') && mode.includes('hr')) pool = engHr;
-      else if (category.includes('engineer') && mode.includes('technical')) pool = techEng;
-      else if (mode.includes('technical')) pool = techDeck;
-
-      for (let i = 0; i < pool.length; i++) {
-        const candidate = pool[state.controller.backupQuestionIndex % pool.length];
-        state.controller.backupQuestionIndex += 1;
-        if (!questionAlreadyAsked(candidate)) return candidate;
-      }
-      return 'Briefly tell me one thing you want to improve before your next contract.';
-    }
-
-    function makePlannedQuestionObject(text, type = 'Backup') {
-      return { mainQuestion: text, questionType: type };
-    }
-
-    function buildControllerInstruction(userText) {
-      const currentQ = getCurrentQuestion();
-      const idx = state.controller.currentQuestionIndex;
-      const followUpsUsed = state.controller.followUpsByIndex[idx] || 0;
-      const timeCue = state.controller.timeStage;
-      const askedList = state.controller.askedQuestionTexts.slice(-12).map((q, i) => (i + 1) + '. ' + q).join('\n');
-
-      if (timeCue === 'ended') {
-        return 'The timer has ended. Reply briefly in English: "The interview time has ended. Please click End Interview & Get Feedback on the screen." Do not ask another question.';
-      }
-
-      if (userAsksToEndOrFeedback(userText)) {
-        return 'The candidate is asking to end or receive feedback. Reply briefly in English: "Alright. Please click End Interview & Get Feedback on the screen." Do not ask another question.';
-      }
-
-      let action = 'move_next';
-      let targetQuestion = null;
-      let followupText = '';
-      let directInstruction = '';
-
-      if (isShortGreetingOrNoise(userText)) {
-        action = 'redirect_after_noise';
-        const lastQ = state.controller.lastPlannedQuestionText || (currentQ && currentQ.mainQuestion) || 'Please continue your answer.';
-        targetQuestion = makePlannedQuestionObject(lastQ, state.controller.lastPlannedQuestionType || 'Current');
-        directInstruction = 'The candidate only gave a greeting/noise/check-in. Do not change language. Briefly say you are listening, then ask the last question again in English: "' + lastQ.replace(/"/g, "'") + '"';
-      } else if (userSaysAlreadyAnswered(userText)) {
-        action = 'move_next_already_answered';
-        targetQuestion = advanceToNextQuestion() || makePlannedQuestionObject(getBackupQuestion());
-      } else if (userWantsContinue(userText)) {
-        action = 'continue_new_question';
-        targetQuestion = advanceToNextQuestion() || makePlannedQuestionObject(getBackupQuestion());
-      } else if (userIsConfused(userText)) {
-        action = 'simplify_current';
-        const lastQ = state.controller.lastPlannedQuestionText || (currentQ && currentQ.mainQuestion) || 'Please continue your answer.';
-        targetQuestion = makePlannedQuestionObject(lastQ, state.controller.lastPlannedQuestionType || 'Current');
-      } else if (shouldAskFollowUp(userText, currentQ)) {
-        action = 'ask_followup';
-        state.controller.followUpsByIndex[idx] = followUpsUsed + 1;
-        followupText = getSmartFollowUp(userText, currentQ);
-        targetQuestion = currentQ;
-      } else {
-        action = 'move_next';
-        targetQuestion = advanceToNextQuestion() || makePlannedQuestionObject(getBackupQuestion());
-      }
-
-      const qText = targetQuestion && targetQuestion.mainQuestion ? targetQuestion.mainQuestion : getBackupQuestion();
-
-      if (action !== 'ask_followup' && targetQuestion && targetQuestion.mainQuestion) rememberAskedQuestion(targetQuestion);
-      if (action === 'ask_followup' && followupText) {
-        state.controller.lastPlannedQuestionText = followupText;
-        state.controller.lastPlannedQuestionType = (targetQuestion && targetQuestion.questionType) || 'Follow-up';
-      } else if (qText) {
-        state.controller.lastPlannedQuestionText = qText;
-        state.controller.lastPlannedQuestionType = (targetQuestion && targetQuestion.questionType) || 'Backup';
-      }
-
-      const stageLine = timeCue === 'one_minute_left'
-        ? 'Time cue: about one minute left. Ask one short question only. Do not announce ending unless user asks.'
-        : timeCue === 'three_minutes_left'
-          ? 'Time cue: there is still time. Continue naturally with unrepeated questions. Do not close.'
-          : 'Time cue: continue normal interview flow.';
-
-      let nextActionLine = '- Ask this question in English: "' + qText.replace(/"/g, "'") + '"';
-      if (action === 'ask_followup') nextActionLine = '- Ask this exact follow-up in English: "' + (followupText || qText).replace(/"/g, "'") + '"';
-      if (action === 'simplify_current') nextActionLine = '- Rephrase this same question in shorter English: "' + qText.replace(/"/g, "'") + '"';
-      if (action === 'redirect_after_noise') nextActionLine = '- ' + directInstruction;
-
-      return [
-        'TRIAL 6.3 V3 FRONTEND STATE INSTRUCTION',
-        stageLine,
-        'Latest candidate answer: "' + userText.replace(/"/g, "'").slice(0, 600) + '"',
-        'Current action: ' + action,
-        'Current/planned topic: ' + ((targetQuestion && targetQuestion.questionType) || 'Backup'),
-        'Already asked question texts, do not repeat exactly:',
-        askedList || '(none)',
-        '',
-        'Your next response requirements:',
-        '- Speak as Yuliana, senior maritime crewing interviewer.',
-        '- Speak English only. Never switch to German, Korean, Indonesian, or any other language during the voice interview.',
-        '- If the candidate uses a non-English greeting or noisy transcript, stay in English and redirect to the interview question.',
-        '- Keep it short, natural, and professional.',
-        '- Never mention feedback, ending, scoring, or completion unless candidate asks.',
-        '- Do not repeat a question already answered.',
-        '- Use at most one short transition.',
-        '- Do not overuse Thank you, Understood, Good, Great, or Take your time.',
-        '- Do not coach, lecture, or give medical/legal advice during the voice interview.',
-        nextActionLine,
-        '- Ask only one question.'
-      ].filter(Boolean).join('\n');
-    }
-
-    function sendControlledInterviewerResponse(userText) {
-      if (!state.dc || state.dc.readyState !== 'open') return;
-      if (!state.controller.enabled) {
-        logDebug('Controller blocked: controller disabled.');
-        return;
-      }
-      const msSinceAssistant = state.lastAssistantAt ? Date.now() - state.lastAssistantAt : 999999;
-      if (isShortGreetingOrNoise(userText) && msSinceAssistant < 5000) {
-        logDebug('Controller ignored short greeting/noise right after assistant speech: ' + userText);
-        return;
-      }
-      if (state.awaitingAssistant) {
-        if (isShortGreetingOrNoise(userText)) {
-          logDebug('Controller ignored short greeting/noise while assistant response is pending: ' + userText);
-          return;
-        }
-        state.pendingUserText = userText;
-        logDebug('Controller queued latest user answer while assistant response is pending.');
-        return;
-      }
-      const instructions = buildControllerInstruction(userText);
-      const event = {
-        type: 'response.create',
-        response: {
-          output_modalities: ['audio'],
-          instructions
-        }
-      };
-      state.awaitingAssistant = true;
-      state.dc.send(JSON.stringify(event));
-      logDebug({ controllerResponseCreate: instructions.slice(0, 1200) });
+      if (!type.includes('delta')) logDebug({ realtimeEvent: type });
     }
 
     function addTranscript(role, text, eventType) {
-      const item = {
-        role,
-        text,
-        eventType,
-        time: new Date().toISOString()
-      };
-      state.transcript.push(item);
+      state.transcript.push({ role, text, eventType, time: new Date().toISOString() });
       renderTranscript();
     }
 
@@ -1505,9 +686,7 @@
         stopTimer();
         state.endedAt = state.endedAt || new Date();
 
-        if (state.dc && state.dc.readyState === 'open') {
-          try { state.dc.close(); } catch (e) {}
-        }
+        if (state.dc && state.dc.readyState === 'open') { try { state.dc.close(); } catch (e) {} }
         state.dc = null;
 
         if (state.pc) {
@@ -1516,9 +695,7 @@
         }
         state.pc = null;
 
-        if (state.localStream) {
-          state.localStream.getTracks().forEach((track) => track.stop());
-        }
+        if (state.localStream) state.localStream.getTracks().forEach((track) => track.stop());
         state.localStream = null;
 
         el('orb').classList.remove('live');
@@ -1535,13 +712,15 @@
     async function endInterviewAndGetFeedback() {
       try {
         if (!state.sessionId) throw new Error('No sessionId. Start interview first.');
+        if (!state.transcript.length) throw new Error('Transcript masih kosong. Jalankan interview dulu.');
+
         setButtons('busy');
         setStatus('Stopping voice...', 'warn');
         await stopVoice(false);
 
         setStatus('Saving transcript to Google Sheets...', 'warn');
         await saveTranscriptViaHiddenForm();
-        await waitForTranscriptSaved();
+        await confirmTranscriptSaved();
 
         setStatus('Generating written feedback...', 'warn');
         const feedbackData = await jsonp('feedback', { sessionId: state.sessionId });
@@ -1556,27 +735,6 @@
         handleError(err);
         setButtons('stopped');
       }
-    }
-
-    async function waitForTranscriptSaved() {
-      if (!state.sessionId) return false;
-      for (let i = 0; i < 7; i++) {
-        await sleep(700);
-        try {
-          const data = await jsonp('getSession', { sessionId: state.sessionId });
-          const session = data.session || {};
-          const savedText = String(session.transcriptText || '').trim();
-          const savedItems = parseInt(session.transcriptItems || '0', 10) || 0;
-          if (savedText || savedItems > 0) {
-            logDebug('Transcript save confirmed in Google Sheets.');
-            return true;
-          }
-        } catch (err) {
-          logDebug('Transcript save confirmation attempt failed: ' + err.message);
-        }
-      }
-      logDebug('Transcript save was not confirmed before feedback request. Continuing, but feedback may fail if Apps Script is still writing.');
-      return false;
     }
 
     function saveTranscriptViaHiddenForm() {
@@ -1598,7 +756,7 @@
           startedAt: state.startedAt ? state.startedAt.toISOString() : '',
           endedAt: state.endedAt ? state.endedAt.toISOString() : new Date().toISOString(),
           duration: elapsedDurationLabel(),
-          notes: 'Saved from Trial 6.3 static HTML'
+          notes: 'Saved from Trial 6.2.2C mobile HTML'
         };
 
         Object.keys(payload).forEach((key) => {
@@ -1627,9 +785,27 @@
         document.body.appendChild(form);
         form.submit();
 
-        // Apps Script hidden form load can be inconsistent locally; fallback after 5000ms.
         setTimeout(done, 5000);
       });
+    }
+
+    async function confirmTranscriptSaved() {
+      const maxTries = 5;
+      for (let i = 0; i < maxTries; i++) {
+        try {
+          const data = await jsonp('getSession', { sessionId: state.sessionId, _t: Date.now() });
+          const text = data && data.session && data.session.transcriptText ? String(data.session.transcriptText) : '';
+          if (text && text.length > 20) {
+            logDebug('Transcript save confirmed in Google Sheets.');
+            return true;
+          }
+        } catch (err) {
+          logDebug('confirmTranscriptSaved warning: ' + err.message);
+        }
+        await sleep(1200);
+      }
+      logDebug('Transcript save confirmation not available, continuing anyway.');
+      return false;
     }
 
     function elapsedDurationLabel() {
@@ -1643,7 +819,6 @@
       if (clearAll) {
         state.sessionId = '';
         state.sessionMeta = null;
-        state.debugLog = [];
       }
       state.transcript = [];
       state.feedback = '';
@@ -1653,7 +828,6 @@
       state.assistantTurns = 0;
       state.userTurns = 0;
       state.lastError = '';
-      state.pendingUserText = '';
       el('feedbackBox').textContent = 'Belum ada feedback.';
       renderTranscript();
       const minutes = parseInt(el('durationMinutes').value || '7', 10);
@@ -1666,6 +840,7 @@
     function clearAll() {
       stopVoice(false);
       resetSessionUi(true);
+      state.debugLog = [];
       el('debugBox').textContent = 'Waiting...';
     }
 
@@ -1705,7 +880,7 @@
     function downloadSessionJson() {
       const data = {
         exportedAt: new Date().toISOString(),
-        appVersion: 'trial-6.3-html-v3',
+        appVersion: HTML_APP_VERSION,
         sessionId: state.sessionId,
         duration: elapsedDurationLabel(),
         totalItems: state.transcript.length,
@@ -1713,13 +888,13 @@
         sessionMeta: state.sessionMeta,
         feedback: state.feedback,
         transcript: state.transcript,
-        debugLog: state.debugLog || []
+        debugLog: state.debugLog
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'dlp-ai-interview-trial6-3-v3-' + Date.now() + '.json';
+      a.download = 'dlp-ai-interview-trial6-2-2c-' + Date.now() + '.json';
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -1735,9 +910,7 @@
         .replace(/'/g, '&#039;');
     }
 
-    function sleep(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
     async function checkBackendHealth() {
       if (!isConfigured()) return;
@@ -1745,6 +918,9 @@
         const data = await jsonp('health');
         el('versionPill').textContent = 'Backend: ' + (data.appVersion || 'OK');
         logDebug({ health: data });
+        if (String(data.appVersion || '').indexOf('6.2.2c') < 0) {
+          showConfigWarning('Warning: backend appVersion bukan trial-6.2.2c. Pastikan HTML ini dipasangkan dengan Code.gs Trial 6.2.2C.');
+        }
       } catch (err) {
         el('versionPill').textContent = 'Backend: check failed';
         logDebug('Health check failed: ' + err.message);
@@ -1773,7 +949,7 @@
       el('clearBtn').addEventListener('click', clearAll);
 
       if (!isConfigured()) {
-        showConfigWarning('WEB_APP_URL belum diisi. Paste Web App URL Apps Script kamu di bagian atas JavaScript: const WEB_APP_URL = ...');
+        showConfigWarning('WEB_APP_URL belum diisi. Paste Web App URL Apps Script kamu di bagian JavaScript: const WEB_APP_URL = ...');
         el('versionPill').textContent = 'Backend: URL not set';
       } else {
         hideConfigWarning();
@@ -1781,10 +957,7 @@
       }
     }
 
-    window.addEventListener('beforeunload', () => {
-      try { stopVoice(false); } catch (e) {}
-    });
-
+    window.addEventListener('beforeunload', () => { try { stopVoice(false); } catch (e) {} });
     init();
   </script>
 </body>
