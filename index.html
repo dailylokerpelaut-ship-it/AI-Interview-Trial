@@ -1557,7 +1557,7 @@
           startedAt: state.startedAt ? state.startedAt.toISOString() : '',
           endedAt: state.endedAt ? state.endedAt.toISOString() : new Date().toISOString(),
           duration: elapsedDurationLabel(),
-          notes: 'Saved from Trial 6.3.3 half-duplex mobile HTML'
+          notes: 'Saved from Trial 6.3.3 v3+v4 half-duplex mobile HTML'
         };
 
         Object.keys(payload).forEach((key) => {
@@ -1724,7 +1724,7 @@
         el('versionPill').textContent = 'Backend: ' + (data.appVersion || 'OK');
         logDebug({ health: data });
         if (String(data.appVersion || '').indexOf('trial-6.3.3-v3-v4-qbank') < 0) {
-          showConfigWarning('Warning: backend appVersion bukan trial-6.3.2. Pastikan HTML ini dipasangkan dengan Code.gs Trial 6.3.3 v3 QuestionBank.');
+          showConfigWarning('Warning: backend appVersion bukan trial-6.3.3-v3-v4-qbank. Pastikan HTML ini dipasangkan dengan Code.gs Trial 6.3.3 v3+v4 QuestionBank.');
         }
       } catch (err) {
         el('versionPill').textContent = 'Backend: check failed';
