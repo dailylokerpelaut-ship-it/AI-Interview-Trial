@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0b1f3a" />
-  <title>DLP AI Speaking Interview Simulator — Trial 6.3.2</title>
+  <title>DLP AI Speaking Interview Simulator — Trial 6.3.3</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -711,7 +711,7 @@
         <div class="brand-title">
           <div class="brand-eyebrow"><span class="anchor"></span> Daily Loker Pelaut · Crewing Practice</div>
           <h1>AI Speaking Interview Simulator</h1>
-          <p class="brand-sub">Trial 6.3.2 · Yuliana Maritime Interview</p>
+          <p class="brand-sub">Trial 6.3.3 · Yuliana Maritime Interview</p>
         </div>
       </div>
       <div class="pill" id="versionPill">Backend: not checked</div>
@@ -936,7 +936,7 @@
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOlOt2ZxBC08RJnh0KNoKii29Myx8NJYu1TKfAc01T8TC2Eg_cKAJu-LTc_nPulCc/exec';
 
     const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-    const HTML_APP_VERSION = 'trial-6.3.2-v3-qbank-html-halfduplex';
+    const HTML_APP_VERSION = 'trial-6.3.3-v3-v4-qbank-html-halfduplex';
 
     const el = (id) => document.getElementById(id);
 
@@ -1341,7 +1341,7 @@
     }
 
     function sendInitialResponse() {
-      // Disabled intentionally for Trial 6.3.2.
+      // Disabled intentionally for Trial 6.3.3.
       // Candidate-led opening must be preserved: Yuliana waits until the candidate speaks first.
       // Do not send response.create here, otherwise Yuliana may speak at the same time as the candidate.
       logDebug('sendInitialResponse() is disabled. Waiting for candidate first speech.');
@@ -1557,7 +1557,7 @@
           startedAt: state.startedAt ? state.startedAt.toISOString() : '',
           endedAt: state.endedAt ? state.endedAt.toISOString() : new Date().toISOString(),
           duration: elapsedDurationLabel(),
-          notes: 'Saved from Trial 6.3.2 half-duplex mobile HTML'
+          notes: 'Saved from Trial 6.3.3 half-duplex mobile HTML'
         };
 
         Object.keys(payload).forEach((key) => {
@@ -1699,7 +1699,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'dlp-ai-interview-trial6-3-2-v3-halfduplex-' + Date.now() + '.json';
+      a.download = 'dlp-ai-interview-trial6-3-3-v3-v4-halfduplex-' + Date.now() + '.json';
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -1723,8 +1723,8 @@
         const data = await jsonp('health');
         el('versionPill').textContent = 'Backend: ' + (data.appVersion || 'OK');
         logDebug({ health: data });
-        if (String(data.appVersion || '').indexOf('trial-6.3.2') < 0) {
-          showConfigWarning('Warning: backend appVersion bukan trial-6.3.2. Pastikan HTML ini dipasangkan dengan Code.gs Trial 6.3.2 v3 QuestionBank.');
+        if (String(data.appVersion || '').indexOf('trial-6.3.3-v3-v4-qbank') < 0) {
+          showConfigWarning('Warning: backend appVersion bukan trial-6.3.2. Pastikan HTML ini dipasangkan dengan Code.gs Trial 6.3.3 v3 QuestionBank.');
         }
       } catch (err) {
         el('versionPill').textContent = 'Backend: check failed';
