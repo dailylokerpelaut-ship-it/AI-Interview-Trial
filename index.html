@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0b1f3a" />
-  <title>DLP AI Speaking Interview Simulator — Trial 6.3.3</title>
+  <title>DLP AI Speaking Interview Simulator — Trial 6.3.15</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -711,7 +711,7 @@
         <div class="brand-title">
           <div class="brand-eyebrow"><span class="anchor"></span> Daily Loker Pelaut · Crewing Practice</div>
           <h1>AI Speaking Interview Simulator</h1>
-          <p class="brand-sub">Trial 6.3.3 · Yuliana Maritime Interview</p>
+          <p class="brand-sub">Trial 6.3.15 · Yuliana Maritime Interview</p>
         </div>
       </div>
       <div class="pill" id="versionPill">Backend: not checked</div>
@@ -936,7 +936,7 @@
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOlOt2ZxBC08RJnh0KNoKii29Myx8NJYu1TKfAc01T8TC2Eg_cKAJu-LTc_nPulCc/exec';
 
     const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-    const HTML_APP_VERSION = 'trial-6.3.3-v3-v4-qbank-html-halfduplex';
+    const HTML_APP_VERSION = 'trial-6.3.15-v3-v4-qbank-html-active-response-guard';
 
     const el = (id) => document.getElementById(id);
 
@@ -960,11 +960,42 @@
       lastError: '',
       debugLog: [],
       autoFeedbackStarted: false,
+      feedbackInProgress: false,
+      finalizingSession: false,
+      interviewClosed: false,
+      closingInProgress: false,
+      finalCloseRequested: false,
+      finalCloseInstructionSent: false,
+      pendingFinalCloseInstruction: false,
+      lastCompletedSession: null,
       candidateStarted: false,
       aiSpeaking: false,
       micEnabled: true,
       micResumeTimer: null,
-      waitingForAudioStop: false
+      waitingForAudioStop: false,
+      userSpeaking: false,
+      finalCloseAfterCurrentUser: false,
+      feedbackRetryCount: 0,
+      earlyClosingCorrectionPending: false,
+      earlyClosingCorrectionSent: false,
+      earlyClosingText: '',
+      earlyClosingRecoveryCount: 0,
+      earlyClosingRecoveryMax: 1,
+      suppressWrapUpAfterEarlyClosing: false,
+      lockedQuestionIds: '',
+      previewMeta: null,
+      voiceStartedAt: null,
+      voiceEndedAt: null,
+      wrapUpRequested: false,
+      wrapUpInstructionSent: false,
+      pendingWrapUpInstruction: false,
+      awaitingCandidateAnswer: false,
+      lastAssistantQuestionAt: null,
+      lastAssistantText: '',
+      lastUserAnswerAt: null,
+      // v6.3.15: active response tracking to prevent conversation_already_has_active_response
+      activeResponseInProgress: false,
+      pendingResponseQueue: null  // { instructions, label } — queued while a response is active
     };
 
     const rankOptionsByCategory = {
@@ -1065,7 +1096,7 @@
       clearMicResumeTimer();
       state.micResumeTimer = setTimeout(() => {
         state.micResumeTimer = null;
-        if (!state.connected || state.aiSpeaking) return;
+        if (!state.connected || state.aiSpeaking || state.closingInProgress || state.finalizingSession || state.feedbackInProgress || state.interviewClosed) return;
         setMicrophoneEnabled(true, reason);
         setStatus('Your turn. Please answer now.', 'ok');
       }, delayMs);
@@ -1104,20 +1135,126 @@
       el('timer').textContent = formatTime(state.remainingSeconds);
     }
 
+    function getConfiguredDurationSeconds() {
+      const minutes = parseInt(el('durationMinutes').value || '7', 10);
+      return Math.max(60, minutes * 60);
+    }
+
+    function getElapsedInterviewSeconds() {
+      if (!state.candidateStarted) return 0;
+      return Math.max(0, getConfiguredDurationSeconds() - Math.max(0, state.remainingSeconds || 0));
+    }
+
+    function getMinimumFinalizeElapsedSeconds() {
+      // v6.3.14 min-duration guard:
+      // For a 5-minute session, do not accept AI self-closing before 4:15.
+      // This preserves duration while still allowing a clean ending near the end.
+      const total = getConfiguredDurationSeconds();
+      return Math.max(0, total - 45);
+    }
+
+    function canAcceptAssistantClosingNow() {
+      if (state.finalCloseRequested || state.finalCloseInstructionSent) return true;
+      const elapsed = getElapsedInterviewSeconds();
+      return elapsed >= getMinimumFinalizeElapsedSeconds();
+    }
+
+    function isNearEnoughForFinalClosing() {
+      // Used only for acceptance of closing text, not for starting final close.
+      return canAcceptAssistantClosingNow() || state.remainingSeconds <= 25;
+    }
+
+    function looksLikeAssistantClosing(text) {
+      const t = String(text || '').toLowerCase();
+      return (
+        t.includes('that concludes the interview') ||
+        t.includes('that concludes the main points') ||
+        t.includes('please wait for your feedback') ||
+        t.includes('please wait for your written feedback') ||
+        t.includes('the interview is completed') ||
+        t.includes('we will be in touch') ||
+        t.includes('we’ll be in touch')
+      );
+    }
+
+    function sendContinueAfterEarlyClosing(source = 'early_closing_detected') {
+      if (!state.connected || !state.sessionId || state.feedbackInProgress || state.finalizingSession) return;
+      if (!state.earlyClosingCorrectionPending || state.earlyClosingCorrectionSent) return;
+
+      // v6.3.14 minimum-duration guard:
+      // Never finalize an AI self-closing before the minimum duration is reached.
+      // For a 5-minute session, the minimum acceptance point is 4:15.
+      if (canAcceptAssistantClosingNow()) {
+        logDebug({ earlyClosingRecoverySkipped: true, reason: 'minimum_duration_reached_accept_closing', remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), source });
+        state.earlyClosingCorrectionPending = false;
+        state.earlyClosingCorrectionSent = false;
+        state.earlyClosingText = '';
+        finalizeClosedInterview('assistant_closing_after_min_duration');
+        return;
+      }
+
+      state.earlyClosingRecoveryCount += 1;
+      state.suppressWrapUpAfterEarlyClosing = true;
+      state.earlyClosingCorrectionPending = false;
+      state.earlyClosingCorrectionSent = true;
+      state.interviewClosed = false;
+      state.closingInProgress = false;
+      state.finalCloseRequested = false;
+      state.finalCloseInstructionSent = false;
+      state.pendingFinalCloseInstruction = false;
+      state.earlyClosingText = '';
+      setMicrophoneEnabled(false, 'continue_after_early_closing_' + source);
+      setStatus('Continuing interview. The session is not finished yet.', 'warn');
+
+      const instructions = [
+        'FRONTEND TIMING CORRECTION: the interview is NOT finished yet.',
+        'Do NOT close. Do NOT mention feedback. Do NOT say thank you as a closing.',
+        'Ask exactly ONE short relevant follow-up question, then stop and wait for the candidate answer.',
+        'If this is Crewing/HR mode, ask about motivation, target vessel readiness, document readiness, safety preparation, contract acceptance, or mixed crew communication.',
+        'If this is Technical mode, ask one practical follow-up based on the candidate last answer or actual onboard experience.',
+        'After the candidate answers, continue normally unless you receive a FRONTEND FINAL_CLOSE instruction.'
+      ].join(' ');
+
+      const sent = sendRealtimeResponse(instructions, 'continue_after_early_closing');
+      if (!sent) scheduleMicrophoneEnable(700, 'continue_after_early_closing_send_failed');
+    }
+
     function startTimer() {
       stopTimer();
-      const minutes = parseInt(el('durationMinutes').value || '7', 10);
-      state.remainingSeconds = minutes * 60;
+      state.remainingSeconds = getConfiguredDurationSeconds();
+      state.voiceStartedAt = state.voiceStartedAt || new Date();
+      state.voiceEndedAt = null;
       updateTimerDisplay();
       state.timerInterval = setInterval(() => {
         state.remainingSeconds -= 1;
         updateTimerDisplay();
         if (state.remainingSeconds === 180) logDebug({ timerCue: 'three_minutes_left' });
-        if (state.remainingSeconds === 60) logDebug({ timerCue: 'one_minute_left' });
+        if (state.remainingSeconds === 60) {
+          logDebug({ timerCue: 'one_minute_left' });
+          requestWrapUp('timer_60_seconds_left');
+        }
+        if (state.remainingSeconds <= 25 && !state.finalCloseRequested && !state.feedbackInProgress && !state.finalizingSession) {
+          logDebug({ timerCue: 'final_25_seconds_or_less', remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), awaitingCandidateAnswer: state.awaitingCandidateAnswer });
+          requestFinalClosing('timer_25_seconds_left');
+        }
+        // Hard safety fallback: if final closing has already been requested/sent, do not let the session run indefinitely.
+        if (state.remainingSeconds <= 0 && (state.finalCloseRequested || state.finalCloseInstructionSent) && !state.finalizingSession && !state.feedbackInProgress) {
+          logDebug({ timerCue: 'timer_zero_finalize_after_final_requested', remainingSeconds: state.remainingSeconds });
+          if (!state.userSpeaking && !state.aiSpeaking) finalizeClosedInterview('timer_zero_after_final_requested');
+        }
         if (state.remainingSeconds <= 0) {
           stopTimer();
-          setStatus('Time ended. Preparing feedback...', 'warn');
-          autoEndInterviewAndGetFeedback();
+          if (state.finalizingSession || state.feedbackInProgress) {
+            setStatus('Feedback is being prepared...', 'warn');
+          } else if (state.closingInProgress || state.finalCloseRequested) {
+            setStatus('Final closing in progress...', 'warn');
+            setTimeout(() => {
+              if (!state.feedbackInProgress && !state.finalizingSession) finalizeClosedInterview('timer_zero_fallback');
+            }, 2500);
+          } else {
+            setStatus('Time ended. Preparing feedback...', 'warn');
+            autoEndInterviewAndGetFeedback();
+          }
         }
       }, 1000);
     }
@@ -1125,6 +1262,169 @@
     function stopTimer() {
       if (state.timerInterval) clearInterval(state.timerInterval);
       state.timerInterval = null;
+    }
+
+
+    function sendRealtimeResponse(instructions, label = 'response_create') {
+      if (!state.dc || state.dc.readyState !== 'open') {
+        logDebug({ realtimeSendSkipped: label, reason: 'data_channel_not_open' });
+        return false;
+      }
+
+      // v6.3.15: active-response guard.
+      // If a response is already in-flight (server VAD auto-response or a previous instruction),
+      // queue this instruction instead of sending immediately.
+      // This prevents conversation_already_has_active_response errors.
+      if (state.activeResponseInProgress) {
+        logDebug({ realtimeSendQueued: label, reason: 'active_response_in_progress' });
+        // Higher-priority instructions overwrite lower ones (final close > wrap-up > others)
+        if (!state.pendingResponseQueue || label.includes('final_clos') || label.includes('final closing')) {
+          state.pendingResponseQueue = { instructions, label };
+        }
+        return false;
+      }
+
+      try {
+        state.activeResponseInProgress = true;
+        state.dc.send(JSON.stringify({
+          type: 'response.create',
+          response: {
+            instructions: instructions
+          }
+        }));
+        logDebug({ realtimeSend: label, realtimePayload: 'response.create_without_modalities' });
+        return true;
+      } catch (err) {
+        state.activeResponseInProgress = false;
+        logDebug({ realtimeSendError: label, error: err.message });
+        return false;
+      }
+    }
+
+
+    function requestWrapUp(source = 'unknown') {
+      if (state.wrapUpRequested || state.feedbackInProgress || state.finalizingSession || !state.connected || !state.sessionId) return;
+      state.wrapUpRequested = true;
+      logDebug({ wrapUpRequested: true, source, remainingSeconds: state.remainingSeconds, userSpeaking: state.userSpeaking, aiSpeaking: state.aiSpeaking, awaitingCandidateAnswer: state.awaitingCandidateAnswer, earlyClosingRecoveryCount: state.earlyClosingRecoveryCount });
+
+      // v6.3.14: if early-closing recovery has already happened, keep wrap-up passive; final close will be timer-driven.
+      // Let the current candidate answer finish, then final close at the final timer window.
+      if (state.suppressWrapUpAfterEarlyClosing || state.earlyClosingRecoveryCount > 0) {
+        state.pendingWrapUpInstruction = false;
+        logDebug({ wrapUpSkipped: true, reason: 'early_closing_recovery_already_used' });
+        return;
+      }
+
+      // Do not interrupt the candidate or stack a new response over Yuliana's current audio.
+      // If Yuliana has just asked a question and is waiting for the candidate, do not inject a wrap-up question.
+      if (state.userSpeaking || state.aiSpeaking || state.waitingForAudioStop || state.awaitingCandidateAnswer) {
+        state.pendingWrapUpInstruction = true;
+        logDebug({ wrapUpPending: true, reason: 'busy_or_waiting_for_answer' });
+        return;
+      }
+
+      sendWrapUpInstruction(source);
+    }
+
+    function sendWrapUpInstruction(source = 'unknown') {
+      if (state.wrapUpInstructionSent || state.feedbackInProgress || state.finalizingSession || state.finalCloseRequested) return;
+      state.pendingWrapUpInstruction = false;
+      state.wrapUpInstructionSent = true;
+      setMicrophoneEnabled(false, 'wrap_up_instruction_' + source);
+      setStatus('Wrap-up mode. One last short question...', 'warn');
+
+      const instructions = [
+        'FRONTEND TIMER CUE: WRAP_UP_60_SECONDS.',
+        'Do not open a heavy new topic. Do not ask multi-part questions.',
+        'Ask one short final readiness question only if the candidate is not already answering a previous question.',
+        'Prefer a light question such as: Is there anything important you want to add for this position?',
+        'Ask only one question, then stop and wait for the candidate answer. Do not close yet.'
+      ].join(' ');
+
+      const sent = sendRealtimeResponse(instructions, 'wrap_up_instruction');
+      if (!sent) scheduleMicrophoneEnable(700, 'wrap_up_send_failed');
+    }
+
+    function maybeSendPendingWrapUp(source = 'assistant_done') {
+      if (state.suppressWrapUpAfterEarlyClosing || state.earlyClosingRecoveryCount > 0) {
+        if (state.pendingWrapUpInstruction) logDebug({ pendingWrapUpCleared: true, reason: 'early_closing_recovery_already_used', source });
+        state.pendingWrapUpInstruction = false;
+        return;
+      }
+      if (state.pendingWrapUpInstruction && !state.wrapUpInstructionSent && !state.aiSpeaking && !state.waitingForAudioStop && !state.userSpeaking && !state.awaitingCandidateAnswer && !state.finalCloseRequested) {
+        sendWrapUpInstruction(source);
+      }
+    }
+
+    function requestFinalClosing(source = 'unknown') {
+      if (state.finalCloseRequested || state.feedbackInProgress || state.finalizingSession) return;
+      if (!state.connected || !state.sessionId || !state.transcript.length) return;
+
+      state.finalCloseRequested = true;
+      logDebug({ finalClosingRequested: true, source, remainingSeconds: state.remainingSeconds, userSpeaking: state.userSpeaking, aiSpeaking: state.aiSpeaking });
+
+      // If the candidate is speaking OR Yuliana has just asked a question and the user has not answered,
+      // do not close immediately. Give the candidate a fair chance to answer first.
+      if ((state.userSpeaking || state.awaitingCandidateAnswer) && !state.aiSpeaking) {
+        state.finalCloseAfterCurrentUser = true;
+        setStatus('Final answer. Please finish your sentence...', 'warn');
+        logDebug({ finalCloseWaitingForCandidateAnswer: true, awaitingCandidateAnswer: state.awaitingCandidateAnswer, userSpeaking: state.userSpeaking });
+        return;
+      }
+
+      state.closingInProgress = true;
+      state.interviewClosed = true;
+      setMicrophoneEnabled(false, 'final_closing_' + source);
+      setStatus('Final closing. Please wait...', 'warn');
+
+      if (state.aiSpeaking || state.waitingForAudioStop) {
+        state.pendingFinalCloseInstruction = true;
+        logDebug({ finalClosingPendingUntilAssistantDone: true });
+        return;
+      }
+
+      sendFinalClosingInstruction(source);
+    }
+
+    function sendFinalClosingInstruction(source = 'unknown') {
+      if (state.finalCloseInstructionSent || state.feedbackInProgress || state.finalizingSession) return;
+      state.pendingFinalCloseInstruction = false;
+      state.finalCloseInstructionSent = true;
+      state.closingInProgress = true;
+      state.interviewClosed = true;
+      setMicrophoneEnabled(false, 'final_closing_instruction_' + source);
+
+      const instructions = [
+        'FRONTEND TIMER CUE: FINAL_CLOSE. The session is in the final 20-25 seconds. Close the interview now.',
+        'Do not ask any new question. Do not continue probing. Ignore any unfinished question plan and close only.',
+        'Say one short, professional closing line only.',
+        'Use this exact sentence: "Thank you. That concludes the interview. Please wait for your written feedback."'
+      ].join(' ');
+
+      const sent = sendRealtimeResponse(instructions, 'final_closing_instruction');
+      if (!sent) {
+        setStatus('Closing voice and preparing feedback...', 'warn');
+        finalizeClosedInterview('final_closing_send_failed');
+      }
+    }
+
+    function maybeSendPendingFinalClose(source = 'assistant_done') {
+      if (state.pendingFinalCloseInstruction && !state.finalCloseInstructionSent && !state.aiSpeaking && !state.waitingForAudioStop) {
+        sendFinalClosingInstruction(source);
+      }
+    }
+
+    function finalizeClosedInterview(source = 'final_closing_done') {
+      if (state.finalizingSession || state.feedbackInProgress) return;
+      state.finalizingSession = true;
+      state.closingInProgress = false;
+      state.interviewClosed = true;
+      state.voiceEndedAt = state.voiceEndedAt || new Date();
+      state.endedAt = state.endedAt || new Date();
+      setMicrophoneEnabled(false, 'finalize_' + source);
+      stopTimer();
+      setStatus('Interview completed. Preparing feedback...', 'warn');
+      setTimeout(() => autoEndInterviewAndGetFeedback(), 450);
     }
 
     function setButtons(stage) {
@@ -1209,9 +1509,11 @@
     async function previewQuestions() {
       try {
         setStatus('Previewing questions...', 'warn');
-        const data = await jsonp('getSelectedQuestions', buildParams());
+        const data = await jsonp('getSelectedQuestions', buildParams(), 45000);
         state.sessionMeta = data;
-        logDebug({ previewQuestions: data });
+        state.previewMeta = data;
+        state.lockedQuestionIds = data.selectedQuestionIds || ((data.selectedQuestions || []).map(q => q.id).filter(Boolean).join(','));
+        logDebug({ previewQuestions: data, lockedQuestionIds: state.lockedQuestionIds });
         renderSelectedQuestions(data);
         setStatus('Question preview ready.', 'ok');
       } catch (err) {
@@ -1243,6 +1545,7 @@
         }
 
         resetSessionUi(false);
+        state.lastCompletedSession = null;
         setButtons('busy');
         setStatus('Requesting microphone permission...', 'warn');
 
@@ -1256,7 +1559,8 @@
         setMicrophoneEnabled(true, 'session_start_waiting_candidate');
 
         setStatus('Creating interview session...', 'warn');
-        const sessionData = await jsonp('createRealtimeClientSecret', buildParams());
+        const lockedIds = state.lockedQuestionIds || '';
+        const sessionData = await jsonp('createRealtimeClientSecret', buildParams(lockedIds ? { lockedQuestionIds: lockedIds, selectedQuestionIds: lockedIds } : {}), 75000);
         state.sessionMeta = sessionData;
         state.sessionId = sessionData.sessionId;
         state.clientSecret = sessionData.value || (sessionData.clientSecret && sessionData.clientSecret.value) || '';
@@ -1341,7 +1645,7 @@
     }
 
     function sendInitialResponse() {
-      // Disabled intentionally for Trial 6.3.3.
+      // Disabled intentionally for Trial 6.3.11.
       // Candidate-led opening must be preserved: Yuliana waits until the candidate speaks first.
       // Do not send response.create here, otherwise Yuliana may speak at the same time as the candidate.
       logDebug('sendInitialResponse() is disabled. Waiting for candidate first speech.');
@@ -1356,17 +1660,41 @@
 
       if (type === 'error') {
         logDebug({ realtimeError: event });
+
+        // v6.3.15: conversation_already_has_active_response is non-fatal.
+        // It means we tried to send response.create while a VAD auto-response was running.
+        // Clear the activeResponseInProgress flag so queued instructions can drain,
+        // then finalize cleanly if we were in the closing phase.
+        const errCode = (event.error && event.error.code) || (event.code) || '';
+        const errMsg = (event.error && event.error.message) || (event.message) || '';
+        const isActiveResponseError =
+          errCode === 'conversation_already_has_active_response' ||
+          String(errMsg).toLowerCase().includes('active_response') ||
+          String(errMsg).toLowerCase().includes('already has active');
+
+        if (isActiveResponseError) {
+          logDebug({ activeResponseCollision: true, note: 'Non-fatal. Queued instruction will retry after response.done.', label: state.pendingResponseQueue && state.pendingResponseQueue.label });
+          // Do NOT clear activeResponseInProgress here — the in-flight response will clear it on response.done.
+          setStatus('Yuliana is still responding...', 'warn');
+          return;
+        }
+
         setStatus('Realtime error. Check debug.', 'err');
-        // If an active response error happens, keep the mic usable for the next clean turn.
+        state.activeResponseInProgress = false;
         state.aiSpeaking = false;
         state.waitingForAudioStop = false;
-        scheduleMicrophoneEnable(900, 'realtime_error_recovery');
+        if (state.finalCloseRequested || state.closingInProgress) {
+          finalizeClosedInterview('realtime_error_during_closing');
+        } else {
+          scheduleMicrophoneEnable(900, 'realtime_error_recovery');
+        }
         return;
       }
 
       // As soon as a response is created, lock the mic. This prevents the user mic
       // from creating a second response while Yuliana is still preparing/speaking.
       if (type === 'response.created') {
+        state.activeResponseInProgress = true;  // may already be true; safe to repeat
         markAssistantSpeaking('response_created');
         setStatus('Yuliana is responding...', 'warn');
       }
@@ -1384,20 +1712,40 @@
       }
 
       if (type === 'input_audio_buffer.speech_started') {
-        if (state.aiSpeaking || !state.micEnabled) {
+        if (state.interviewClosed || state.closingInProgress || state.feedbackInProgress) {
+          logDebug({ ignoredSpeechStartedAfterClosing: true, type });
+          setMicrophoneEnabled(false, 'speech_after_closing');
+        } else if (state.aiSpeaking || !state.micEnabled) {
           logDebug({ ignoredSpeechStartedWhileAssistantSpeaking: true, type });
         } else {
+          state.userSpeaking = true;
           setStatus('Listening...', 'ok');
         }
       }
 
       if (type === 'input_audio_buffer.speech_stopped') {
-        if (!state.aiSpeaking) setStatus('Processing answer...', 'warn');
+        state.userSpeaking = false;
+        // v6.3.15: pre-mark assistant as responding. With create_response:true, the server
+        // will auto-create a response immediately after speech_stopped + committed.
+        // Marking aiSpeaking=true NOW closes the race window where a timer-triggered
+        // final_closing_instruction could be sent before response.created arrives,
+        // causing conversation_already_has_active_response.
+        if (!state.interviewClosed && !state.feedbackInProgress && !state.finalizingSession) {
+          state.aiSpeaking = true;
+          state.waitingForAudioStop = true;
+          clearMicResumeTimer();
+          logDebug({ preMarkedAssistantSpeaking: true, reason: 'speech_stopped_vad_response_incoming' });
+        }
+        setStatus('Processing answer...', 'warn');
       }
 
       if (type === 'conversation.item.input_audio_transcription.completed') {
         const text = (event.transcript || '').trim();
         if (text) {
+          if (state.interviewClosed || state.closingInProgress || state.feedbackInProgress) {
+            logDebug({ ignoredUserTranscriptAfterClosing: text.slice(0, 120) });
+            return;
+          }
           if (!state.candidateStarted) {
             state.candidateStarted = true;
             startTimer();
@@ -1405,6 +1753,24 @@
           }
           addTranscript('user', text, type);
           state.userTurns += 1;
+          state.lastUserAnswerAt = new Date();
+          state.awaitingCandidateAnswer = false;
+
+          if (state.pendingWrapUpInstruction && !state.finalCloseRequested) {
+            // Candidate has answered the last pending question; allow wrap-up to be sent later when the turn is clean.
+            logDebug({ wrapUpPendingAfterUserAnswer: true });
+          }
+
+          if (state.finalCloseAfterCurrentUser && state.finalCloseRequested && !state.finalCloseInstructionSent) {
+            state.finalCloseAfterCurrentUser = false;
+            state.closingInProgress = true;
+            state.interviewClosed = true;
+            setMicrophoneEnabled(false, 'final_closing_after_user_answer');
+            setStatus('Final closing. Please wait...', 'warn');
+            sendFinalClosingInstruction('after_final_user_answer');
+            return;
+          }
+
           setStatus('Yuliana is responding...', 'warn');
         }
       }
@@ -1414,27 +1780,130 @@
         if (text) {
           addTranscript('assistant', text, type);
           state.assistantTurns += 1;
+
+          const isClosingText = looksLikeAssistantClosing(text);
+          const hasQuestion = /\?\s*$/.test(text) || (text.match(/\?/g) || []).length > 0;
+          if (hasQuestion && !isClosingText && !state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
+            state.awaitingCandidateAnswer = true;
+            state.lastAssistantQuestionAt = new Date();
+            state.lastAssistantText = text;
+            logDebug({ awaitingCandidateAnswer: true, assistantQuestion: text.slice(0, 160) });
+          }
+
+          if (isClosingText && !state.feedbackInProgress && !state.finalizingSession) {
+            if (state.finalCloseInstructionSent || state.finalCloseRequested || canAcceptAssistantClosingNow()) {
+              // Expected final closing, or an AI self-closing that is late enough to accept.
+              state.earlyClosingCorrectionPending = false;
+              state.earlyClosingCorrectionSent = false;
+              state.earlyClosingText = text;
+              if (!state.finalCloseInstructionSent && !state.finalCloseRequested && canAcceptAssistantClosingNow()) {
+                state.interviewClosed = true;
+                state.closingInProgress = true;
+                logDebug({ closingTextAcceptedAfterMinimumDuration: true, remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), minElapsedSeconds: getMinimumFinalizeElapsedSeconds(), recoveryCount: state.earlyClosingRecoveryCount, text: text.slice(0, 160) });
+              } else {
+                logDebug({ closingTextAccepted: true, remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), text: text.slice(0, 160) });
+              }
+            } else {
+              // Too early: do not accept, even if this is the 2nd or 3rd early closing.
+              // Continue until the minimum duration guard is satisfied or the timer sends FINAL_CLOSE.
+              state.earlyClosingCorrectionPending = true;
+              state.earlyClosingCorrectionSent = false;
+              state.earlyClosingText = text;
+              state.interviewClosed = false;
+              state.closingInProgress = false;
+              state.finalCloseRequested = false;
+              state.finalCloseInstructionSent = false;
+              logDebug({ earlyClosingDetectedBeforeMinimumDuration: true, remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), minElapsedSeconds: getMinimumFinalizeElapsedSeconds(), recoveryCount: state.earlyClosingRecoveryCount, text: text.slice(0, 160) });
+            }
+          }
         }
       }
 
       // Do NOT re-enable mic on response.output_audio.done alone; the audio buffer may still be playing.
       // Wait for output_audio_buffer.stopped when available, with response.done fallback below.
       if (type === 'output_audio_buffer.stopped') {
+        if (state.earlyClosingCorrectionPending && !isNearEnoughForFinalClosing()) {
+          state.aiSpeaking = false;
+          state.waitingForAudioStop = false;
+          sendContinueAfterEarlyClosing('output_audio_buffer_stopped');
+          return;
+        }
+
+        if (state.closingInProgress && state.interviewClosed && !state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
+          state.aiSpeaking = false;
+          state.waitingForAudioStop = false;
+          finalizeClosedInterview('accepted_early_closing_audio_stopped');
+          return;
+        }
+
         markAssistantDone('output_audio_buffer_stopped');
+        maybeSendPendingWrapUp('output_audio_buffer_stopped');
+        maybeSendPendingFinalClose('output_audio_buffer_stopped');
+        if (state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
+          setTimeout(() => finalizeClosedInterview('final_closing_audio_stopped'), 350);
+        }
       }
 
       if (type === 'response.done') {
+        // v6.3.15: clear active-response flag so queued instructions can be sent.
+        state.activeResponseInProgress = false;
+
+        // Flush any queued response instruction (queued because a response was already active).
+        // Priority: final close > wrap-up > others. Drain only if session is still live.
+        if (state.pendingResponseQueue && !state.feedbackInProgress && !state.finalizingSession && state.connected) {
+          const queued = state.pendingResponseQueue;
+          state.pendingResponseQueue = null;
+          // Safety: don't flush if the queued item is a final close that was already sent
+          const skipQueue = state.finalCloseInstructionSent && queued.label.includes('final_clos');
+          if (!skipQueue) {
+            logDebug({ pendingResponseQueueFlushing: true, label: queued.label });
+            setTimeout(() => {
+              // Re-check: session might have ended in the meantime
+              if (state.connected && !state.feedbackInProgress && !state.finalizingSession) {
+                if (state.finalCloseInstructionSent && queued.label.includes('final_clos')) return;
+                sendRealtimeResponse(queued.instructions, queued.label + '_from_queue');
+              }
+            }, 150);
+          } else {
+            logDebug({ pendingResponseQueueSkipped: true, reason: 'final_close_already_sent', label: queued.label });
+          }
+        }
+
+        if (state.earlyClosingCorrectionPending && !isNearEnoughForFinalClosing()) {
+          setTimeout(() => sendContinueAfterEarlyClosing('response_done'), 500);
+          return;
+        }
+        if (state.closingInProgress && state.interviewClosed && !state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
+          setTimeout(() => finalizeClosedInterview('accepted_early_closing_response_done'), 900);
+          return;
+        }
         // Fallback: if no audio-buffer stopped event arrives, unlock after a safe delay.
         if (state.waitingForAudioStop) {
           setTimeout(() => {
             if (state.waitingForAudioStop) {
               state.aiSpeaking = false;
               state.waitingForAudioStop = false;
-              scheduleMicrophoneEnable(700, 'response_done_fallback');
+              if (state.pendingFinalCloseInstruction) {
+                sendFinalClosingInstruction('response_done_fallback');
+              } else if (state.finalCloseInstructionSent) {
+                finalizeClosedInterview('final_closing_response_done_fallback');
+              } else {
+                maybeSendPendingWrapUp('response_done_fallback');
+                scheduleMicrophoneEnable(700, 'response_done_fallback');
+              }
             }
           }, 1400);
         } else if (state.aiSpeaking) {
           markAssistantDone('response_done_no_audio_buffer');
+          maybeSendPendingWrapUp('response_done_no_audio_buffer');
+          maybeSendPendingFinalClose('response_done_no_audio_buffer');
+        } else {
+          maybeSendPendingWrapUp('response_done');
+          maybeSendPendingFinalClose('response_done');
+        }
+
+        if (state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
+          setTimeout(() => finalizeClosedInterview('final_closing_response_done'), 1800);
         }
       }
 
@@ -1473,6 +1942,7 @@
         clearMicResumeTimer();
         state.aiSpeaking = false;
         state.waitingForAudioStop = false;
+        state.voiceEndedAt = state.voiceEndedAt || new Date();
         state.endedAt = state.endedAt || new Date();
 
         if (state.dc && state.dc.readyState === 'open') { try { state.dc.close(); } catch (e) {} }
@@ -1504,13 +1974,35 @@
       await endInterviewAndGetFeedback(true);
     }
 
+    async function generateFeedbackWithRetry(maxAttempts = 2) {
+      let lastErr = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          logDebug({ feedbackAttempt: attempt, maxAttempts });
+          return await jsonp('feedback', { sessionId: state.sessionId, _t: Date.now() }, 90000);
+        } catch (err) {
+          lastErr = err;
+          logDebug({ feedbackAttemptFailed: attempt, error: err.message });
+          if (attempt < maxAttempts) await sleep(2500);
+        }
+      }
+      throw lastErr || new Error('Feedback generation failed.');
+    }
+
     async function endInterviewAndGetFeedback(isAuto = false) {
       try {
-        if (state.autoFeedbackStarted && !isAuto) {
+        if (state.feedbackInProgress) {
           setStatus('Feedback is already being prepared...', 'warn');
           return;
         }
+        if (state.autoFeedbackStarted && !isAuto && state.feedback) {
+          setStatus('Feedback is already ready.', 'ok');
+          return;
+        }
         state.autoFeedbackStarted = true;
+        state.feedbackInProgress = true;
+        state.interviewClosed = true;
+        state.closingInProgress = false;
         if (!state.sessionId) throw new Error('No sessionId. Start interview first.');
         if (!state.transcript.length) throw new Error('Transcript masih kosong. Jalankan interview dulu.');
 
@@ -1523,16 +2015,21 @@
         await confirmTranscriptSaved();
 
         setStatus('Generating written feedback...', 'warn');
-        const feedbackData = await jsonp('feedback', { sessionId: state.sessionId }, 75000);
+        const feedbackData = await generateFeedbackWithRetry(2);
         state.feedback = feedbackData.feedback || '';
         el('feedbackBox').textContent = state.feedback || 'Feedback kosong.';
         logDebug({ feedbackResult: Object.assign({}, feedbackData, { feedback: '[hidden in debug]' }) });
 
         const cached = feedbackData.feedbackCached ? 'cached' : 'new';
+        state.feedbackInProgress = false;
+        state.finalizingSession = false;
+        state.lastCompletedSession = buildSessionExportSnapshot();
         setStatus('Feedback ready (' + cached + ').', 'ok');
         setButtons('stopped');
       } catch (err) {
         state.autoFeedbackStarted = false;
+        state.feedbackInProgress = false;
+        state.finalizingSession = false;
         handleError(err);
         setButtons('stopped');
       }
@@ -1557,7 +2054,7 @@
           startedAt: state.startedAt ? state.startedAt.toISOString() : '',
           endedAt: state.endedAt ? state.endedAt.toISOString() : new Date().toISOString(),
           duration: elapsedDurationLabel(),
-          notes: 'Saved from Trial 6.3.3 v3+v4 half-duplex mobile HTML'
+          notes: 'Saved from Trial 6.3.15 v3+v4 active-response-guard half-duplex HTML'
         };
 
         Object.keys(payload).forEach((key) => {
@@ -1610,6 +2107,14 @@
     }
 
     function elapsedDurationLabel() {
+      const start = state.voiceStartedAt || state.startedAt;
+      if (!start) return '';
+      const end = state.voiceEndedAt || state.endedAt || new Date();
+      const seconds = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000));
+      return formatTime(seconds);
+    }
+
+    function lifecycleDurationLabel() {
       if (!state.startedAt) return '';
       const end = state.endedAt || new Date();
       const seconds = Math.max(0, Math.round((end.getTime() - state.startedAt.getTime()) / 1000));
@@ -1627,16 +2132,40 @@
       state.endedAt = null;
       state.openingSent = false;
       state.candidateStarted = false;
+      state.voiceStartedAt = null;
+      state.voiceEndedAt = null;
       state.aiSpeaking = false;
       state.waitingForAudioStop = false;
+      state.userSpeaking = false;
+      state.finalCloseAfterCurrentUser = false;
+      state.feedbackInProgress = false;
+      state.finalizingSession = false;
+      state.interviewClosed = false;
+      state.closingInProgress = false;
+      state.finalCloseRequested = false;
+      state.finalCloseInstructionSent = false;
+      state.pendingFinalCloseInstruction = false;
+      state.wrapUpRequested = false;
+      state.wrapUpInstructionSent = false;
+      state.pendingWrapUpInstruction = false;
+      state.awaitingCandidateAnswer = false;
+      state.lastAssistantQuestionAt = null;
+      state.lastAssistantText = '';
+      state.lastUserAnswerAt = null;
+      state.activeResponseInProgress = false;
+      state.pendingResponseQueue = null;
+      state.earlyClosingCorrectionPending = false;
+      state.earlyClosingCorrectionSent = false;
+      state.earlyClosingText = '';
+      state.earlyClosingRecoveryCount = 0;
+      state.suppressWrapUpAfterEarlyClosing = false;
       clearMicResumeTimer();
       state.assistantTurns = 0;
       state.userTurns = 0;
       state.lastError = '';
       el('feedbackBox').textContent = 'Belum ada feedback.';
       renderTranscript();
-      const minutes = parseInt(el('durationMinutes').value || '7', 10);
-      state.remainingSeconds = minutes * 60;
+      state.remainingSeconds = getConfiguredDurationSeconds();
       updateTimerDisplay();
       setStatus('Ready', '');
       setButtons('ready');
@@ -1645,6 +2174,9 @@
     function clearAll() {
       stopVoice(false);
       resetSessionUi(true);
+      state.lastCompletedSession = null;
+      state.lockedQuestionIds = '';
+      state.previewMeta = null;
       state.debugLog = [];
       el('debugBox').textContent = 'Waiting...';
     }
@@ -1682,24 +2214,35 @@
       });
     }
 
-    function downloadSessionJson() {
-      const data = {
+    function buildSessionExportSnapshot() {
+      return {
         exportedAt: new Date().toISOString(),
         appVersion: HTML_APP_VERSION,
         sessionId: state.sessionId,
         duration: elapsedDurationLabel(),
+        lifecycleDuration: lifecycleDurationLabel(),
+        lockedQuestionIds: state.lockedQuestionIds,
         totalItems: state.transcript.length,
         feedbackGenerated: !!state.feedback,
         sessionMeta: state.sessionMeta,
         feedback: state.feedback,
-        transcript: state.transcript,
-        debugLog: state.debugLog
+        transcript: state.transcript.slice(),
+        debugLog: state.debugLog.slice()
       };
+    }
+
+    function downloadSessionJson() {
+      const data = state.lastCompletedSession || buildSessionExportSnapshot();
+      if (!data.sessionId || !data.transcript || !data.transcript.length) {
+        setStatus('Cannot download JSON: no completed session/transcript found.', 'err');
+        logDebug({ downloadJsonBlocked: true, reason: 'missing_session_or_transcript' });
+        return;
+      }
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'dlp-ai-interview-trial6-3-3-v3-v4-halfduplex-' + Date.now() + '.json';
+      a.download = 'dlp-ai-interview-trial6-3-15-v3-v4-active-response-guard-' + Date.now() + '.json';
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(url);
@@ -1723,8 +2266,8 @@
         const data = await jsonp('health');
         el('versionPill').textContent = 'Backend: ' + (data.appVersion || 'OK');
         logDebug({ health: data });
-        if (String(data.appVersion || '').indexOf('trial-6.3.3-v3-v4-qbank') < 0) {
-          showConfigWarning('Warning: backend appVersion bukan trial-6.3.3-v3-v4-qbank. Pastikan HTML ini dipasangkan dengan Code.gs Trial 6.3.3 v3+v4 QuestionBank.');
+        if (String(data.appVersion || '').indexOf('trial-6.3.11-v3-v4-qbank') < 0) {
+          showConfigWarning('Warning: backend appVersion bukan trial-6.3.11-v3-v4-qbank. HTML v6.3.15 active-response-guard ini dipasangkan dengan Code.gs Trial 6.3.11+ v3+v4 QuestionBank.');
         }
       } catch (err) {
         el('versionPill').textContent = 'Backend: check failed';
@@ -1740,13 +2283,13 @@
       el('category').addEventListener('change', updateRankOptions);
       el('durationMinutes').addEventListener('change', () => {
         if (!state.connected) {
-          state.remainingSeconds = parseInt(el('durationMinutes').value || '7', 10) * 60;
+          state.remainingSeconds = getConfiguredDurationSeconds();
           updateTimerDisplay();
         }
       });
       el('previewBtn').addEventListener('click', previewQuestions);
       el('startBtn').addEventListener('click', startInterview);
-      el('stopBtn').addEventListener('click', () => stopVoice(true));
+      el('stopBtn').addEventListener('click', () => endInterviewAndGetFeedback(false));
       el('feedbackBtn').addEventListener('click', endInterviewAndGetFeedback);
       el('copyTranscriptBtn').addEventListener('click', () => copyText(transcriptText()));
       el('copyFeedbackBtn').addEventListener('click', () => copyText(state.feedback || el('feedbackBox').textContent));
