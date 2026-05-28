@@ -1,2312 +1,1946 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b1f3a" />
-  <title>DLP AI Speaking Interview Simulator — Trial 6.3.15</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      /* Maritime palette */
-      --navy-950: #061427;
-      --navy-900: #0b1f3a;
-      --navy-800: #122e54;
-      --navy-700: #1b3f6e;
-      --navy-600: #245189;
-      --ocean-500: #1d6fb8;
-      --ocean-400: #3a8fd9;
-      --ocean-300: #79b5e8;
-      --ocean-100: #dbeaf7;
-      --ocean-50:  #eff6fc;
-      --gold-500:  #c69646;
-      --gold-400:  #d9ae5e;
-      --gold-100:  #f6ecd4;
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Daily Loker Pelaut — Interview Simulator</title>
+<meta name="description" content="Latihan interview pelaut berbasis suara. Siapkan jawabanmu sebelum menghadapi interview crewing, owner, atau user technical." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+/* ===========================================================
+   TOKENS
+   =========================================================== */
+:root{
+  --navy-900:#0a1b2e;
+  --navy-800:#0f2a44;
+  --navy-700:#163657;
+  --navy-600:#1f4670;
+  --navy-500:#2a5a8a;
+  --ink:#0a1b2e;
+  --ink-2:#34495e;
+  --muted:#6b7d92;
+  --line:#dde6ef;
+  --line-2:#eef2f7;
 
-      --ink:       #0d1c33;
-      --ink-2:     #20344f;
-      --muted:     #5a6d86;
-      --muted-2:   #8a99af;
-      --line:      #d8e1ee;
-      --line-2:    #e8edf5;
+  --bg:#ffffff;
+  --bg-soft:#f4f8fc;
+  --bg-cyan:#eaf3fa;
+  --bg-cyan-2:#dceaf5;
 
-      --bg:        #eef3fa;
-      --bg-2:      #f6f9fd;
-      --card:      #ffffff;
+  --teal:#16a8a0;
+  --teal-700:#0e857f;
+  --teal-soft:#e2f6f4;
 
-      --green-500: #157f4a;
-      --green-100: #d6f1e0;
-      --red-500:   #b32525;
-      --red-100:   #fbe1e1;
-      --amber-500: #b07118;
-      --amber-100: #fbeacd;
+  --orange:#ff7a2e;
+  --orange-700:#e3611a;
+  --orange-soft:#fff0e6;
 
-      --radius-lg: 22px;
-      --radius-md: 16px;
-      --radius-sm: 11px;
+  --shadow-sm:0 1px 2px rgba(10,27,46,.06), 0 1px 1px rgba(10,27,46,.04);
+  --shadow-md:0 8px 24px -10px rgba(10,27,46,.18), 0 2px 6px rgba(10,27,46,.06);
+  --shadow-lg:0 24px 60px -24px rgba(10,27,46,.28), 0 8px 20px -12px rgba(10,27,46,.12);
+  --shadow-cta:0 14px 30px -10px rgba(255,122,46,.55), 0 4px 10px rgba(255,122,46,.25);
 
-      --shadow-sm: 0 1px 2px rgba(11,31,58,0.05), 0 1px 1px rgba(11,31,58,0.03);
-      --shadow-md: 0 8px 24px rgba(11,31,58,0.07), 0 2px 6px rgba(11,31,58,0.05);
-      --shadow-lg: 0 24px 60px rgba(11,31,58,0.12), 0 6px 18px rgba(11,31,58,0.06);
+  --r-sm:10px;
+  --r-md:14px;
+  --r-lg:20px;
+  --r-xl:28px;
 
-      --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
+  --container:1120px;
+  --pad-x:clamp(18px, 4vw, 32px);
 
-    * { box-sizing: border-box; }
-    html, body { -webkit-text-size-adjust: 100%; }
+  --font-sans:"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
 
-    body {
-      margin: 0;
-      font-family: var(--font-sans);
-      color: var(--ink);
-      min-height: 100vh;
-      background-color: var(--bg);
-      background-image:
-        radial-gradient(1100px 520px at 88% -120px, rgba(58,143,217,0.22), transparent 60%),
-        radial-gradient(900px 480px at -10% 8%, rgba(11,31,58,0.10), transparent 55%),
-        linear-gradient(180deg, #f4f8fd 0%, #e9f0f9 100%);
-      background-attachment: fixed;
-    }
+/* ===========================================================
+   RESET
+   =========================================================== */
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%; scroll-behavior:smooth}
+body{
+  margin:0;
+  font-family:var(--font-sans);
+  color:var(--ink);
+  background:var(--bg);
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  overflow-x:hidden;
+}
+img,svg{display:block; max-width:100%}
+button{font-family:inherit; cursor:pointer; border:0; background:none}
+a{color:inherit; text-decoration:none}
+h1,h2,h3,h4,p{margin:0}
+h1,h2,h3,h4{text-wrap:balance; letter-spacing:-0.015em}
+p{text-wrap:pretty}
 
-    /* Subtle wave pattern at the very top of the page */
-    body::before {
-      content: "";
-      position: fixed; inset: 0 0 auto 0; height: 220px; pointer-events: none;
-      background-image:
-        radial-gradient(rgba(11,31,58,0.06) 1px, transparent 1px);
-      background-size: 22px 22px;
-      mask-image: linear-gradient(180deg, rgba(0,0,0,0.55), transparent);
-      -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,0.55), transparent);
-      z-index: 0;
-    }
+/* ===========================================================
+   LAYOUT
+   =========================================================== */
+.wrap{
+  max-width:var(--container);
+  margin:0 auto;
+  padding:0 var(--pad-x);
+}
 
-    .wrap {
-      position: relative;
-      width: min(1180px, calc(100% - 28px));
-      margin: 0 auto;
-      padding: 22px 0 60px;
-      z-index: 1;
-    }
+section{
+  padding:72px 0;
+  position:relative;
+}
+@media (min-width:760px){ section{padding:96px 0} }
 
-    /* ============ Topbar ============ */
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 14px;
-      padding: 14px 18px;
-      margin-bottom: 18px;
-      background: linear-gradient(135deg, var(--navy-900) 0%, var(--navy-800) 55%, var(--navy-700) 100%);
-      color: #f1f6ff;
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-lg);
-      position: relative;
-      overflow: hidden;
-    }
-    .topbar::after {
-      content: "";
-      position: absolute; right: -80px; top: -120px;
-      width: 320px; height: 320px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(217,174,94,0.18), transparent 65%);
-      pointer-events: none;
-    }
-    .topbar::before {
-      content: "";
-      position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(217,174,94,0.55), transparent);
-    }
+/* ===========================================================
+   NAV
+   =========================================================== */
+.nav{
+  position:sticky; top:0; z-index:50;
+  background:rgba(255,255,255,.85);
+  backdrop-filter:saturate(180%) blur(14px);
+  -webkit-backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid rgba(221,230,239,.7);
+}
+.nav-inner{
+  display:flex; align-items:center; justify-content:space-between;
+  height:62px;
+}
+.brand{
+  display:flex; align-items:center; gap:10px;
+  font-weight:700; font-size:15px; color:var(--ink);
+}
+.brand-mark{
+  width:30px; height:30px; border-radius:9px;
+  background:linear-gradient(140deg, var(--navy-800), var(--navy-600) 60%, var(--teal));
+  display:grid; place-items:center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 4px 10px -4px rgba(10,27,46,.4);
+}
+.brand-mark svg{width:16px; height:16px; color:#fff}
+.brand small{display:block; font-weight:500; font-size:11px; color:var(--muted); letter-spacing:.02em; margin-top:-2px}
+.nav-cta{
+  font-size:13px; font-weight:600;
+  padding:9px 14px; border-radius:999px;
+  background:var(--ink); color:#fff;
+  transition:transform .2s ease, background .2s ease;
+}
+.nav-cta:hover{background:var(--navy-700); transform:translateY(-1px)}
+@media (max-width:520px){
+  .nav-cta{padding:8px 12px; font-size:12.5px}
+  .brand small{display:none}
+}
 
-    .brand { display: flex; align-items: center; gap: 14px; min-width: 0; position: relative; z-index: 1; }
+/* ===========================================================
+   BUTTONS
+   =========================================================== */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  font-weight:700; font-size:15px;
+  padding:14px 22px;
+  border-radius:14px;
+  transition:transform .18s ease, box-shadow .25s ease, background .2s ease, color .2s ease;
+  white-space:nowrap;
+}
+.btn-primary{
+  background:var(--orange); color:#fff;
+  box-shadow:var(--shadow-cta);
+}
+.btn-primary:hover{ transform:translateY(-2px); background:var(--orange-700) }
+.btn-primary.pulse{ animation:ctaPulse 3.4s ease-in-out infinite }
+@keyframes ctaPulse{
+  0%,100%{ box-shadow:0 14px 30px -10px rgba(255,122,46,.55), 0 4px 10px rgba(255,122,46,.25), 0 0 0 0 rgba(255,122,46,0) }
+  50%{ box-shadow:0 14px 30px -10px rgba(255,122,46,.55), 0 4px 10px rgba(255,122,46,.25), 0 0 0 10px rgba(255,122,46,0) }
+}
+.btn-ghost{
+  background:#fff; color:var(--ink);
+  border:1px solid var(--line);
+}
+.btn-ghost:hover{ border-color:var(--navy-500); transform:translateY(-2px) }
+.btn-dark{
+  background:var(--ink); color:#fff;
+}
+.btn-dark:hover{ background:var(--navy-700); transform:translateY(-2px) }
 
-    .brand-mark {
-      width: 48px; height: 48px; border-radius: 14px;
-      background: linear-gradient(160deg, #ffffff 0%, #e0eaf6 100%);
-      color: var(--navy-900);
-      display: grid; place-items: center;
-      font-weight: 800; letter-spacing: 0.02em; font-size: 14px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.25), inset 0 -2px 0 rgba(11,31,58,0.08);
-      flex: 0 0 auto;
-      position: relative;
-    }
-    .brand-mark::after {
-      content: "";
-      position: absolute; inset: -2px;
-      border-radius: 16px;
-      border: 1px solid rgba(217,174,94,0.45);
-      pointer-events: none;
-    }
+/* ===========================================================
+   HERO
+   =========================================================== */
+.hero{
+  padding-top:54px;
+  padding-bottom:84px;
+  background:
+    radial-gradient(1200px 500px at 85% -10%, rgba(22,168,160,.10), transparent 60%),
+    linear-gradient(180deg, #f7fbfe 0%, #ffffff 70%);
+  overflow:hidden;
+  isolation:isolate;
+}
+.hero-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:48px;
+  align-items:center;
+}
+@media (min-width:960px){
+  .hero-grid{grid-template-columns: 1.05fr .95fr; gap:64px}
+}
 
-    .brand-title { min-width: 0; }
-    .brand-eyebrow {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-size: 10.5px; font-weight: 700; letter-spacing: 0.16em;
-      color: var(--gold-400);
-      text-transform: uppercase;
-      margin-bottom: 4px;
-    }
-    .brand-eyebrow .anchor {
-      width: 10px; height: 10px; display: inline-block;
-      background: currentColor;
-      -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm-1 6.9V11H8v2h3v6.05A8 8 0 0 1 4.07 13H6v-2H2.05a10 10 0 0 0 19.9 0H18v2h1.93A8 8 0 0 1 13 19.05V13h3v-2h-3V8.9a3.5 3.5 0 1 0-2 0Z' fill='black'/></svg>") center/contain no-repeat;
-              mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M12 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Zm-1 6.9V11H8v2h3v6.05A8 8 0 0 1 4.07 13H6v-2H2.05a10 10 0 0 0 19.9 0H18v2h1.93A8 8 0 0 1 13 19.05V13h3v-2h-3V8.9a3.5 3.5 0 1 0-2 0Z' fill='black'/></svg>") center/contain no-repeat;
-    }
-    .brand h1 {
-      margin: 0; font-size: 19px; line-height: 1.2; letter-spacing: -0.02em;
-      font-weight: 700; color: #ffffff;
-    }
-    .brand-sub {
-      margin: 4px 0 0; color: rgba(241,246,255,0.66); font-size: 12.5px;
-      font-weight: 500;
-    }
+.badges{
+  display:flex; flex-wrap:wrap; gap:8px;
+  margin-bottom:22px;
+}
+.badge{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12px; font-weight:600;
+  padding:6px 11px; border-radius:999px;
+  background:#fff; border:1px solid var(--line);
+  color:var(--ink-2);
+}
+.badge .dot{ width:6px; height:6px; border-radius:50%; background:var(--teal) }
+.badge.orange{ background:var(--orange-soft); border-color:#ffd9bf; color:var(--orange-700) }
+.badge.orange .dot{ background:var(--orange) }
+.badge.navy{ background:var(--navy-900); color:#fff; border-color:transparent }
+.badge.navy .dot{ background:var(--teal) }
 
-    .pill {
-      display: inline-flex; align-items: center; gap: 8px;
-      border: 1px solid rgba(255,255,255,0.18);
-      background: rgba(255,255,255,0.06);
-      color: rgba(241,246,255,0.88);
-      padding: 8px 13px; border-radius: 999px;
-      font-size: 12px; font-weight: 600; white-space: nowrap;
-      backdrop-filter: blur(6px);
-      position: relative; z-index: 1;
-    }
-    .pill::before {
-      content: ""; width: 7px; height: 7px; border-radius: 50%;
-      background: var(--ocean-300);
-      box-shadow: 0 0 0 3px rgba(121,181,232,0.18);
-    }
+.hero h1{
+  font-size:clamp(30px, 5.4vw, 52px);
+  line-height:1.08;
+  font-weight:800;
+  letter-spacing:-0.02em;
+  color:var(--ink);
+}
+.hero h1 .em{
+  background:linear-gradient(120deg, var(--navy-800) 0%, var(--teal-700) 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.hero .sub{
+  margin-top:18px;
+  font-size:clamp(15px, 1.7vw, 17px);
+  color:var(--ink-2);
+  max-width:560px;
+}
+.hero .cta-row{
+  display:flex; flex-wrap:wrap; gap:12px;
+  margin-top:28px;
+}
+.trust-mc{
+  margin-top:22px;
+  font-size:13px; color:var(--muted);
+  display:flex; align-items:center; gap:8px;
+}
+.trust-mc svg{ width:14px; height:14px; color:var(--teal) }
 
-    /* ============ Layout ============ */
-    .layout {
-      display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: 18px;
-      align-items: stretch;
-    }
+/* SIMULATOR CARD */
+.sim-wrap{
+  position:relative;
+  display:flex; justify-content:center;
+}
+.sim-wrap::before{
+  content:""; position:absolute; inset:-20px;
+  background:radial-gradient(closest-side, rgba(22,168,160,.15), transparent 70%);
+  filter:blur(20px); z-index:-1;
+}
+.sim-card{
+  width:100%; max-width:380px;
+  background:#fff;
+  border-radius:24px;
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-lg);
+  padding:18px;
+  position:relative;
+  animation:float 7s ease-in-out infinite;
+}
+@keyframes float{
+  0%,100%{ transform:translateY(0) }
+  50%{ transform:translateY(-10px) }
+}
+.sim-head{
+  display:flex; align-items:center; gap:12px;
+  padding:6px 4px 14px;
+  border-bottom:1px solid var(--line-2);
+}
+.sim-avatar{
+  width:44px; height:44px; border-radius:50%;
+  background:linear-gradient(140deg, #cfe4f5, #9bc6e6);
+  display:grid; place-items:center;
+  color:var(--navy-800); font-weight:700; font-size:15px;
+  position:relative;
+}
+.sim-avatar::after{
+  content:""; position:absolute; right:1px; bottom:1px;
+  width:10px; height:10px; border-radius:50%;
+  background:#22c55e; border:2px solid #fff;
+}
+.sim-name{ font-weight:700; font-size:14px }
+.sim-role{ font-size:11.5px; color:var(--muted); margin-top:1px }
+.sim-mode-pill{
+  margin-left:auto;
+  font-size:11px; font-weight:600;
+  padding:5px 9px; border-radius:999px;
+  background:var(--teal-soft); color:var(--teal-700);
+}
 
-    .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-md);
-      position: relative;
-    }
-    .setup, .voice-card, .panel { padding: 24px; }
+.sim-body{ padding:16px 4px 6px }
+.sim-label{
+  font-size:11px; font-weight:600; color:var(--muted);
+  letter-spacing:.08em; text-transform:uppercase;
+}
+.sim-question{
+  margin-top:8px;
+  font-size:16px; font-weight:600; color:var(--ink);
+  line-height:1.35;
+}
+.sim-question .qmark{
+  display:inline-block; color:var(--teal-700); margin-right:6px;
+}
 
-    .card-head {
-      display: flex; align-items: center; gap: 10px;
-      margin-bottom: 4px;
-    }
-    .card-head .kicker {
-      font-size: 10.5px; font-weight: 800; letter-spacing: 0.16em;
-      color: var(--ocean-500); text-transform: uppercase;
-    }
-    .card-head .step {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px; border-radius: 7px;
-      background: var(--ocean-50); color: var(--ocean-500);
-      font-weight: 800; font-size: 11.5px;
-      border: 1px solid var(--ocean-100);
-    }
-    h2 {
-      margin: 4px 0 6px;
-      font-size: 22px; letter-spacing: -0.025em; font-weight: 700;
-      color: var(--ink);
-    }
-    .sub {
-      margin: 0 0 18px; color: var(--muted);
-      line-height: 1.5; font-size: 13.5px;
-    }
+.waveform{
+  margin-top:18px;
+  height:64px;
+  background:linear-gradient(180deg, #f7fbfe, #eaf3fa);
+  border-radius:14px;
+  display:flex; align-items:center; justify-content:center; gap:3px;
+  padding:0 14px;
+  overflow:hidden;
+}
+.waveform .bar{
+  width:3px; border-radius:2px;
+  background:linear-gradient(180deg, var(--teal), var(--navy-600));
+  animation:wave 1.2s ease-in-out infinite;
+}
+@keyframes wave{
+  0%,100%{ height:14% }
+  50%{ height:88% }
+}
+.sim-meta{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top:16px;
+  padding:12px 14px;
+  background:var(--bg-soft);
+  border-radius:12px;
+}
+.sim-timer{
+  font-family:var(--font-mono);
+  font-size:22px; font-weight:600; color:var(--ink);
+  letter-spacing:0.02em;
+  display:flex; align-items:center; gap:8px;
+}
+.sim-timer .rec{
+  width:8px; height:8px; border-radius:50%; background:#ef4444;
+  animation:blink 1.6s ease-in-out infinite;
+}
+@keyframes blink{ 50%{opacity:.25} }
+.sim-credits{ font-size:12px; color:var(--muted); text-align:right }
+.sim-credits b{ display:block; color:var(--ink); font-size:14px; font-weight:700; margin-top:2px }
 
-    /* ============ Form ============ */
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-    .field label {
-      display: block; margin: 0 0 7px;
-      color: var(--ink-2); font-size: 12px; font-weight: 700;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
-    select, input {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: var(--radius-sm);
-      background: #fbfcfe;
-      color: var(--ink);
-      padding: 12px 14px;
-      font: inherit;
-      font-size: 14px;
-      font-weight: 500;
-      outline: none;
-      min-height: 48px;
-      transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
-      appearance: none;
-      -webkit-appearance: none;
-    }
-    select {
-      background-image:
-        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%235a6d86' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
-      background-repeat: no-repeat;
-      background-position: right 14px center;
-      padding-right: 38px;
-    }
-    select:hover, input:hover { border-color: var(--ocean-300); }
-    select:focus, input:focus {
-      border-color: var(--ocean-400);
-      box-shadow: 0 0 0 4px rgba(58,143,217,0.16);
-      background: #ffffff;
-    }
-    input::placeholder { color: var(--muted-2); }
+.sim-actions{
+  display:flex; gap:10px;
+  margin-top:14px;
+}
+.sim-btn{
+  flex:1;
+  padding:11px 12px;
+  border-radius:12px;
+  font-size:13px; font-weight:600;
+  background:var(--ink); color:#fff;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  transition:transform .2s ease;
+}
+.sim-btn:hover{ transform:translateY(-1px) }
+.sim-btn.ghost{ background:#fff; color:var(--ink); border:1px solid var(--line) }
+.sim-btn svg{ width:13px; height:13px }
 
-    .tip {
-      margin-top: 18px;
-      border: 1px solid var(--ocean-100);
-      background: linear-gradient(180deg, var(--ocean-50), #ffffff);
-      color: var(--ink-2);
-      padding: 14px 16px;
-      border-radius: var(--radius-md);
-      font-size: 13px; line-height: 1.55;
-      display: flex; gap: 12px; align-items: flex-start;
-    }
-    .tip .tip-icon {
-      width: 28px; height: 28px; flex: 0 0 28px; border-radius: 9px;
-      background: var(--ocean-500); color: #fff;
-      display: grid; place-items: center; font-weight: 800; font-size: 14px;
-      box-shadow: 0 4px 10px rgba(29,111,184,0.28);
-    }
-    .tip strong { color: var(--navy-800); }
+/* Floating chips around card */
+.float-chip{
+  position:absolute;
+  background:#fff; border:1px solid var(--line);
+  border-radius:12px; box-shadow:var(--shadow-md);
+  padding:9px 12px;
+  display:flex; align-items:center; gap:8px;
+  font-size:12.5px; font-weight:600; color:var(--ink);
+  animation:float 6s ease-in-out infinite;
+}
+.float-chip svg{ width:14px; height:14px }
+.float-chip.fc-1{ top:-14px; right:-6px; animation-delay:-1.5s }
+.float-chip.fc-2{ bottom:-18px; left:-10px; animation-delay:-3s }
+.float-chip.fc-1 .ico{ color:var(--teal-700) }
+.float-chip.fc-2 .ico{ color:var(--orange) }
+.sim-microcopy{
+  margin-top:18px;
+  font-size:12.5px; color:var(--muted);
+  display:flex; align-items:center; gap:8px;
+  justify-content:center;
+  max-width:380px; margin-left:auto; margin-right:auto;
+}
+.sim-microcopy svg{ width:14px; height:14px; color:var(--teal-700); flex-shrink:0 }
+@media (max-width:520px){
+  .float-chip{ font-size:11.5px; padding:7px 10px }
+  .float-chip.fc-1{ right:0 }
+  .float-chip.fc-2{ left:0 }
+}
 
-    .warnbox {
-      margin-top: 14px;
-      border: 1px solid var(--amber-100);
-      background: #fff7e6;
-      color: var(--amber-500);
-      padding: 12px 14px;
-      border-radius: var(--radius-md);
-      font-size: 13px; line-height: 1.5;
-      font-weight: 500;
-    }
+/* ===========================================================
+   OCEAN WAVE BG
+   =========================================================== */
+.wave-bg{
+  position:absolute; left:0; right:0; bottom:-1px;
+  pointer-events:none; line-height:0;
+  opacity:.6;
+}
+.wave-bg svg{ width:200%; height:auto; animation:slide 26s linear infinite }
+@keyframes slide{
+  from{ transform:translateX(0) }
+  to{ transform:translateX(-50%) }
+}
 
-    /* ============ Buttons ============ */
-    .actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-top: 18px;
-    }
-    button {
-      border: 0; border-radius: 12px;
-      padding: 13px 16px;
-      font: inherit; font-weight: 700; font-size: 14px;
-      cursor: pointer;
-      transition: transform .12s ease, box-shadow .15s ease, opacity .15s ease, background .15s ease;
-      min-height: 50px;
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      letter-spacing: -0.005em;
-    }
-    button:hover { transform: translateY(-1px); }
-    button:active { transform: translateY(0); }
-    button:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
-    button:focus-visible { outline: 3px solid rgba(58,143,217,0.45); outline-offset: 2px; }
+/* ===========================================================
+   SECTION HEADINGS
+   =========================================================== */
+.eyebrow{
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:12px; font-weight:600; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--teal-700);
+  margin-bottom:14px;
+}
+.eyebrow::before{
+  content:""; width:18px; height:1.5px; background:var(--teal); border-radius:2px;
+}
+.section-h{
+  font-size:clamp(26px, 3.6vw, 40px);
+  font-weight:800;
+  letter-spacing:-0.02em;
+  line-height:1.12;
+  max-width:780px;
+}
+.section-sub{
+  margin-top:16px;
+  font-size:clamp(15px, 1.5vw, 17px);
+  color:var(--ink-2);
+  max-width:680px;
+}
 
-    #startBtn { grid-column: 1 / -1; }
-    #feedbackBtn { grid-column: 1 / -1; }
+/* ===========================================================
+   PROBLEM
+   =========================================================== */
+.problem{ background:var(--bg) }
+.pain-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(260px,1fr));
+  gap:14px;
+  margin-top:40px;
+}
+.pain{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  padding:22px 20px;
+  transition:transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.pain:hover{
+  transform:translateY(-4px);
+  border-color:#c8d5e2;
+  box-shadow:var(--shadow-md);
+}
+.pain:hover .pain-icon{ transform:rotate(-6deg) scale(1.08) }
+.pain-icon{
+  width:40px; height:40px; border-radius:10px;
+  background:var(--bg-cyan); color:var(--navy-700);
+  display:grid; place-items:center;
+  margin-bottom:14px;
+  transition:transform .3s ease;
+}
+.pain-icon svg{ width:20px; height:20px }
+.pain h3{ font-size:16px; font-weight:700; color:var(--ink) }
+.pain p{ font-size:13.5px; color:var(--muted); margin-top:6px }
 
-    .btn-primary {
-      background: linear-gradient(135deg, var(--navy-700) 0%, var(--ocean-500) 100%);
-      color: #fff;
-      box-shadow: 0 10px 22px rgba(29,111,184,0.32), inset 0 1px 0 rgba(255,255,255,0.18);
-      position: relative;
-      overflow: hidden;
-    }
-    .btn-primary::after {
-      content: ""; position: absolute; inset: 0;
-      background: linear-gradient(180deg, rgba(255,255,255,0.12), transparent 50%);
-      pointer-events: none;
-    }
-    .btn-primary:hover { box-shadow: 0 14px 28px rgba(29,111,184,0.38), inset 0 1px 0 rgba(255,255,255,0.22); }
+/* ===========================================================
+   CONSEQUENCE
+   =========================================================== */
+.consequence{
+  background:
+    linear-gradient(180deg, #f4f8fc 0%, #eaf3fa 100%);
+  overflow:hidden;
+}
+.timeline{
+  margin-top:48px;
+  display:grid;
+  grid-template-columns:repeat(4, 1fr);
+  gap:14px;
+  position:relative;
+}
+.timeline::before{
+  content:""; position:absolute;
+  left:6%; right:6%; top:32px; height:2px;
+  background:linear-gradient(90deg, var(--teal), var(--orange));
+  border-radius:2px;
+  opacity:.4;
+}
+.tl-step{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  padding:18px 16px;
+  text-align:center;
+  position:relative; z-index:1;
+}
+.tl-num{
+  width:44px; height:44px;
+  margin:0 auto 12px;
+  border-radius:50%;
+  background:#fff;
+  border:2px solid var(--line);
+  display:grid; place-items:center;
+  font-weight:700; font-size:14px; color:var(--ink);
+}
+.tl-step:nth-child(1) .tl-num{ border-color:var(--teal); color:var(--teal-700) }
+.tl-step:nth-child(2) .tl-num{ border-color:var(--navy-500); color:var(--navy-700) }
+.tl-step:nth-child(3) .tl-num{ border-color:var(--navy-700); color:var(--navy-800) }
+.tl-step:nth-child(4) .tl-num{ border-color:var(--orange); color:var(--orange-700) }
+.tl-step h4{ font-size:14px; font-weight:700 }
+.tl-step p{ font-size:12.5px; color:var(--muted); margin-top:4px }
+.after-timeline{
+  margin-top:28px;
+  text-align:center;
+  font-size:13.5px; color:var(--muted);
+  font-style:italic;
+  max-width:600px; margin-left:auto; margin-right:auto;
+}
+@media (max-width:700px){
+  .timeline{ grid-template-columns:1fr; gap:10px }
+  .timeline::before{ left:24px; right:auto; top:24px; bottom:24px; width:2px; height:auto }
+  .tl-step{ display:flex; gap:14px; text-align:left; align-items:flex-start; padding:14px 16px }
+  .tl-num{ margin:0; flex-shrink:0; width:36px; height:36px; font-size:13px }
+}
 
-    .btn-dark {
-      background: var(--navy-900); color: #fff;
-      box-shadow: 0 6px 14px rgba(11,31,58,0.22);
-    }
-    .btn-soft {
-      background: #eef3fa; color: var(--ink-2);
-      border: 1px solid var(--line);
-      box-shadow: var(--shadow-sm);
-    }
-    .btn-soft:hover { background: #e4ecf6; }
-    .btn-danger {
-      background: var(--red-100); color: var(--red-500);
-      border: 1px solid #f3c8c8;
-    }
-    .btn-green {
-      background: linear-gradient(135deg, #1a8f54, #15693d);
-      color: #fff;
-      box-shadow: 0 8px 18px rgba(21,127,74,0.28), inset 0 1px 0 rgba(255,255,255,0.18);
-    }
+/* ===========================================================
+   SOLUTION
+   =========================================================== */
+.benefits{
+  margin-top:40px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(240px,1fr));
+  gap:12px;
+}
+.benefit{
+  display:flex; align-items:flex-start; gap:12px;
+  padding:16px 18px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  transition:border-color .2s ease, transform .2s ease;
+}
+.benefit:hover{ border-color:var(--teal); transform:translateY(-2px) }
+.benefit .check{
+  width:26px; height:26px; flex-shrink:0;
+  border-radius:8px;
+  background:var(--teal-soft); color:var(--teal-700);
+  display:grid; place-items:center;
+}
+.benefit .check svg{ width:14px; height:14px }
+.benefit p{ font-size:14px; font-weight:600; color:var(--ink); line-height:1.4 }
+.note-card{
+  margin-top:28px;
+  padding:18px 22px;
+  background:var(--bg-cyan);
+  border-left:3px solid var(--teal);
+  border-radius:0 var(--r-md) var(--r-md) 0;
+  font-size:14px; color:var(--navy-800);
+  font-style:italic;
+}
 
-    /* ============ Voice card ============ */
-    .voice-card {
-      background:
-        radial-gradient(800px 300px at 50% -10%, rgba(58,143,217,0.20), transparent 60%),
-        linear-gradient(180deg, #ffffff 0%, #f4f8fd 100%);
-      display: grid; place-items: center;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-      min-height: 380px;
-    }
-    /* Radar / sonar rings behind orb */
-    .voice-card .rings {
-      position: absolute; inset: 0; pointer-events: none;
-      display: grid; place-items: center;
-    }
-    .voice-card .rings::before,
-    .voice-card .rings::after {
-      content: "";
-      position: absolute;
-      border-radius: 50%;
-      border: 1px solid rgba(29,111,184,0.10);
-    }
-    .voice-card .rings::before {
-      width: 280px; height: 280px;
-      border-color: rgba(29,111,184,0.12);
-    }
-    .voice-card .rings::after {
-      width: 420px; height: 420px;
-      border-color: rgba(29,111,184,0.07);
-    }
-    .voice-card .ring-3 {
-      position: absolute;
-      width: 560px; height: 560px; border-radius: 50%;
-      border: 1px dashed rgba(29,111,184,0.10);
-    }
-    /* Compass tick decoration */
-    .voice-card .compass-tick {
-      position: absolute;
-      top: 16px; left: 16px;
-      font-family: var(--font-mono);
-      font-size: 10.5px; letter-spacing: 0.18em;
-      color: var(--muted-2);
-      text-transform: uppercase;
-      display: inline-flex; align-items: center; gap: 8px;
-    }
-    .voice-card .compass-tick::before {
-      content: ""; width: 8px; height: 8px; border-radius: 50%;
-      background: var(--gold-400);
-      box-shadow: 0 0 0 3px rgba(217,174,94,0.18);
-    }
-    .voice-card .compass-tick-r {
-      position: absolute;
-      top: 16px; right: 16px;
-      font-family: var(--font-mono);
-      font-size: 10.5px; letter-spacing: 0.18em;
-      color: var(--muted-2);
-      text-transform: uppercase;
-    }
+/* ===========================================================
+   EXAMPLE SECTION
+   =========================================================== */
+.example-section{
+  background:linear-gradient(180deg, #ffffff 0%, #f4f8fc 100%);
+}
+.ex-grid{
+  margin-top:44px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+  gap:18px;
+}
+.ex-card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  padding:24px 22px;
+  display:flex; flex-direction:column;
+  transition:transform .25s ease, box-shadow .3s ease, border-color .25s ease;
+}
+.ex-card:hover{
+  transform:translateY(-4px);
+  box-shadow:var(--shadow-md);
+  border-color:#c8d5e2;
+}
+.ex-head{
+  display:flex; align-items:center; gap:12px;
+  margin-bottom:18px;
+}
+.ex-icon{
+  width:42px; height:42px; border-radius:11px;
+  display:grid; place-items:center;
+  flex-shrink:0;
+}
+.ex-icon svg{ width:20px; height:20px }
+.ex-icon-teal{ background:var(--teal-soft); color:var(--teal-700) }
+.ex-icon-navy{ background:var(--bg-cyan); color:var(--navy-700) }
+.ex-icon-orange{ background:var(--orange-soft); color:var(--orange-700) }
+.ex-label{ font-weight:700; font-size:14.5px; color:var(--ink) }
+.ex-step{
+  font-family:var(--font-mono); font-size:11px;
+  color:var(--muted); letter-spacing:.08em; margin-top:2px;
+}
+.ex-quote{
+  margin:0;
+  padding:18px 18px 18px 22px;
+  background:var(--bg-soft);
+  border-left:3px solid var(--teal);
+  border-radius:0 12px 12px 0;
+  font-size:15.5px; font-weight:600; line-height:1.4;
+  color:var(--ink);
+  font-style:italic;
+}
+.ex-answer{
+  background:linear-gradient(180deg, #f7fbfe, #eaf3fa);
+  border-radius:12px;
+  padding:16px 18px;
+}
+.ex-wave{
+  display:flex; align-items:center; gap:3px;
+  height:36px;
+  margin-bottom:10px;
+}
+.ex-wave .bar{
+  width:3px; border-radius:2px;
+  background:linear-gradient(180deg, var(--teal), var(--navy-600));
+  animation:wave 1.2s ease-in-out infinite;
+}
+.ex-answer p{
+  margin:0;
+  font-size:14px; color:var(--ink); line-height:1.5;
+}
+.ex-feedback{
+  list-style:none; padding:0; margin:0;
+  display:grid; gap:10px;
+}
+.ex-feedback li{
+  display:flex; align-items:flex-start; gap:10px;
+  font-size:14px; color:var(--ink);
+  line-height:1.4;
+}
+.ex-feedback .dot{
+  width:10px; height:10px; border-radius:50%;
+  flex-shrink:0; margin-top:5px;
+  position:relative;
+}
+.ex-feedback .dot.ok{ background:#16a34a }
+.ex-feedback .dot.ok::after{
+  content:""; position:absolute; inset:0;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>") center/70% no-repeat;
+}
+.ex-feedback .dot.warn{ background:var(--orange) }
+.ex-micro{
+  margin-top:14px;
+  font-size:12.5px; color:var(--muted);
+  font-style:italic;
+}
 
-    .voice-inner { position: relative; z-index: 1; width: 100%; padding: 6px 10px; }
+/* ===========================================================
+   MODES
+   =========================================================== */
+.modes{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(300px,1fr));
+  gap:18px;
+  margin-top:44px;
+}
+.mode-card{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-xl);
+  padding:28px 26px;
+  transition:transform .25s ease, box-shadow .3s ease, border-color .25s ease;
+  display:flex; flex-direction:column;
+  position:relative; overflow:hidden;
+}
+.mode-card::after{
+  content:""; position:absolute; inset:auto -30% -50% auto; width:80%; height:80%;
+  background:radial-gradient(closest-side, rgba(22,168,160,.08), transparent 70%);
+  pointer-events:none;
+}
+.mode-card.b::after{
+  background:radial-gradient(closest-side, rgba(255,122,46,.08), transparent 70%);
+}
+.mode-card:hover{
+  transform:translateY(-6px);
+  box-shadow:var(--shadow-lg);
+  border-color:var(--teal);
+}
+.mode-card.b:hover{ border-color:var(--orange) }
+.mode-card:hover .mode-icon{ transform:rotate(-4deg) scale(1.05) }
+.mode-icon{
+  width:54px; height:54px; border-radius:14px;
+  display:grid; place-items:center;
+  background:linear-gradient(140deg, var(--navy-800), var(--navy-600));
+  color:#fff;
+  transition:transform .3s ease;
+  margin-bottom:18px;
+}
+.mode-card.b .mode-icon{
+  background:linear-gradient(140deg, var(--orange), #d04e10);
+}
+.mode-icon svg{ width:26px; height:26px }
+.mode-card h3{
+  font-size:22px; font-weight:800; letter-spacing:-0.01em;
+}
+.mode-card .mode-copy{
+  margin-top:10px;
+  font-size:14.5px; color:var(--ink-2);
+}
+.sub-tags{
+  display:flex; gap:8px; flex-wrap:wrap;
+  margin-top:16px;
+}
+.sub-tag{
+  font-size:12px; font-weight:600;
+  padding:6px 11px; border-radius:8px;
+  background:var(--bg-soft); color:var(--ink);
+  border:1px solid var(--line);
+}
+.fit-list{
+  margin-top:18px;
+  list-style:none; padding:0;
+  display:grid; gap:7px;
+}
+.fit-list li{
+  font-size:13.5px; color:var(--ink-2);
+  display:flex; align-items:flex-start; gap:8px;
+}
+.fit-list li::before{
+  content:""; width:5px; height:5px; border-radius:50%;
+  background:var(--teal); margin-top:8px; flex-shrink:0;
+}
+.mode-card.b .fit-list li::before{ background:var(--orange) }
+.mode-cta{
+  margin-top:22px;
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:14px; font-weight:700;
+  color:var(--teal-700);
+  align-self:flex-start;
+  padding:10px 0;
+  transition:gap .2s ease;
+}
+.mode-card.b .mode-cta{ color:var(--orange-700) }
+.mode-card:hover .mode-cta{ gap:10px }
+.mode-cta svg{ width:14px; height:14px }
 
-    .orb {
-      position: relative;
-      width: 156px; height: 156px; border-radius: 50%;
-      background:
-        radial-gradient(circle at 32% 28%, #cfe5f8 0%, #3a8fd9 38%, #1b3f6e 78%, #0b1f3a 100%);
-      display: grid; place-items: center;
-      color: #fff; font-size: 44px;
-      box-shadow:
-        0 30px 60px rgba(11,31,58,0.32),
-        0 8px 18px rgba(29,111,184,0.30),
-        inset 0 -8px 24px rgba(0,0,0,0.25),
-        inset 0 6px 16px rgba(255,255,255,0.18);
-      margin: 22px auto 18px;
-    }
-    /* Inner halo */
-    .orb::before {
-      content: "";
-      position: absolute; inset: 8px;
-      border-radius: 50%;
-      background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), transparent 55%);
-      pointer-events: none;
-    }
-    /* Gold outer ring */
-    .orb::after {
-      content: "";
-      position: absolute; inset: -10px;
-      border-radius: 50%;
-      border: 1px solid rgba(217,174,94,0.45);
-      box-shadow: 0 0 0 6px rgba(255,255,255,0.5);
-      pointer-events: none;
-    }
-    .orb.live { animation: orbPulse 1.8s ease-in-out infinite; }
-    @keyframes orbPulse {
-      0%, 100% {
-        box-shadow:
-          0 30px 60px rgba(11,31,58,0.32),
-          0 0 0 0 rgba(29,111,184,0.32),
-          inset 0 -8px 24px rgba(0,0,0,0.25),
-          inset 0 6px 16px rgba(255,255,255,0.18);
-      }
-      50% {
-        box-shadow:
-          0 30px 60px rgba(11,31,58,0.32),
-          0 0 0 22px rgba(29,111,184,0.0),
-          inset 0 -8px 24px rgba(0,0,0,0.25),
-          inset 0 6px 16px rgba(255,255,255,0.18);
-      }
-    }
-    /* small floating sound wave bars under orb */
-    .wave-bars {
-      display: inline-flex; gap: 4px; align-items: flex-end;
-      height: 18px; margin-bottom: 6px;
-      opacity: .55;
-    }
-    .wave-bars span {
-      width: 3px; background: var(--ocean-500); border-radius: 3px;
-      height: 6px;
-      animation: bar 1.2s ease-in-out infinite;
-    }
-    .wave-bars span:nth-child(2) { animation-delay: .1s; }
-    .wave-bars span:nth-child(3) { animation-delay: .2s; }
-    .wave-bars span:nth-child(4) { animation-delay: .3s; }
-    .wave-bars span:nth-child(5) { animation-delay: .4s; }
-    @keyframes bar {
-      0%, 100% { height: 6px; opacity: .4; }
-      50% { height: 16px; opacity: 1; }
-    }
+/* Mode card example questions */
+.q-examples{
+  margin-top:16px;
+  padding:14px 16px;
+  background:var(--bg-soft);
+  border-radius:12px;
+}
+.q-examples-label{
+  font-size:11px; font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted);
+  margin-bottom:8px;
+}
+.q-list{
+  list-style:none; padding:0; margin:0;
+  display:grid; gap:6px;
+}
+.q-list li{
+  font-size:13px; color:var(--ink);
+  line-height:1.4;
+  padding-left:18px;
+  position:relative;
+  font-style:italic;
+}
+.q-list li::before{
+  content:"\201C";
+  position:absolute; left:2px; top:-2px;
+  font-style:normal;
+  font-size:18px; font-weight:700;
+  color:var(--teal-700);
+  line-height:1;
+}
+.mode-card.b .q-list li::before{ color:var(--orange-700) }
 
-    .timer {
-      font-family: var(--font-mono);
-      font-size: 44px; font-weight: 600;
-      letter-spacing: -0.02em;
-      margin: 4px 0 2px;
-      color: var(--navy-900);
-      font-variant-numeric: tabular-nums;
-    }
-    .timer-label {
-      font-size: 10.5px; letter-spacing: 0.22em;
-      color: var(--muted-2);
-      text-transform: uppercase; font-weight: 700;
-      margin-bottom: 2px;
-    }
+/* Pricing subnote + beta note */
+.price-subnote{
+  margin-top:8px;
+  font-size:13px; color:var(--ink-2);
+  text-align:center;
+  max-width:380px; margin-left:auto; margin-right:auto;
+}
+.beta-note{
+  margin-top:18px;
+  padding:14px 16px;
+  background:var(--bg-cyan);
+  border-radius:12px;
+  display:flex; gap:12px; align-items:flex-start;
+}
+.beta-note svg{
+  width:18px; height:18px; flex-shrink:0;
+  color:var(--teal-700); margin-top:1px;
+}
+.beta-note p{
+  margin:0; font-size:13px; color:var(--navy-800);
+  line-height:1.5;
+}
+.beta-note strong{ color:var(--ink); font-weight:700 }
 
-    .status {
-      display: inline-flex; align-items: center; justify-content: center; gap: 9px;
-      border: 1px solid var(--line);
-      background: #fff;
-      border-radius: 999px;
-      padding: 9px 14px;
-      color: var(--ink-2);
-      font-size: 12.5px;
-      font-weight: 600;
-      margin-top: 10px;
-      max-width: 100%;
-      box-shadow: var(--shadow-sm);
-    }
-    .dot {
-      width: 9px; height: 9px; border-radius: 50%;
-      background: #98a8bf;
-      flex: 0 0 auto;
-      box-shadow: 0 0 0 3px rgba(152,168,191,0.18);
-    }
-    .dot.ok   { background: var(--green-500); box-shadow: 0 0 0 3px rgba(21,127,74,0.18); }
-    .dot.warn { background: var(--gold-500);  box-shadow: 0 0 0 3px rgba(198,150,70,0.22); }
-    .dot.err  { background: var(--red-500);   box-shadow: 0 0 0 3px rgba(179,37,37,0.18); }
+/* ===========================================================
+   HOW IT WORKS
+   =========================================================== */
+.howit{ background:var(--bg-soft); position:relative; overflow:hidden }
+.steps{
+  margin-top:44px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(220px,1fr));
+  gap:14px;
+}
+.step{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  padding:24px 22px;
+  position:relative;
+}
+.step:hover{ box-shadow:var(--shadow-md) }
+.step-num{
+  position:absolute; top:18px; right:20px;
+  font-family:var(--font-mono);
+  font-size:13px; font-weight:600; color:var(--muted);
+}
+.step-icon{
+  width:44px; height:44px; border-radius:12px;
+  background:var(--bg-cyan); color:var(--navy-700);
+  display:grid; place-items:center; margin-bottom:14px;
+}
+.step-icon svg{ width:22px; height:22px }
+.step h4{ font-size:16px; font-weight:700 }
+.step p{ font-size:13.5px; color:var(--muted); margin-top:6px }
+.howit-info{
+  margin-top:28px;
+  text-align:center;
+  font-size:14px; color:var(--ink-2);
+  display:inline-flex; align-items:center; gap:8px;
+  width:100%; justify-content:center;
+}
+.howit-info svg{ color:var(--teal); width:16px; height:16px }
 
-    .voice-instr {
-      margin: 18px auto 0; max-width: 440px;
-      color: var(--muted);
-      font-size: 13px; line-height: 1.55;
-      padding: 12px 14px;
-      background: rgba(11,31,58,0.04);
-      border: 1px dashed var(--line);
-      border-radius: var(--radius-md);
-    }
-    .voice-instr b { color: var(--navy-800); font-weight: 700; }
+/* ===========================================================
+   PRICING
+   =========================================================== */
+.pricing{
+  background:linear-gradient(180deg, #ffffff 0%, #eaf3fa 100%);
+  position:relative;
+}
+.price-wrap{ display:flex; justify-content:center; margin-top:44px }
+.price-card{
+  width:100%; max-width:560px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-xl);
+  padding:36px 32px;
+  position:relative;
+  box-shadow:var(--shadow-lg);
+}
+.price-card::before{
+  content:""; position:absolute; inset:-2px;
+  border-radius:calc(var(--r-xl) + 2px);
+  padding:2px;
+  background:linear-gradient(135deg, var(--teal), var(--orange));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask-composite:exclude;
+  pointer-events:none;
+  opacity:.55;
+}
+.price-badge{
+  position:absolute; top:-14px; left:50%;
+  transform:translateX(-50%);
+  background:var(--ink); color:#fff;
+  font-size:12px; font-weight:700; letter-spacing:.04em;
+  padding:8px 16px; border-radius:999px;
+  display:inline-flex; align-items:center; gap:8px;
+  box-shadow:var(--shadow-md);
+}
+.price-badge .pulse-dot{
+  width:7px; height:7px; border-radius:50%; background:var(--orange);
+  position:relative;
+}
+.price-badge .pulse-dot::after{
+  content:""; position:absolute; inset:0; border-radius:50%;
+  background:var(--orange);
+  animation:pulseRing 1.8s ease-out infinite;
+}
+@keyframes pulseRing{
+  0%{ transform:scale(1); opacity:.6 }
+  100%{ transform:scale(3); opacity:0 }
+}
+.price-head{
+  text-align:center; padding-top:6px;
+}
+.price-head h3{ font-size:20px; font-weight:700; color:var(--ink) }
+.price-numbers{
+  display:flex; align-items:flex-end; justify-content:center; gap:14px;
+  margin-top:16px;
+}
+.price-old{
+  font-size:18px; color:var(--muted);
+  text-decoration:line-through;
+  text-decoration-color:#cbd5e0;
+  font-weight:500;
+}
+.price-new{
+  font-size:clamp(40px, 7vw, 56px);
+  font-weight:800;
+  color:var(--ink);
+  letter-spacing:-0.025em;
+  line-height:1;
+}
+.price-suffix{ font-size:14px; color:var(--muted); margin-top:6px; text-align:center }
 
-    /* ============ Panels ============ */
-    .section-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-      margin-top: 18px;
-    }
-    .panel-head {
-      display: flex; justify-content: space-between; align-items: flex-start;
-      gap: 12px; margin-bottom: 14px;
-    }
-    .panel-head h2 { font-size: 19px; margin: 0 0 4px; }
-    .panel-head .sub { margin: 0; font-size: 12.5px; }
-    .mini-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .mini-actions button {
-      padding: 8px 12px; border-radius: 10px;
-      min-height: 36px; font-size: 12px; font-weight: 700;
-    }
+.chips-row{
+  display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+  margin:22px 0 24px;
+}
+.chip{
+  font-size:12.5px; font-weight:600;
+  padding:7px 12px; border-radius:999px;
+  background:var(--teal-soft); color:var(--teal-700);
+  display:inline-flex; align-items:center; gap:6px;
+  border:1px solid rgba(22,168,160,.18);
+  transition:transform .25s ease;
+}
+.chip:hover{ transform:translateY(-2px) }
+.chip svg{ width:12px; height:12px }
+.chip.orange{ background:var(--orange-soft); color:var(--orange-700); border-color:#ffd9bf }
 
-    .box {
-      border: 1px solid var(--line);
-      background:
-        repeating-linear-gradient(180deg, transparent 0, transparent 27px, rgba(11,31,58,0.025) 27px, rgba(11,31,58,0.025) 28px),
-        #fdfefe;
-      border-radius: var(--radius-md);
-      padding: 16px 18px;
-      min-height: 270px; max-height: 460px;
-      overflow: auto;
-      white-space: pre-wrap;
-      line-height: 1.55;
-      font-size: 13.5px;
-      color: var(--ink-2);
-    }
-    .box::-webkit-scrollbar { width: 8px; height: 8px; }
-    .box::-webkit-scrollbar-thumb { background: #c5d2e3; border-radius: 8px; }
-    .box::-webkit-scrollbar-track { background: transparent; }
+.incl-list{
+  list-style:none; padding:0; margin:0;
+  display:grid; gap:10px;
+}
+.incl-list li{
+  display:flex; align-items:flex-start; gap:10px;
+  font-size:14px; color:var(--ink);
+}
+.incl-list li svg{ flex-shrink:0; width:18px; height:18px; color:var(--teal); margin-top:2px }
+.price-cta-wrap{ margin-top:26px }
+.price-cta-wrap .btn{ width:100%; padding:16px 24px; font-size:16px }
+.price-micro{
+  margin-top:14px;
+  font-size:12.5px; color:var(--muted); text-align:center;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.price-micro svg{ width:13px; height:13px }
 
-    /* Empty state */
-    #transcriptBox:not(:has(.transcript-item)),
-    #feedbackBox {
-      /* default contains plain string, not transcript-item */
-    }
-    .empty-state {
-      display: grid; place-items: center; min-height: 240px;
-      text-align: center; gap: 10px; padding: 24px;
-    }
-    .empty-state .ic {
-      width: 44px; height: 44px; border-radius: 12px;
-      background: var(--ocean-50); color: var(--ocean-500);
-      display: grid; place-items: center; font-size: 22px;
-      border: 1px solid var(--ocean-100);
-    }
-    .empty-state .ttl { font-weight: 700; color: var(--ink); font-size: 14px; }
-    .empty-state .desc { color: var(--muted); font-size: 12.5px; max-width: 320px; line-height: 1.5; }
+/* ===========================================================
+   WHO IS THIS FOR
+   =========================================================== */
+.whofor-grid{
+  margin-top:40px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(280px,1fr));
+  gap:12px;
+}
+.whofor-item{
+  display:flex; gap:14px; align-items:flex-start;
+  padding:18px 20px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  transition:border-color .2s ease, transform .2s ease;
+}
+.whofor-item:hover{ border-color:var(--navy-500); transform:translateX(4px) }
+.whofor-icon{
+  width:32px; height:32px; flex-shrink:0;
+  border-radius:8px;
+  background:var(--bg-cyan); color:var(--navy-700);
+  display:grid; place-items:center;
+}
+.whofor-icon svg{ width:16px; height:16px }
+.whofor-item p{ font-size:14.5px; color:var(--ink); font-weight:500; line-height:1.4 }
 
-    .transcript-item {
-      padding: 12px 0;
-      border-bottom: 1px dashed #e2e8f0;
-    }
-    .transcript-item:last-child { border-bottom: 0; }
-    .transcript-item .role {
-      display: inline-flex; align-items: center; gap: 6px;
-      font-weight: 800; margin-bottom: 6px; font-size: 11px;
-      text-transform: uppercase; letter-spacing: 0.12em;
-      padding: 3px 9px; border-radius: 999px;
-    }
-    .transcript-item .role.user {
-      color: var(--ocean-500); background: var(--ocean-50); border: 1px solid var(--ocean-100);
-    }
-    .transcript-item .role.assistant {
-      color: var(--gold-500); background: var(--gold-100); border: 1px solid #ecdab1;
-    }
-    .transcript-item .role::before {
-      content: ""; width: 6px; height: 6px; border-radius: 50%;
-      background: currentColor;
-    }
+/* ===========================================================
+   EMOTIONAL CLOSE
+   =========================================================== */
+.emo{
+  background:linear-gradient(160deg, var(--navy-900) 0%, var(--navy-700) 100%);
+  color:#fff;
+  position:relative;
+  overflow:hidden;
+}
+.emo::before{
+  content:""; position:absolute; top:-50%; right:-20%; width:600px; height:600px;
+  background:radial-gradient(closest-side, rgba(22,168,160,.18), transparent 70%);
+  pointer-events:none;
+}
+.emo .wave-bg{ opacity:.15 }
+.emo-inner{ text-align:center; position:relative; max-width:760px; margin:0 auto }
+.emo h2{
+  font-size:clamp(28px, 4vw, 44px); font-weight:800;
+  letter-spacing:-0.02em; line-height:1.12;
+}
+.emo p{
+  margin-top:18px;
+  font-size:16px; color:rgba(255,255,255,.78);
+}
+.emo .btn{ margin-top:28px }
+.emo-tag{
+  margin-top:32px;
+  font-size:14px; font-style:italic;
+  color:rgba(255,255,255,.6);
+  border-top:1px solid rgba(255,255,255,.12);
+  padding-top:24px;
+}
 
-    /* ============ Debug ============ */
-    .debug {
-      margin-top: 18px;
-      padding: 0;
-      background: #ffffff;
-      border: 1px dashed var(--line);
-      border-radius: var(--radius-md);
-      box-shadow: none;
-    }
-    .debug summary {
-      cursor: pointer;
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 12px;
-      padding: 12px 16px;
-      list-style: none;
-      display: flex; align-items: center; gap: 10px;
-      letter-spacing: 0.02em;
-    }
-    .debug summary::-webkit-details-marker { display: none; }
-    .debug summary::before {
-      content: "▸";
-      color: var(--muted-2);
-      transition: transform .15s ease;
-      display: inline-block;
-    }
-    .debug[open] summary::before { transform: rotate(90deg); }
-    .debug summary .tag {
-      font-family: var(--font-mono);
-      font-size: 10px; letter-spacing: 0.1em;
-      background: #eef3fa; color: var(--muted);
-      padding: 3px 7px; border-radius: 5px;
-      text-transform: uppercase; font-weight: 600;
-      margin-left: auto;
-    }
-    .debug pre {
-      white-space: pre-wrap; word-break: break-word;
-      background: #0b1426; color: #cfe1f7;
-      padding: 14px 16px;
-      border-radius: 0 0 var(--radius-md) var(--radius-md);
-      margin: 0;
-      max-height: 280px; overflow: auto;
-      font-family: var(--font-mono);
-      font-size: 11.5px; line-height: 1.55;
-      border-top: 1px solid #0f1d33;
-    }
+/* ===========================================================
+   FAQ
+   =========================================================== */
+.faq{ background:#fff }
+.faq-list{
+  margin-top:36px;
+  max-width:760px;
+}
+.faq-item{
+  border-bottom:1px solid var(--line);
+}
+.faq-item:first-child{ border-top:1px solid var(--line) }
+.faq-q{
+  width:100%; text-align:left;
+  display:flex; align-items:center; gap:16px; justify-content:space-between;
+  padding:20px 4px;
+  font-size:15.5px; font-weight:600; color:var(--ink);
+  cursor:pointer;
+}
+.faq-q .arrow{
+  width:30px; height:30px; flex-shrink:0;
+  border-radius:50%; background:var(--bg-soft);
+  display:grid; place-items:center;
+  transition:transform .3s ease, background .2s ease;
+}
+.faq-q .arrow svg{ width:14px; height:14px; color:var(--ink); transition:transform .3s ease }
+.faq-item.open .faq-q .arrow{ background:var(--teal); }
+.faq-item.open .faq-q .arrow svg{ color:#fff; transform:rotate(180deg) }
+.faq-a{
+  max-height:0; overflow:hidden;
+  transition:max-height .35s ease;
+}
+.faq-item.open .faq-a{ max-height:300px }
+.faq-a-inner{
+  padding:0 4px 22px;
+  font-size:14.5px; color:var(--ink-2);
+  max-width:680px;
+}
 
-    audio { display: none; }
-    .hidden-frame { display: none; }
+/* ===========================================================
+   FOOTER
+   =========================================================== */
+footer{
+  background:var(--ink); color:rgba(255,255,255,.7);
+  padding:40px 0 110px;
+  font-size:13.5px;
+}
+@media (min-width:760px){ footer{padding-bottom:48px} }
+.footer-inner{
+  display:flex; flex-wrap:wrap; gap:20px; align-items:center; justify-content:space-between;
+}
+.footer-brand{
+  display:flex; align-items:center; gap:10px;
+  color:#fff; font-weight:700;
+}
+.footer-brand .brand-mark{
+  background:linear-gradient(140deg, #fff, #cfe4f5);
+}
+.footer-brand .brand-mark svg{ color:var(--navy-900) }
+.footer-copy{ font-size:12.5px; color:rgba(255,255,255,.5) }
 
-    /* Tiny footer-mark — not a real footer, just a maritime watermark line */
-    .keel {
-      margin-top: 22px; text-align: center;
-      font-family: var(--font-mono);
-      font-size: 10.5px; letter-spacing: 0.18em;
-      color: var(--muted-2);
-      text-transform: uppercase;
-    }
-    .keel::before, .keel::after {
-      content: "·····";
-      margin: 0 10px; color: #c5d2e3; letter-spacing: 0.3em;
-    }
+/* ===========================================================
+   STICKY MOBILE CTA
+   =========================================================== */
+.sticky-cta{
+  position:fixed; bottom:12px; left:12px; right:12px;
+  z-index:60;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:16px;
+  box-shadow:0 16px 40px -10px rgba(10,27,46,.25), 0 4px 12px rgba(10,27,46,.08);
+  padding:10px 12px 10px 16px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  transform:translateY(140%);
+  transition:transform .35s cubic-bezier(.4,.0,.2,1);
+}
+.sticky-cta.show{ transform:translateY(0) }
+.sticky-cta-left{ min-width:0 }
+.sticky-cta-eyebrow{
+  font-size:10.5px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--orange-700);
+}
+.sticky-cta-price{
+  font-size:16px; font-weight:800; color:var(--ink); margin-top:2px;
+  display:flex; align-items:baseline; gap:6px;
+}
+.sticky-cta-price s{ color:var(--muted); font-weight:500; font-size:12px; text-decoration-color:#cbd5e0 }
+.sticky-cta .btn{ padding:11px 16px; font-size:14px; border-radius:11px }
 
-    /* ============ Responsive ============ */
-    @media (max-width: 920px) {
-      .wrap { width: min(100% - 18px, 720px); padding: 14px 0 36px; }
-      .topbar {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 16px;
-        gap: 12px;
-      }
-      .topbar .pill { align-self: flex-start; }
-      .layout, .section-grid, .grid {
-        grid-template-columns: 1fr;
-      }
-      .setup, .voice-card, .panel { padding: 18px; }
-      .voice-card { min-height: 320px; }
-      .voice-card .rings::after { width: 360px; height: 360px; }
-      .voice-card .ring-3 { width: 480px; height: 480px; }
-      .orb { width: 132px; height: 132px; font-size: 36px; margin: 14px auto; }
-      .timer { font-size: 38px; }
-      .actions { grid-template-columns: 1fr 1fr; }
-      .box { min-height: 220px; max-height: 360px; font-size: 13px; }
-      .panel-head { flex-direction: column; align-items: stretch; }
-      .mini-actions { justify-content: flex-start; }
-      h2 { font-size: 20px; }
-      .brand h1 { font-size: 17px; }
-    }
+@media (min-width:760px){
+  .sticky-cta{ display:none }
+}
 
-    @media (max-width: 480px) {
-      .wrap { width: calc(100% - 14px); }
-      .actions { grid-template-columns: 1fr; }
-      .voice-card .compass-tick-r { display: none; }
-      .timer { font-size: 36px; }
-    }
-  </style>
+/* ===========================================================
+   SCROLL REVEAL
+   =========================================================== */
+.reveal{
+  opacity:0; transform:translateY(24px);
+  transition:opacity .7s ease, transform .7s ease;
+}
+.reveal.in{ opacity:1; transform:none }
+.reveal[data-delay="1"]{ transition-delay:.08s }
+.reveal[data-delay="2"]{ transition-delay:.16s }
+.reveal[data-delay="3"]{ transition-delay:.24s }
+.reveal[data-delay="4"]{ transition-delay:.32s }
+.reveal[data-delay="5"]{ transition-delay:.4s }
+
+/* ===========================================================
+   REDUCED MOTION
+   =========================================================== */
+@media (prefers-reduced-motion: reduce){
+  *{
+    animation:none !important;
+    transition:none !important;
+    scroll-behavior:auto !important;
+  }
+  .reveal{ opacity:1; transform:none }
+}
+</style>
 </head>
 <body>
-  <div class="wrap">
 
-    <!-- ============ Topbar ============ -->
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">DLP</div>
-        <div class="brand-title">
-          <div class="brand-eyebrow"><span class="anchor"></span> Daily Loker Pelaut · Crewing Practice</div>
-          <h1>AI Speaking Interview Simulator</h1>
-          <p class="brand-sub">Trial 6.3.15 · Yuliana Maritime Interview</p>
-        </div>
+<!-- ============================================================
+     NAV
+============================================================ -->
+<header class="nav">
+  <div class="wrap nav-inner">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 7l9 5 9-5-9-5z"/><path d="M3 17l9 5 9-5"/><path d="M3 12l9 5 9-5"/></svg>
+      </span>
+      <span>
+        Daily Loker Pelaut
+        <small>Interview Simulator</small>
+      </span>
+    </a>
+    <a class="nav-cta" href="#pricing">Ambil Akses</a>
+  </div>
+</header>
+
+<main id="top">
+
+<!-- ============================================================
+     HERO
+============================================================ -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <div class="badges reveal">
+        <span class="badge orange"><span class="dot"></span>Promo Beta Tester</span>
+        <span class="badge"><span class="dot"></span>3 Credits</span>
+        <span class="badge"><span class="dot"></span>Total 21 Menit Latihan</span>
       </div>
-      <div class="pill" id="versionPill">Backend: not checked</div>
-    </header>
+      <h1 class="reveal" data-delay="1">
+        Jangan sampai <span class="em">pengalamanmu</span> tidak terlihat hanya karena gugup saat interview.
+      </h1>
+      <p class="sub reveal" data-delay="2">
+        Latihan interview pelaut secara langsung lewat suara. Biasakan diri menjawab pertanyaan crewing, owner, atau technical sebelum masuk ke interview sungguhan.
+      </p>
+      <div class="cta-row reveal" data-delay="3">
+        <!-- payment link placeholder: replace #pricing with real payment URL when ready -->
+        <a class="btn btn-primary pulse" href="#pricing">
+          Ambil 3 Credits Rp49.000
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+        <a class="btn btn-ghost" href="#how">
+          Lihat Cara Kerjanya
+        </a>
+      </div>
+      <div class="trust-mc reveal" data-delay="4">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+        Dibuat khusus untuk pelaut Indonesia oleh Daily Loker Pelaut.
+      </div>
+      <div class="trust-mc reveal" data-delay="4" style="margin-top:8px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Channel informasi pelaut Indonesia dengan 100.000+ followers.
+      </div>
+    </div>
 
-    <!-- ============ Setup + Voice ============ -->
-    <main class="layout">
+    <div class="sim-wrap reveal" data-delay="2">
+      <div class="float-chip fc-1">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1v22M5 5l14 14M19 5L5 19"/></svg></span>
+        Suara live
+      </div>
+      <div class="float-chip fc-2">
+        <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span>
+        7 menit / sesi
+      </div>
 
-      <section class="card setup" aria-labelledby="setupTitle">
-        <div class="card-head">
-          <span class="step">1</span>
-          <span class="kicker">Interview Setup</span>
-        </div>
-        <h2 id="setupTitle">Configure your practice session</h2>
-        <p class="sub">Pilih kategori, mode, rank, dan durasi. Sesi akan dijalankan dalam Bahasa Inggris seperti interview crewing sungguhan.</p>
-
-        <div class="grid">
-          <div class="field">
-            <label for="category">User Category</label>
-            <select id="category">
-              <option value="Deck Officer">Deck Officer</option>
-              <option value="Engineer Officer" selected>Engineer Officer</option>
-              <option value="Deck Rating">Deck Rating</option>
-              <option value="Engine Rating">Engine Rating</option>
-              <option value="Cadet">Cadet</option>
-              <option value="Catering/Galley">Catering / Galley</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="department">Department</label>
-            <select id="department">
-              <option value="Deck">Deck</option>
-              <option value="Engine" selected>Engine</option>
-              <option value="General">General</option>
-              <option value="Catering/Galley">Catering / Galley</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="mode">Interview Focus</label>
-            <select id="mode">
-              <option value="HR / Crewing">HR / Crewing</option>
-              <option value="Technical" selected>Technical</option>
-              <option value="Behavioural">Behavioural / Safety</option>
-              <option value="Document">Document Readiness</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="rank">Rank</label>
-            <select id="rank"></select>
-          </div>
-
-          <div class="field">
-            <label for="previousVesselType">Previous Vessel</label>
-            <select id="previousVesselType">
-              <option value="">Not specified</option>
-              <option value="Bulk Carrier" selected>Bulk Carrier</option>
-              <option value="Chemical Tanker">Chemical Tanker</option>
-              <option value="Oil Tanker">Oil Tanker</option>
-              <option value="Product Tanker">Product Tanker</option>
-              <option value="Container">Container</option>
-              <option value="General Cargo">General Cargo</option>
-              <option value="Tug Boat">Tug Boat</option>
-              <option value="Harbour Tug">Harbour Tug</option>
-              <option value="Offshore">Offshore</option>
-              <option value="Floating Crane">Floating Crane</option>
-              <option value="Cruise">Cruise / Passenger Vessel</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="targetVesselType">Target Vessel</label>
-            <select id="targetVesselType">
-              <option value="">Not specified</option>
-              <option value="Bulk Carrier">Bulk Carrier</option>
-              <option value="Chemical Tanker" selected>Chemical Tanker</option>
-              <option value="Oil Tanker">Oil Tanker</option>
-              <option value="Product Tanker">Product Tanker</option>
-              <option value="Container">Container</option>
-              <option value="General Cargo">General Cargo</option>
-              <option value="Tug Boat">Tug Boat</option>
-              <option value="Harbour Tug">Harbour Tug</option>
-              <option value="Offshore">Offshore</option>
-              <option value="Floating Crane">Floating Crane</option>
-              <option value="Cruise">Cruise / Passenger Vessel</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="experienceLevel">Experience Level</label>
-            <select id="experienceLevel">
-              <option value="any" selected>Any / Not specified</option>
-              <option value="first contract">First contract</option>
-              <option value="1-2 contracts">1–2 contracts</option>
-              <option value="experienced">Experienced</option>
-              <option value="senior">Senior</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="englishLevel">English Level</label>
-            <select id="englishLevel">
-              <option value="basic" selected>Basic</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
-            </select>
-          </div>
-
-          <div class="field" style="grid-column: 1 / -1;">
-            <label for="durationMinutes">Duration</label>
-            <select id="durationMinutes">
-              <option value="5">5 minutes trial</option>
-              <option value="7" selected>7 minutes starter</option>
-              <option value="15">15 minutes practice</option>
-              <option value="20">20 minutes premium</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="tip">
-          <span class="tip-icon" aria-hidden="true">i</span>
+      <article class="sim-card" aria-label="Interview simulator preview">
+        <div class="sim-head">
+          <div class="sim-avatar" aria-hidden="true">Y</div>
           <div>
-            <strong>Pre-flight checklist.</strong>
-            Gunakan earphone jika tersedia dan izinkan akses microphone saat diminta.
-            Setelah status connected, sapa Yuliana dulu. Jawab dalam English sederhana — boleh minta bantuan Bahasa Indonesia singkat jika benar-benar tidak paham.
+            <div class="sim-name">Yuliana</div>
+            <div class="sim-role">Interview Simulator</div>
           </div>
+          <span class="sim-mode-pill">Crewing Interview</span>
         </div>
+        <div class="sim-body">
+          <div class="sim-label">Pertanyaan saat ini</div>
+          <div class="sim-question"><span class="qmark">“</span>Tell me about your last vessel experience.<span class="qmark">”</span></div>
 
-        <div class="actions">
-          <button class="btn-soft" id="previewBtn" type="button">Preview Questions</button>
-          <button class="btn-danger" id="stopBtn" type="button" disabled>Stop Voice</button>
-          <button class="btn-primary" id="startBtn" type="button">
-            <span style="font-size:16px; line-height:1;" aria-hidden="true">▶</span>
-            Start Interview
-          </button>
-          <button class="btn-green" id="feedbackBtn" type="button" disabled>Get Written Feedback</button>
-        </div>
-
-        <div class="warnbox" id="configWarning" style="display:none;"></div>
-      </section>
-
-      <section class="card voice-card" aria-labelledby="voiceTitle">
-        <div class="rings" aria-hidden="true"><div class="ring-3"></div></div>
-        <span class="compass-tick" aria-hidden="true">Live · Yuliana</span>
-        <span class="compass-tick-r" aria-hidden="true">Bearing N · Ch 16</span>
-
-        <div class="voice-inner">
-          <div class="orb" id="orb" role="img" aria-label="Microphone status">🎙️</div>
-          <div class="timer-label">Session Time Remaining</div>
-          <div class="timer" id="timer">07:00</div>
-          <div class="status" id="status">
-            <span class="dot" id="statusDot"></span>
-            <span id="statusText">Ready</span>
+          <div class="waveform" aria-hidden="true">
+            <!-- 28 bars -->
+            <span class="bar" style="height:30%; animation-delay:-.1s"></span>
+            <span class="bar" style="height:62%; animation-delay:-.25s"></span>
+            <span class="bar" style="height:40%; animation-delay:-.4s"></span>
+            <span class="bar" style="height:75%; animation-delay:-.5s"></span>
+            <span class="bar" style="height:52%; animation-delay:-.6s"></span>
+            <span class="bar" style="height:36%; animation-delay:-.7s"></span>
+            <span class="bar" style="height:80%; animation-delay:-.8s"></span>
+            <span class="bar" style="height:48%; animation-delay:-.85s"></span>
+            <span class="bar" style="height:24%; animation-delay:-.95s"></span>
+            <span class="bar" style="height:68%; animation-delay:-1.05s"></span>
+            <span class="bar" style="height:42%; animation-delay:-1.15s"></span>
+            <span class="bar" style="height:78%; animation-delay:-1.2s"></span>
+            <span class="bar" style="height:34%; animation-delay:-1.3s"></span>
+            <span class="bar" style="height:56%; animation-delay:-1.4s"></span>
+            <span class="bar" style="height:72%; animation-delay:-1.45s"></span>
+            <span class="bar" style="height:30%; animation-delay:-1.55s"></span>
+            <span class="bar" style="height:60%; animation-delay:-1.7s"></span>
+            <span class="bar" style="height:44%; animation-delay:-1.8s"></span>
+            <span class="bar" style="height:74%; animation-delay:-1.9s"></span>
+            <span class="bar" style="height:50%; animation-delay:-2s"></span>
+            <span class="bar" style="height:38%; animation-delay:-2.1s"></span>
+            <span class="bar" style="height:66%; animation-delay:-2.2s"></span>
+            <span class="bar" style="height:48%; animation-delay:-2.3s"></span>
+            <span class="bar" style="height:80%; animation-delay:-2.4s"></span>
+            <span class="bar" style="height:34%; animation-delay:-2.5s"></span>
+            <span class="bar" style="height:58%; animation-delay:-2.6s"></span>
+            <span class="bar" style="height:42%; animation-delay:-2.7s"></span>
+            <span class="bar" style="height:70%; animation-delay:-2.8s"></span>
           </div>
-          <div class="voice-instr">
-            Setelah koneksi siap, <b>sapa Yuliana dulu</b>.
-            Contoh: <i>“Good morning, Yuliana.”</i> Saat Yuliana bicara, microphone akan dikunci sebentar agar suara tidak terpotong.
-          </div>
-        </div>
-      </section>
-    </main>
 
-    <!-- ============ Transcript + Feedback ============ -->
-    <section class="section-grid">
-
-      <section class="card panel" aria-labelledby="transcriptTitle">
-        <div class="panel-head">
-          <div>
-            <div class="card-head" style="margin-bottom:2px;">
-              <span class="step">2</span>
-              <span class="kicker">Live Transcript</span>
+          <div class="sim-meta">
+            <div class="sim-timer"><span class="rec" aria-hidden="true"></span>07:00</div>
+            <div class="sim-credits">
+              Available
+              <b>3 Credits</b>
             </div>
-            <h2 id="transcriptTitle">Interview Log</h2>
-            <p class="sub">Setiap turn antara kamu dan Yuliana akan tampil di sini secara real-time.</p>
           </div>
-          <div class="mini-actions">
-            <button class="btn-soft" id="copyTranscriptBtn" type="button">Copy</button>
-            <button class="btn-soft" id="clearBtn" type="button">Clear</button>
-          </div>
-        </div>
-        <div class="box" id="transcriptBox">Belum ada transcript. Setelah klik Start dan status connected, sapa Yuliana dulu: “Good morning, Yuliana.”</div>
-      </section>
-
-      <section class="card panel" aria-labelledby="feedbackTitle">
-        <div class="panel-head">
-          <div>
-            <div class="card-head" style="margin-bottom:2px;">
-              <span class="step">3</span>
-              <span class="kicker">Written Feedback</span>
-            </div>
-            <h2 id="feedbackTitle">Performance Report</h2>
-            <p class="sub">Laporan tertulis dari Yuliana akan muncul setelah sesi selesai dan transcript tersimpan.</p>
-          </div>
-          <div class="mini-actions">
-            <button class="btn-soft" id="copyFeedbackBtn" type="button">Copy</button>
-            <button class="btn-soft" id="downloadBtn" type="button">Download JSON</button>
+          <div class="sim-actions">
+            <button class="sim-btn" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4"/></svg>
+              Start Practice
+            </button>
+            <button class="sim-btn ghost" type="button" aria-label="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06A2 2 0 1 1 4.36 16.9l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33 1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
           </div>
         </div>
-        <div class="box" id="feedbackBox">Belum ada feedback.</div>
-      </section>
-    </section>
-
-    <details class="card debug" id="debugDetails">
-      <summary>Debug Info <span class="tag">Admin / Dev</span></summary>
-      <pre id="debugBox">Waiting...</pre>
-    </details>
-
-    <div class="keel">DLP Maritime Practice Suite</div>
+      </article>
+      <p class="sim-microcopy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
+        Latihan dari HP. Gunakan microphone dan koneksi internet stabil.
+      </p>
+    </div>
   </div>
 
-  <audio id="remoteAudio" autoplay playsinline></audio>
-  <iframe class="hidden-frame" name="hiddenSaveFrame" id="hiddenSaveFrame"></iframe>
-
-  <script>
-    /**********************************************************************
-     * IMPORTANT: paste your Apps Script Web App URL below.
-     * Example:
-     * const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycb.../exec';
-     **********************************************************************/
-    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzOlOt2ZxBC08RJnh0KNoKii29Myx8NJYu1TKfAc01T8TC2Eg_cKAJu-LTc_nPulCc/exec';
-
-    const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-    const HTML_APP_VERSION = 'trial-6.3.15-v3-v4-qbank-html-active-response-guard';
-
-    const el = (id) => document.getElementById(id);
-
-    const state = {
-      pc: null,
-      dc: null,
-      localStream: null,
-      sessionId: '',
-      clientSecret: '',
-      sessionMeta: null,
-      transcript: [],
-      feedback: '',
-      startedAt: null,
-      endedAt: null,
-      timerInterval: null,
-      remainingSeconds: 7 * 60,
-      connected: false,
-      openingSent: false,
-      assistantTurns: 0,
-      userTurns: 0,
-      lastError: '',
-      debugLog: [],
-      autoFeedbackStarted: false,
-      feedbackInProgress: false,
-      finalizingSession: false,
-      interviewClosed: false,
-      closingInProgress: false,
-      finalCloseRequested: false,
-      finalCloseInstructionSent: false,
-      pendingFinalCloseInstruction: false,
-      lastCompletedSession: null,
-      candidateStarted: false,
-      aiSpeaking: false,
-      micEnabled: true,
-      micResumeTimer: null,
-      waitingForAudioStop: false,
-      userSpeaking: false,
-      finalCloseAfterCurrentUser: false,
-      feedbackRetryCount: 0,
-      earlyClosingCorrectionPending: false,
-      earlyClosingCorrectionSent: false,
-      earlyClosingText: '',
-      earlyClosingRecoveryCount: 0,
-      earlyClosingRecoveryMax: 1,
-      suppressWrapUpAfterEarlyClosing: false,
-      lockedQuestionIds: '',
-      previewMeta: null,
-      voiceStartedAt: null,
-      voiceEndedAt: null,
-      wrapUpRequested: false,
-      wrapUpInstructionSent: false,
-      pendingWrapUpInstruction: false,
-      awaitingCandidateAnswer: false,
-      lastAssistantQuestionAt: null,
-      lastAssistantText: '',
-      lastUserAnswerAt: null,
-      // v6.3.15: active response tracking to prevent conversation_already_has_active_response
-      activeResponseInProgress: false,
-      pendingResponseQueue: null  // { instructions, label } — queued while a response is active
-    };
-
-    const rankOptionsByCategory = {
-      'Deck Officer': [
-        ['Third Officer', 'Third Officer'],
-        ['Second Officer', 'Second Officer'],
-        ['Chief Officer', 'Chief Officer'],
-        ['Master', 'Master']
-      ],
-      'Engineer Officer': [
-        ['Fourth Engineer', 'Fourth Engineer'],
-        ['Third Engineer', 'Third Engineer'],
-        ['Second Engineer', 'Second Engineer'],
-        ['Chief Engineer', 'Chief Engineer'],
-        ['Watch Engineer', 'Watch Engineer']
-      ],
-      'Deck Rating': [
-        ['AB', 'AB / Able Seaman'],
-        ['OS', 'OS / Ordinary Seaman'],
-        ['Bosun', 'Bosun']
-      ],
-      'Engine Rating': [
-        ['Oiler', 'Oiler'],
-        ['Motorman', 'Motorman'],
-        ['Wiper', 'Wiper'],
-        ['Fitter', 'Fitter']
-      ],
-      'Cadet': [
-        ['Deck Cadet', 'Deck Cadet'],
-        ['Engine Cadet', 'Engine Cadet']
-      ],
-      'Catering/Galley': [
-        ['Chief Cook', 'Chief Cook'],
-        ['Cook', 'Cook'],
-        ['Messman', 'Messman'],
-        ['Steward', 'Steward']
-      ]
-    };
-
-    function inferDepartmentFromCategory(category) {
-      if (category === 'Engineer Officer' || category === 'Engine Rating') return 'Engine';
-      if (category === 'Deck Officer' || category === 'Deck Rating') return 'Deck';
-      if (category === 'Catering/Galley') return 'Catering/Galley';
-      return 'General';
-    }
-
-    function isConfigured() {
-      return WEB_APP_URL && WEB_APP_URL.indexOf('PASTE_YOUR_WEB_APP_URL_HERE') < 0;
-    }
-
-    function setStatus(text, type = '') {
-      el('statusText').textContent = text;
-      const dot = el('statusDot');
-      dot.className = 'dot ' + (type || '');
-      logDebug('STATUS: ' + text);
-    }
-
-    function logDebug(data) {
-      const line = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-      const stamped = '[' + new Date().toLocaleTimeString() + '] ' + line;
-      state.debugLog.push(stamped);
-      state.debugLog = state.debugLog.slice(-500);
-      const box = el('debugBox');
-      box.textContent = state.debugLog.join('\n');
-      box.scrollTop = box.scrollHeight;
-    }
-
-
-    /**
-     * Half-duplex guard:
-     * - User mic stays ON while waiting for candidate answer.
-     * - User mic turns OFF while Yuliana is preparing/speaking.
-     * This reduces echo/noise interruption and prevents truncated Yuliana audio.
-     */
-    function setMicrophoneEnabled(enabled, reason = '') {
-      try {
-        state.micEnabled = !!enabled;
-        if (!state.localStream) return;
-
-        state.localStream.getAudioTracks().forEach((track) => {
-          track.enabled = !!enabled;
-        });
-
-        logDebug({ micEnabled: !!enabled, reason: reason || 'not_specified' });
-      } catch (err) {
-        logDebug('setMicrophoneEnabled warning: ' + err.message);
-      }
-    }
-
-    function clearMicResumeTimer() {
-      if (state.micResumeTimer) {
-        clearTimeout(state.micResumeTimer);
-        state.micResumeTimer = null;
-      }
-    }
-
-    function scheduleMicrophoneEnable(delayMs = 650, reason = 'assistant_done') {
-      clearMicResumeTimer();
-      state.micResumeTimer = setTimeout(() => {
-        state.micResumeTimer = null;
-        if (!state.connected || state.aiSpeaking || state.closingInProgress || state.finalizingSession || state.feedbackInProgress || state.interviewClosed) return;
-        setMicrophoneEnabled(true, reason);
-        setStatus('Your turn. Please answer now.', 'ok');
-      }, delayMs);
-    }
-
-    function markAssistantSpeaking(reason = 'assistant_speaking') {
-      state.aiSpeaking = true;
-      state.waitingForAudioStop = true;
-      clearMicResumeTimer();
-      setMicrophoneEnabled(false, reason);
-    }
-
-    function markAssistantDone(reason = 'assistant_done') {
-      state.aiSpeaking = false;
-      state.waitingForAudioStop = false;
-      scheduleMicrophoneEnable(700, reason);
-    }
-
-    function updateRankOptions() {
-      const category = el('category').value;
-      const ranks = rankOptionsByCategory[category] || rankOptionsByCategory['Deck Officer'];
-      el('rank').innerHTML = ranks.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
-
-      const departmentEl = el('department');
-      if (departmentEl) departmentEl.value = inferDepartmentFromCategory(category);
-    }
-
-    function formatTime(seconds) {
-      const s = Math.max(0, seconds | 0);
-      const m = Math.floor(s / 60);
-      const r = s % 60;
-      return String(m).padStart(2, '0') + ':' + String(r).padStart(2, '0');
-    }
-
-    function updateTimerDisplay() {
-      el('timer').textContent = formatTime(state.remainingSeconds);
-    }
-
-    function getConfiguredDurationSeconds() {
-      const minutes = parseInt(el('durationMinutes').value || '7', 10);
-      return Math.max(60, minutes * 60);
-    }
-
-    function getElapsedInterviewSeconds() {
-      if (!state.candidateStarted) return 0;
-      return Math.max(0, getConfiguredDurationSeconds() - Math.max(0, state.remainingSeconds || 0));
-    }
-
-    function getMinimumFinalizeElapsedSeconds() {
-      // v6.3.14 min-duration guard:
-      // For a 5-minute session, do not accept AI self-closing before 4:15.
-      // This preserves duration while still allowing a clean ending near the end.
-      const total = getConfiguredDurationSeconds();
-      return Math.max(0, total - 45);
-    }
-
-    function canAcceptAssistantClosingNow() {
-      if (state.finalCloseRequested || state.finalCloseInstructionSent) return true;
-      const elapsed = getElapsedInterviewSeconds();
-      return elapsed >= getMinimumFinalizeElapsedSeconds();
-    }
-
-    function isNearEnoughForFinalClosing() {
-      // Used only for acceptance of closing text, not for starting final close.
-      return canAcceptAssistantClosingNow() || state.remainingSeconds <= 25;
-    }
-
-    function looksLikeAssistantClosing(text) {
-      const t = String(text || '').toLowerCase();
-      return (
-        t.includes('that concludes the interview') ||
-        t.includes('that concludes the main points') ||
-        t.includes('please wait for your feedback') ||
-        t.includes('please wait for your written feedback') ||
-        t.includes('the interview is completed') ||
-        t.includes('we will be in touch') ||
-        t.includes('we’ll be in touch')
-      );
-    }
-
-    function sendContinueAfterEarlyClosing(source = 'early_closing_detected') {
-      if (!state.connected || !state.sessionId || state.feedbackInProgress || state.finalizingSession) return;
-      if (!state.earlyClosingCorrectionPending || state.earlyClosingCorrectionSent) return;
-
-      // v6.3.14 minimum-duration guard:
-      // Never finalize an AI self-closing before the minimum duration is reached.
-      // For a 5-minute session, the minimum acceptance point is 4:15.
-      if (canAcceptAssistantClosingNow()) {
-        logDebug({ earlyClosingRecoverySkipped: true, reason: 'minimum_duration_reached_accept_closing', remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), source });
-        state.earlyClosingCorrectionPending = false;
-        state.earlyClosingCorrectionSent = false;
-        state.earlyClosingText = '';
-        finalizeClosedInterview('assistant_closing_after_min_duration');
-        return;
-      }
-
-      state.earlyClosingRecoveryCount += 1;
-      state.suppressWrapUpAfterEarlyClosing = true;
-      state.earlyClosingCorrectionPending = false;
-      state.earlyClosingCorrectionSent = true;
-      state.interviewClosed = false;
-      state.closingInProgress = false;
-      state.finalCloseRequested = false;
-      state.finalCloseInstructionSent = false;
-      state.pendingFinalCloseInstruction = false;
-      state.earlyClosingText = '';
-      setMicrophoneEnabled(false, 'continue_after_early_closing_' + source);
-      setStatus('Continuing interview. The session is not finished yet.', 'warn');
-
-      const instructions = [
-        'FRONTEND TIMING CORRECTION: the interview is NOT finished yet.',
-        'Do NOT close. Do NOT mention feedback. Do NOT say thank you as a closing.',
-        'Ask exactly ONE short relevant follow-up question, then stop and wait for the candidate answer.',
-        'If this is Crewing/HR mode, ask about motivation, target vessel readiness, document readiness, safety preparation, contract acceptance, or mixed crew communication.',
-        'If this is Technical mode, ask one practical follow-up based on the candidate last answer or actual onboard experience.',
-        'After the candidate answers, continue normally unless you receive a FRONTEND FINAL_CLOSE instruction.'
-      ].join(' ');
-
-      const sent = sendRealtimeResponse(instructions, 'continue_after_early_closing');
-      if (!sent) scheduleMicrophoneEnable(700, 'continue_after_early_closing_send_failed');
-    }
-
-    function startTimer() {
-      stopTimer();
-      state.remainingSeconds = getConfiguredDurationSeconds();
-      state.voiceStartedAt = state.voiceStartedAt || new Date();
-      state.voiceEndedAt = null;
-      updateTimerDisplay();
-      state.timerInterval = setInterval(() => {
-        state.remainingSeconds -= 1;
-        updateTimerDisplay();
-        if (state.remainingSeconds === 180) logDebug({ timerCue: 'three_minutes_left' });
-        if (state.remainingSeconds === 60) {
-          logDebug({ timerCue: 'one_minute_left' });
-          requestWrapUp('timer_60_seconds_left');
-        }
-        if (state.remainingSeconds <= 25 && !state.finalCloseRequested && !state.feedbackInProgress && !state.finalizingSession) {
-          logDebug({ timerCue: 'final_25_seconds_or_less', remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), awaitingCandidateAnswer: state.awaitingCandidateAnswer });
-          requestFinalClosing('timer_25_seconds_left');
-        }
-        // Hard safety fallback: if final closing has already been requested/sent, do not let the session run indefinitely.
-        if (state.remainingSeconds <= 0 && (state.finalCloseRequested || state.finalCloseInstructionSent) && !state.finalizingSession && !state.feedbackInProgress) {
-          logDebug({ timerCue: 'timer_zero_finalize_after_final_requested', remainingSeconds: state.remainingSeconds });
-          if (!state.userSpeaking && !state.aiSpeaking) finalizeClosedInterview('timer_zero_after_final_requested');
-        }
-        if (state.remainingSeconds <= 0) {
-          stopTimer();
-          if (state.finalizingSession || state.feedbackInProgress) {
-            setStatus('Feedback is being prepared...', 'warn');
-          } else if (state.closingInProgress || state.finalCloseRequested) {
-            setStatus('Final closing in progress...', 'warn');
-            setTimeout(() => {
-              if (!state.feedbackInProgress && !state.finalizingSession) finalizeClosedInterview('timer_zero_fallback');
-            }, 2500);
-          } else {
-            setStatus('Time ended. Preparing feedback...', 'warn');
-            autoEndInterviewAndGetFeedback();
-          }
-        }
-      }, 1000);
-    }
-
-    function stopTimer() {
-      if (state.timerInterval) clearInterval(state.timerInterval);
-      state.timerInterval = null;
-    }
-
-
-    function sendRealtimeResponse(instructions, label = 'response_create') {
-      if (!state.dc || state.dc.readyState !== 'open') {
-        logDebug({ realtimeSendSkipped: label, reason: 'data_channel_not_open' });
-        return false;
-      }
-
-      // v6.3.15: active-response guard.
-      // If a response is already in-flight (server VAD auto-response or a previous instruction),
-      // queue this instruction instead of sending immediately.
-      // This prevents conversation_already_has_active_response errors.
-      if (state.activeResponseInProgress) {
-        logDebug({ realtimeSendQueued: label, reason: 'active_response_in_progress' });
-        // Higher-priority instructions overwrite lower ones (final close > wrap-up > others)
-        if (!state.pendingResponseQueue || label.includes('final_clos') || label.includes('final closing')) {
-          state.pendingResponseQueue = { instructions, label };
-        }
-        return false;
-      }
-
-      try {
-        state.activeResponseInProgress = true;
-        state.dc.send(JSON.stringify({
-          type: 'response.create',
-          response: {
-            instructions: instructions
-          }
-        }));
-        logDebug({ realtimeSend: label, realtimePayload: 'response.create_without_modalities' });
-        return true;
-      } catch (err) {
-        state.activeResponseInProgress = false;
-        logDebug({ realtimeSendError: label, error: err.message });
-        return false;
-      }
-    }
-
-
-    function requestWrapUp(source = 'unknown') {
-      if (state.wrapUpRequested || state.feedbackInProgress || state.finalizingSession || !state.connected || !state.sessionId) return;
-      state.wrapUpRequested = true;
-      logDebug({ wrapUpRequested: true, source, remainingSeconds: state.remainingSeconds, userSpeaking: state.userSpeaking, aiSpeaking: state.aiSpeaking, awaitingCandidateAnswer: state.awaitingCandidateAnswer, earlyClosingRecoveryCount: state.earlyClosingRecoveryCount });
-
-      // v6.3.14: if early-closing recovery has already happened, keep wrap-up passive; final close will be timer-driven.
-      // Let the current candidate answer finish, then final close at the final timer window.
-      if (state.suppressWrapUpAfterEarlyClosing || state.earlyClosingRecoveryCount > 0) {
-        state.pendingWrapUpInstruction = false;
-        logDebug({ wrapUpSkipped: true, reason: 'early_closing_recovery_already_used' });
-        return;
-      }
-
-      // Do not interrupt the candidate or stack a new response over Yuliana's current audio.
-      // If Yuliana has just asked a question and is waiting for the candidate, do not inject a wrap-up question.
-      if (state.userSpeaking || state.aiSpeaking || state.waitingForAudioStop || state.awaitingCandidateAnswer) {
-        state.pendingWrapUpInstruction = true;
-        logDebug({ wrapUpPending: true, reason: 'busy_or_waiting_for_answer' });
-        return;
-      }
-
-      sendWrapUpInstruction(source);
-    }
-
-    function sendWrapUpInstruction(source = 'unknown') {
-      if (state.wrapUpInstructionSent || state.feedbackInProgress || state.finalizingSession || state.finalCloseRequested) return;
-      state.pendingWrapUpInstruction = false;
-      state.wrapUpInstructionSent = true;
-      setMicrophoneEnabled(false, 'wrap_up_instruction_' + source);
-      setStatus('Wrap-up mode. One last short question...', 'warn');
-
-      const instructions = [
-        'FRONTEND TIMER CUE: WRAP_UP_60_SECONDS.',
-        'Do not open a heavy new topic. Do not ask multi-part questions.',
-        'Ask one short final readiness question only if the candidate is not already answering a previous question.',
-        'Prefer a light question such as: Is there anything important you want to add for this position?',
-        'Ask only one question, then stop and wait for the candidate answer. Do not close yet.'
-      ].join(' ');
-
-      const sent = sendRealtimeResponse(instructions, 'wrap_up_instruction');
-      if (!sent) scheduleMicrophoneEnable(700, 'wrap_up_send_failed');
-    }
-
-    function maybeSendPendingWrapUp(source = 'assistant_done') {
-      if (state.suppressWrapUpAfterEarlyClosing || state.earlyClosingRecoveryCount > 0) {
-        if (state.pendingWrapUpInstruction) logDebug({ pendingWrapUpCleared: true, reason: 'early_closing_recovery_already_used', source });
-        state.pendingWrapUpInstruction = false;
-        return;
-      }
-      if (state.pendingWrapUpInstruction && !state.wrapUpInstructionSent && !state.aiSpeaking && !state.waitingForAudioStop && !state.userSpeaking && !state.awaitingCandidateAnswer && !state.finalCloseRequested) {
-        sendWrapUpInstruction(source);
-      }
-    }
-
-    function requestFinalClosing(source = 'unknown') {
-      if (state.finalCloseRequested || state.feedbackInProgress || state.finalizingSession) return;
-      if (!state.connected || !state.sessionId || !state.transcript.length) return;
-
-      state.finalCloseRequested = true;
-      logDebug({ finalClosingRequested: true, source, remainingSeconds: state.remainingSeconds, userSpeaking: state.userSpeaking, aiSpeaking: state.aiSpeaking });
-
-      // If the candidate is speaking OR Yuliana has just asked a question and the user has not answered,
-      // do not close immediately. Give the candidate a fair chance to answer first.
-      if ((state.userSpeaking || state.awaitingCandidateAnswer) && !state.aiSpeaking) {
-        state.finalCloseAfterCurrentUser = true;
-        setStatus('Final answer. Please finish your sentence...', 'warn');
-        logDebug({ finalCloseWaitingForCandidateAnswer: true, awaitingCandidateAnswer: state.awaitingCandidateAnswer, userSpeaking: state.userSpeaking });
-        return;
-      }
-
-      state.closingInProgress = true;
-      state.interviewClosed = true;
-      setMicrophoneEnabled(false, 'final_closing_' + source);
-      setStatus('Final closing. Please wait...', 'warn');
-
-      if (state.aiSpeaking || state.waitingForAudioStop) {
-        state.pendingFinalCloseInstruction = true;
-        logDebug({ finalClosingPendingUntilAssistantDone: true });
-        return;
-      }
-
-      sendFinalClosingInstruction(source);
-    }
-
-    function sendFinalClosingInstruction(source = 'unknown') {
-      if (state.finalCloseInstructionSent || state.feedbackInProgress || state.finalizingSession) return;
-      state.pendingFinalCloseInstruction = false;
-      state.finalCloseInstructionSent = true;
-      state.closingInProgress = true;
-      state.interviewClosed = true;
-      setMicrophoneEnabled(false, 'final_closing_instruction_' + source);
-
-      const instructions = [
-        'FRONTEND TIMER CUE: FINAL_CLOSE. The session is in the final 20-25 seconds. Close the interview now.',
-        'Do not ask any new question. Do not continue probing. Ignore any unfinished question plan and close only.',
-        'Say one short, professional closing line only.',
-        'Use this exact sentence: "Thank you. That concludes the interview. Please wait for your written feedback."'
-      ].join(' ');
-
-      const sent = sendRealtimeResponse(instructions, 'final_closing_instruction');
-      if (!sent) {
-        setStatus('Closing voice and preparing feedback...', 'warn');
-        finalizeClosedInterview('final_closing_send_failed');
-      }
-    }
-
-    function maybeSendPendingFinalClose(source = 'assistant_done') {
-      if (state.pendingFinalCloseInstruction && !state.finalCloseInstructionSent && !state.aiSpeaking && !state.waitingForAudioStop) {
-        sendFinalClosingInstruction(source);
-      }
-    }
-
-    function finalizeClosedInterview(source = 'final_closing_done') {
-      if (state.finalizingSession || state.feedbackInProgress) return;
-      state.finalizingSession = true;
-      state.closingInProgress = false;
-      state.interviewClosed = true;
-      state.voiceEndedAt = state.voiceEndedAt || new Date();
-      state.endedAt = state.endedAt || new Date();
-      setMicrophoneEnabled(false, 'finalize_' + source);
-      stopTimer();
-      setStatus('Interview completed. Preparing feedback...', 'warn');
-      setTimeout(() => autoEndInterviewAndGetFeedback(), 450);
-    }
-
-    function setButtons(stage) {
-      const busy = stage === 'busy';
-      const live = stage === 'live';
-      el('startBtn').disabled = busy || live;
-      el('previewBtn').disabled = busy || live;
-      el('stopBtn').disabled = !live;
-      el('feedbackBtn').disabled = !(live || stage === 'stopped' || state.transcript.length > 0);
-    }
-
-    function buildParams(extra = {}) {
-      const category = el('category').value;
-      const department = el('department').value || inferDepartmentFromCategory(category);
-      const mode = el('mode').value;
-      const rank = el('rank').value;
-      const previousVesselType = el('previousVesselType').value.trim();
-      const targetVesselType = el('targetVesselType').value.trim();
-      const vesselType = targetVesselType || previousVesselType || '';
-
-      const params = {
-        category: category,
-        userCategory: category,
-        focus: mode,
-        mode: mode,
-        interviewMode: 'simulation',
-        department: department,
-        rank: rank,
-        selectedRank: rank,
-        previousVesselType: previousVesselType,
-        targetVesselType: targetVesselType,
-        vesselType: vesselType,
-        experienceLevel: el('experienceLevel').value,
-        englishLevel: el('englishLevel').value,
-        durationMinutes: el('durationMinutes').value,
-        goal: ''
-      };
-      return Object.assign(params, extra);
-    }
-
-    function jsonp(action, params = {}, timeoutMs = 30000) {
-      if (!isConfigured()) {
-        return Promise.reject(new Error('WEB_APP_URL belum diisi di HTML. Paste Web App URL Apps Script dulu.'));
-      }
-      return new Promise((resolve, reject) => {
-        const callbackName = '__dlpJsonp_' + Date.now() + '_' + Math.random().toString(16).slice(2);
-        const url = new URL(WEB_APP_URL);
-        url.searchParams.set('action', action);
-        url.searchParams.set('callback', callbackName);
-        Object.keys(params).forEach((key) => {
-          if (params[key] !== undefined && params[key] !== null) url.searchParams.set(key, params[key]);
-        });
-
-        const script = document.createElement('script');
-        const timeout = setTimeout(() => {
-          cleanup();
-          reject(new Error('JSONP timeout for action=' + action));
-        }, timeoutMs);
-
-        function cleanup() {
-          clearTimeout(timeout);
-          try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
-          if (script.parentNode) script.parentNode.removeChild(script);
-        }
-
-        window[callbackName] = (data) => {
-          cleanup();
-          if (!data || data.ok === false) reject(new Error((data && data.error) || 'Unknown JSONP error'));
-          else resolve(data);
-        };
-
-        script.onerror = () => {
-          cleanup();
-          reject(new Error('JSONP script load failed for action=' + action));
-        };
-
-        script.src = url.toString();
-        document.body.appendChild(script);
-      });
-    }
-
-    async function previewQuestions() {
-      try {
-        setStatus('Previewing questions...', 'warn');
-        const data = await jsonp('getSelectedQuestions', buildParams(), 45000);
-        state.sessionMeta = data;
-        state.previewMeta = data;
-        state.lockedQuestionIds = data.selectedQuestionIds || ((data.selectedQuestions || []).map(q => q.id).filter(Boolean).join(','));
-        logDebug({ previewQuestions: data, lockedQuestionIds: state.lockedQuestionIds });
-        renderSelectedQuestions(data);
-        setStatus('Question preview ready.', 'ok');
-      } catch (err) {
-        handleError(err);
-      }
-    }
-
-    function renderSelectedQuestions(data) {
-      const ids = data.selectedQuestionIds || '';
-      const questions = data.selectedQuestions || [];
-      const text = [
-        'Selected Questions:',
-        ids,
-        '',
-        ...questions.map((q, idx) => {
-          const questionText = q.question || q.mainQuestion || '[question missing]';
-          const categoryLabel = q.category ? ' [' + q.category + ']' : '';
-          return (idx + 1) + '. ' + questionText + categoryLabel;
-        })
-      ].join('\n');
-      logDebug(text);
-    }
-
-    async function startInterview() {
-      try {
-        if (!isConfigured()) {
-          showConfigWarning('WEB_APP_URL belum diisi. Buka file HTML, cari const WEB_APP_URL, lalu paste URL Web App Apps Script kamu.');
-          return;
-        }
-
-        resetSessionUi(false);
-        state.lastCompletedSession = null;
-        setButtons('busy');
-        setStatus('Requesting microphone permission...', 'warn');
-
-        state.localStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-          }
-        });
-        setMicrophoneEnabled(true, 'session_start_waiting_candidate');
-
-        setStatus('Creating interview session...', 'warn');
-        const lockedIds = state.lockedQuestionIds || '';
-        const sessionData = await jsonp('createRealtimeClientSecret', buildParams(lockedIds ? { lockedQuestionIds: lockedIds, selectedQuestionIds: lockedIds } : {}), 75000);
-        state.sessionMeta = sessionData;
-        state.sessionId = sessionData.sessionId;
-        state.clientSecret = sessionData.value || (sessionData.clientSecret && sessionData.clientSecret.value) || '';
-
-        if (!state.clientSecret) throw new Error('clientSecret tidak ditemukan dari backend.');
-
-        logDebug({ createRealtimeClientSecret: Object.assign({}, sessionData, { value: '[hidden]', clientSecret: { value: '[hidden]', expires_at: sessionData.expiresAt } }) });
-        renderSelectedQuestions(sessionData);
-
-        setStatus('Connecting to OpenAI Realtime...', 'warn');
-        await connectRealtime();
-
-        state.startedAt = new Date();
-        state.endedAt = null;
-        state.connected = true;
-        state.openingSent = false;
-        state.candidateStarted = false;
-        state.assistantTurns = 0;
-        state.userTurns = 0;
-        el('orb').classList.add('live');
-        setButtons('live');
-        // Timer starts after the candidate speaks first, so the session does not feel rushed before greeting.
-        setStatus('Connected. Say hello to Yuliana when ready.', 'ok');
-      } catch (err) {
-        handleError(err);
-        await stopVoice(false);
-      }
-    }
-
-    async function connectRealtime() {
-      const pc = new RTCPeerConnection();
-      state.pc = pc;
-
-      const remoteAudio = el('remoteAudio');
-      remoteAudio.autoplay = true;
-      remoteAudio.playsInline = true;
-
-      pc.ontrack = (event) => {
-        remoteAudio.srcObject = event.streams[0];
-        remoteAudio.play().catch((err) => logDebug('remoteAudio.play warning: ' + err.message));
-      };
-
-      state.localStream.getTracks().forEach((track) => pc.addTrack(track, state.localStream));
-
-      const dc = pc.createDataChannel('oai-events');
-      state.dc = dc;
-
-      dc.addEventListener('open', async () => {
-        logDebug('Data channel opened. Candidate-led opening enabled. No initial response.create will be sent. Server VAD create_response:true will respond after the candidate speaks.');
-        setStatus('Connected. Say hello to Yuliana when ready.', 'ok');
-      });
-
-      dc.addEventListener('message', (event) => handleRealtimeEvent(event.data));
-      dc.addEventListener('close', () => logDebug('Data channel closed.'));
-      dc.addEventListener('error', (event) => logDebug('Data channel error: ' + JSON.stringify(event)));
-
-      pc.onconnectionstatechange = () => {
-        logDebug('Peer connection state: ' + pc.connectionState);
-        if (pc.connectionState === 'connected') setStatus('Voice connected. Say hello to Yuliana first.', 'ok');
-        if (pc.connectionState === 'failed') setStatus('Connection failed.', 'err');
-        if (pc.connectionState === 'disconnected') setStatus('Voice disconnected.', 'warn');
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const sdpResponse = await fetch(OPENAI_REALTIME_SDP_URL, {
-        method: 'POST',
-        body: offer.sdp,
-        headers: {
-          Authorization: 'Bearer ' + state.clientSecret,
-          'Content-Type': 'application/sdp'
+  <div class="wave-bg" aria-hidden="true">
+    <svg viewBox="0 0 1440 90" preserveAspectRatio="none">
+      <path d="M0 50 C 180 80, 360 20, 540 50 C 720 80, 900 20, 1080 50 C 1260 80, 1440 30, 1440 50 L1440 90 L0 90 Z" fill="#dceaf5"/>
+      <path d="M0 50 C 180 80, 360 20, 540 50 C 720 80, 900 20, 1080 50 C 1260 80, 1440 30, 1440 50 L1440 90 L0 90 Z" fill="#dceaf5" transform="translate(1440 0)"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ============================================================
+     PROBLEM
+============================================================ -->
+<section class="problem">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Masalahnya bukan skill</span>
+      <h2 class="section-h">Bukan tidak bisa kerja. Tapi belum terbiasa menjawab.</h2>
+      <p class="section-sub">
+        Banyak pelaut punya pengalaman bagus di kapal. Tapi saat interview, jawaban sering jadi pendek, gugup, atau tidak tersusun. Akhirnya interviewer tidak bisa melihat kemampuan yang sebenarnya.
+      </p>
+      <p class="section-sub" style="margin-top:12px;">
+        Di kapal, kamu mungkin sudah biasa kerja di bawah tekanan. Tapi tekanan interview berbeda: harus dengar pertanyaan, susun jawaban, bicara English, dan tetap terlihat yakin dalam waktu singkat.
+      </p>
+    </div>
+
+    <div class="pain-grid">
+      <div class="pain reveal" data-delay="1">
+        <div class="pain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 9h.01M15 9h.01M9 15h6"/></svg></div>
+        <h3>Tahu kerjaan, tapi blank saat ditanya</h3>
+        <p>Kepala tahu jawabannya, tapi saat interviewer bertanya, mulut tiba-tiba macet.</p>
+      </div>
+      <div class="pain reveal" data-delay="2">
+        <div class="pain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0z"/><path d="M2 12h20M12 2a15 15 0 010 20M12 2a15 15 0 000 20"/></svg></div>
+        <h3>Takut English-nya salah</h3>
+        <p>Bukan tidak punya pengalaman. Tapi takut grammar salah, takut salah ucap, lalu jadi tidak percaya diri.</p>
+      </div>
+      <div class="pain reveal" data-delay="3">
+        <div class="pain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div>
+        <h3>Jawaban terlalu pendek</h3>
+        <p>Jawaban seperti “Yes, Sir” atau “I have experience” belum cukup untuk menunjukkan kemampuanmu.</p>
+      </div>
+      <div class="pain reveal" data-delay="1">
+        <div class="pain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/></svg></div>
+        <h3>Tidak tahu cara menjelaskan pengalaman</h3>
+        <p>Sea service panjang bisa terdengar biasa saja kalau tidak dijelaskan dengan struktur yang jelas.</p>
+      </div>
+      <div class="pain reveal" data-delay="2">
+        <div class="pain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-2 4 4 8-8 4 4"/><path d="M21 6v6h-6"/></svg></div>
+        <h3>Tidak punya tempat latihan yang aman</h3>
+        <p>Mau latihan dengan teman kadang malu. Latihan sendiri sering tidak fokus dan tidak ada yang mengarahkan.</p>
+      </div>
+      <div class="pain reveal" data-delay="3">
+        <div class="pain-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></div>
+        <h3>Interview asli jadi tempat latihan pertama</h3>
+        <p>Kesempatan asli terlalu mahal untuk dijadikan tempat coba-coba pertama.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CONSEQUENCE
+============================================================ -->
+<section class="consequence">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Yang terjadi setelah gagal</span>
+      <h2 class="section-h">Satu interview gagal bisa membuat kontrak mundur.</h2>
+      <p class="section-sub">
+        Bagi pelaut, gagal interview bukan sekadar gagal menjawab pertanyaan. Dampaknya bisa nyata: harus menunggu lowongan berikutnya, apply ulang, kontrak tertunda, penghasilan mundur, dan keluarga ikut menunggu lebih lama.
+      </p>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-step reveal" data-delay="1">
+        <div class="tl-num">1</div>
+        <h4>Interview gagal</h4>
+        <p>Jawaban tidak keluar maksimal, padahal pengalaman ada.</p>
+      </div>
+      <div class="tl-step reveal" data-delay="2">
+        <div class="tl-num">2</div>
+        <h4>Apply ulang</h4>
+        <p>Mulai dari nol di perusahaan berikutnya.</p>
+      </div>
+      <div class="tl-step reveal" data-delay="3">
+        <div class="tl-num">3</div>
+        <h4>Menunggu lagi</h4>
+        <p>Lowongan, dokumen, panggilan — semuanya butuh waktu.</p>
+      </div>
+      <div class="tl-step reveal" data-delay="4">
+        <div class="tl-num">4</div>
+        <h4>Kontrak mundur</h4>
+        <p>Penghasilan tertunda, keluarga ikut menunggu.</p>
+      </div>
+    </div>
+    <p class="after-timeline reveal">
+      Bukan untuk menakut-nakuti. Tapi supaya kamu tidak masuk interview dalam keadaan belum pernah latihan.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     SOLUTION
+============================================================ -->
+<section class="solution">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Solusinya sederhana</span>
+      <h2 class="section-h">Latihan dulu sebelum kesempatan interview sungguhan datang.</h2>
+      <p class="section-sub">
+        Interview asli bukan tempat latihan pertama. Dengan simulator ini, kamu bisa membiasakan diri mendengar pertanyaan, menyusun jawaban, dan berbicara lebih tenang sebelum menghadapi crewing, owner, atau user interview.
+      </p>
+    </div>
+
+    <div class="benefits">
+      <div class="benefit reveal" data-delay="1"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><p>Latihan bicara langsung</p></div>
+      <div class="benefit reveal" data-delay="2"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><p>Membiasakan diri menjawab pertanyaan</p></div>
+      <div class="benefit reveal" data-delay="3"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><p>Melatih English response</p></div>
+      <div class="benefit reveal" data-delay="1"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><p>Melatih struktur jawaban</p></div>
+      <div class="benefit reveal" data-delay="2"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><p>Memahami ritme interview</p></div>
+      <div class="benefit reveal" data-delay="3"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><p>Membangun percaya diri</p></div>
+      <div class="benefit reveal" data-delay="1"><div class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><p>Melatih jawaban agar tidak terlalu pendek</p></div>
+    </div>
+
+    <div class="note-card reveal">
+      Bukan untuk membuat jawaban hafalan. Tapi untuk membantu kamu menjawab lebih jelas, rapi, dan profesional.
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CONTOH SAAT KAMU LATIHAN
+============================================================ -->
+<section class="example-section">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Contoh sesi latihan</span>
+      <h2 class="section-h">Contoh saat kamu latihan.</h2>
+      <p class="section-sub">
+        Supaya kamu tidak hanya membayangkan. Seperti ini gambaran sederhana saat sesi latihan berjalan.
+      </p>
+    </div>
+
+    <div class="ex-grid">
+      <article class="ex-card reveal" data-delay="1">
+        <div class="ex-head">
+          <div class="ex-icon ex-icon-teal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>
+          </div>
+          <div>
+            <div class="ex-label">Yuliana bertanya</div>
+            <div class="ex-step">Langkah 1</div>
+          </div>
+        </div>
+        <blockquote class="ex-quote">
+          “Tell me about your last vessel experience.”
+        </blockquote>
+        <p class="ex-micro">Simulator akan memberikan pertanyaan seperti suasana interview sungguhan.</p>
+      </article>
+
+      <article class="ex-card reveal" data-delay="2">
+        <div class="ex-head">
+          <div class="ex-icon ex-icon-navy">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg>
+          </div>
+          <div>
+            <div class="ex-label">Kamu menjawab</div>
+            <div class="ex-step">Langkah 2</div>
+          </div>
+        </div>
+        <div class="ex-answer">
+          <div class="ex-wave" aria-hidden="true">
+            <span class="bar" style="height:32%; animation-delay:-.1s"></span>
+            <span class="bar" style="height:60%; animation-delay:-.3s"></span>
+            <span class="bar" style="height:45%; animation-delay:-.5s"></span>
+            <span class="bar" style="height:78%; animation-delay:-.7s"></span>
+            <span class="bar" style="height:55%; animation-delay:-.9s"></span>
+            <span class="bar" style="height:40%; animation-delay:-1.1s"></span>
+            <span class="bar" style="height:70%; animation-delay:-1.3s"></span>
+            <span class="bar" style="height:50%; animation-delay:-1.5s"></span>
+            <span class="bar" style="height:36%; animation-delay:-1.7s"></span>
+            <span class="bar" style="height:65%; animation-delay:-1.9s"></span>
+            <span class="bar" style="height:44%; animation-delay:-2.1s"></span>
+            <span class="bar" style="height:74%; animation-delay:-2.3s"></span>
+          </div>
+          <p>“I worked as Oiler on bulk carrier for 10 months. My main duty was assisting engine room watchkeeping, checking machinery condition, and supporting maintenance work.”</p>
+        </div>
+        <p class="ex-micro">Jawab dengan pengalamanmu sendiri. Tidak harus sempurna, yang penting mulai terbiasa bicara.</p>
+      </article>
+
+      <article class="ex-card reveal" data-delay="3">
+        <div class="ex-head">
+          <div class="ex-icon ex-icon-orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          </div>
+          <div>
+            <div class="ex-label">Feedback latihan</div>
+            <div class="ex-step">Langkah 3</div>
+          </div>
+        </div>
+        <ul class="ex-feedback">
+          <li><span class="dot ok"></span> Jawaban sudah relevan</li>
+          <li><span class="dot warn"></span> Tambahkan detail tentang responsibility</li>
+          <li><span class="dot warn"></span> Jelaskan vessel type, rank, duty, dan result</li>
+          <li><span class="dot warn"></span> Coba jawab lebih tenang dan terstruktur</li>
+        </ul>
+        <p class="ex-micro">Gunakan feedback untuk memperbaiki sesi berikutnya.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     MODES
+============================================================ -->
+<section class="modes-section" id="modes">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Pilih mode latihan</span>
+      <h2 class="section-h">Pilih jenis interview yang ingin kamu latih.</h2>
+    </div>
+
+    <div class="modes">
+      <article class="mode-card a reveal" data-delay="1">
+        <div class="mode-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M22 8h-6M22 14h-3"/></svg>
+        </div>
+        <h3>Interview Crewing</h3>
+        <p class="mode-copy">
+          Latihan pertanyaan umum dari crewing atau manning agency. Cocok untuk mempersiapkan jawaban tentang pengalaman kerja, dokumen, availability, salary, attitude, dan alasan apply.
+        </p>
+        <div class="sub-tags">
+          <span class="sub-tag">Experience</span>
+          <span class="sub-tag">Availability</span>
+          <span class="sub-tag">Salary</span>
+          <span class="sub-tag">Attitude</span>
+          <span class="sub-tag">Sign-off reason</span>
+        </div>
+        <div class="q-examples">
+          <div class="q-examples-label">Contoh pertanyaan</div>
+          <ul class="q-list">
+            <li>“Tell me about your last vessel experience.”</li>
+            <li>“Why did you sign off from your last vessel?”</li>
+            <li>“When are you ready to join?”</li>
+            <li>“What is your expected salary?”</li>
+            <li>“Why do you want to join our company?”</li>
+          </ul>
+        </div>
+        <ul class="fit-list">
+          <li>Fresh applicant</li>
+          <li>Pelaut yang apply ke perusahaan baru</li>
+          <li>Pelaut yang gugup saat pertanyaan dasar</li>
+          <li>Pelaut yang ingin memperbaiki cara menjawab</li>
+        </ul>
+        <a class="mode-cta" href="#pricing">
+          Latihan Crewing Interview
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </article>
+
+      <article class="mode-card b reveal" data-delay="2">
+        <div class="mode-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06A2 2 0 114.36 16.9l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </div>
+        <h3>User / Technical Interview</h3>
+        <p class="mode-copy">
+          Latihan pertanyaan technical sesuai bidang. Cocok untuk deck dan engine crew yang akan menghadapi owner, user, atau technical superintendent.
+        </p>
+        <div class="sub-tags">
+          <span class="sub-tag">Technical Deck</span>
+          <span class="sub-tag">Technical Engine</span>
+        </div>
+        <div class="q-examples">
+          <div class="q-examples-label">Contoh Technical Deck</div>
+          <ul class="q-list">
+            <li>“What will you do during restricted visibility?”</li>
+            <li>“How do you prepare passage plan?”</li>
+            <li>“What is your action during emergency situation?”</li>
+          </ul>
+          <div class="q-examples-label" style="margin-top:12px;">Contoh Technical Engine</div>
+          <ul class="q-list">
+            <li>“What will you check if purifier overflow?”</li>
+            <li>“How do you handle generator blackout?”</li>
+            <li>“What is your watchkeeping routine in engine room?”</li>
+          </ul>
+        </div>
+        <ul class="fit-list">
+          <li>Deck Officer</li>
+          <li>Engineer Officer</li>
+          <li>Rating berpengalaman</li>
+          <li>Pelaut yang akan menghadapi user interview</li>
+          <li>Pelaut yang ingin latihan jawaban teknis</li>
+        </ul>
+        <a class="mode-cta" href="#pricing">
+          Latihan Technical Interview
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     HOW IT WORKS
+============================================================ -->
+<section class="howit" id="how">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Cara kerja</span>
+      <h2 class="section-h">Cara kerjanya simpel.</h2>
+    </div>
+
+    <div class="steps">
+      <div class="step reveal" data-delay="1">
+        <span class="step-num">01</span>
+        <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+        <h4>Pilih mode interview</h4>
+        <p>Pilih Crewing Interview atau Technical Deck / Technical Engine.</p>
+      </div>
+      <div class="step reveal" data-delay="2">
+        <span class="step-num">02</span>
+        <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><path d="M12 19v4M8 23h8"/></svg></div>
+        <h4>Mulai sesi latihan suara</h4>
+        <p>Izinkan microphone, lalu mulai sesi dari HP atau laptop.</p>
+      </div>
+      <div class="step reveal" data-delay="3">
+        <span class="step-num">03</span>
+        <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg></div>
+        <h4>Jawab seperti interview asli</h4>
+        <p>Dengarkan pertanyaan, lalu jawab langsung dengan suaramu.</p>
+      </div>
+      <div class="step reveal" data-delay="4">
+        <span class="step-num">04</span>
+        <div class="step-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg></div>
+        <h4>Gunakan feedback untuk latihan berikutnya</h4>
+        <p>Lihat bagian yang perlu diperbaiki, lalu gunakan credit berikutnya untuk latihan lagi.</p>
+      </div>
+    </div>
+
+    <p class="howit-info reveal">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+      Setiap sesi berlangsung 7 menit. Kamu mendapat 3 credits untuk 3 kali latihan. Total 21 menit simulasi interview.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     PRICING
+============================================================ -->
+<section class="pricing" id="pricing">
+  <div class="wrap">
+    <div class="reveal" style="text-align:center;">
+      <span class="eyebrow" style="justify-content:center;">Harga peluncuran</span>
+      <h2 class="section-h" style="margin:0 auto;">Mulai latihan dengan harga beta tester.</h2>
+    </div>
+
+    <div class="price-wrap">
+      <article class="price-card reveal">
+        <span class="price-badge">
+          <span class="pulse-dot" aria-hidden="true"></span>
+          PROMO BETA TESTER
+        </span>
+
+        <div class="price-head">
+          <h3>Akses Interview Simulator</h3>
+          <div class="price-numbers">
+            <span class="price-old">Rp99.000</span>
+            <span class="price-new">Rp49.000</span>
+          </div>
+          <p class="price-suffix">Sekali bayar — tanpa langganan</p>
+          <p class="price-subnote">Cocok untuk kamu yang ingin latihan cepat sebelum panggilan interview berikutnya.</p>
+        </div>
+
+        <div class="chips-row">
+          <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/></svg>3 Credits</span>
+          <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>7 Menit / Credit</span>
+          <span class="chip orange"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Total 21 Menit</span>
+        </div>
+
+        <ul class="incl-list">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>3 credits latihan</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>1 credit = 7 menit simulasi</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Total 21 menit simulasi interview</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pilihan Interview Crewing</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Pilihan Technical Deck / Technical Engine</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Latihan berbasis suara</li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Cocok untuk persiapan sebelum interview asli</li>
+        </ul>
+
+        <div class="price-cta-wrap">
+          <!-- Replace href below with the actual payment link when ready -->
+          <a class="btn btn-primary pulse" href="https://payment-link-placeholder.com">
+            Ambil 3 Credits Rp49.000
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+        <div class="beta-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          <p><strong>Apa itu Beta Tester?</strong> Akses beta tester berarti kamu mendapat harga launching lebih murah sebagai pengguna awal. Fitur akan terus dikembangkan berdasarkan masukan pengguna.</p>
+        </div>
+        <p class="price-micro">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Harga beta tester dapat berubah setelah periode launching selesai.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     WHO IS THIS FOR
+============================================================ -->
+<section class="whofor">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Untuk siapa</span>
+      <h2 class="section-h">Cocok untuk kamu yang…</h2>
+    </div>
+
+    <div class="whofor-grid">
+      <div class="whofor-item reveal" data-delay="1">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Sering gugup saat interview</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="2">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Bingung menjawab dalam bahasa Inggris</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="3">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Sudah lama tidak interview</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="1">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Ingin apply ke perusahaan baru</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="2">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Akan menghadapi user / technical interview</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="3">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Punya pengalaman tapi sulit menjelaskannya</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="1">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Sering menjawab terlalu pendek</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="2">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Ingin latihan tanpa malu dan tanpa dihakimi</p>
+      </div>
+      <div class="whofor-item reveal" data-delay="3">
+        <div class="whofor-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <p>Tidak ingin interview asli jadi latihan pertama</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     EMOTIONAL CLOSE
+============================================================ -->
+<section class="emo">
+  <div class="wrap">
+    <div class="emo-inner reveal">
+      <h2>Skill kerjamu sudah ada. Sekarang latih cara menjelaskannya.</h2>
+      <p>
+        Interview bukan hanya soal pernah kerja di kapal. Interview adalah momen ketika kamu harus membuat orang lain percaya bahwa kamu memang siap. Kalau selama ini kamu sering gugup, blank, atau bingung menyusun jawaban, jangan tunggu sampai interview asli baru mulai latihan.
+      </p>
+      <a class="btn btn-primary pulse" href="#pricing">
+        Ambil 3 Credits Rp49.000
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+      </a>
+      <p class="emo-tag">“Karena kadang yang membuat kamu kalah bukan skill-mu, tapi cara kamu menjelaskannya.”</p>
+    </div>
+  </div>
+  <div class="wave-bg" aria-hidden="true">
+    <svg viewBox="0 0 1440 90" preserveAspectRatio="none">
+      <path d="M0 50 C 180 80, 360 20, 540 50 C 720 80, 900 20, 1080 50 C 1260 80, 1440 30, 1440 50 L1440 90 L0 90 Z" fill="#ffffff"/>
+      <path d="M0 50 C 180 80, 360 20, 540 50 C 720 80, 900 20, 1080 50 C 1260 80, 1440 30, 1440 50 L1440 90 L0 90 Z" fill="#ffffff" transform="translate(1440 0)"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ============================================================
+     FAQ
+============================================================ -->
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="reveal">
+      <span class="eyebrow">Pertanyaan umum</span>
+      <h2 class="section-h">FAQ</h2>
+    </div>
+
+    <div class="faq-list reveal">
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah ini cocok untuk pelaut yang English-nya belum lancar?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Ya. Justru layanan ini dibuat untuk membantu pelaut membiasakan diri menjawab dalam suasana interview.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah ini menjamin saya lolos interview?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Tidak. Layanan ini tidak menjamin kelulusan. Tapi membantu kamu lebih siap, lebih tenang, dan lebih terstruktur saat menjawab.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apa itu credit?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Credit adalah jatah sesi latihan. 1 credit berlaku untuk 1 sesi latihan selama 7 menit.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Saya dapat berapa credit?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Kamu mendapat 3 credits, total 21 menit latihan.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Bisa pilih interview deck atau engine?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Ya. Kamu bisa memilih mode Interview Crewing atau User / Technical Interview dengan pilihan Technical Deck dan Technical Engine.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah ini untuk fresh graduate?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Bisa. Terutama untuk membiasakan diri menjawab pertanyaan dasar interview dan memperkenalkan pengalaman training atau praktek laut.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah saya harus langsung lancar bahasa Inggris?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Tidak. Tujuan latihan ini adalah membiasakan kamu menjawab lebih tenang, jelas, dan percaya diri.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Setelah bayar, saya akses dari mana?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Setelah pembayaran, kamu akan mendapat akses menuju halaman latihan interview dan bisa menggunakan credit yang tersedia.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Bisa latihan dari HP?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Bisa. Gunakan HP dengan koneksi internet stabil dan izinkan akses microphone.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah harus pakai headset?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Tidak wajib, tapi disarankan agar suara lebih jelas dan latihan terasa lebih nyaman.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah 3 credit harus dipakai sekaligus?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Tidak harus. Kamu bisa menggunakan credit untuk beberapa sesi latihan sesuai kebutuhan akses yang tersedia.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apa bedanya Interview Crewing dan Technical Interview?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Interview Crewing fokus pada pengalaman kerja, dokumen, availability, salary, attitude, dan kesiapan join. Technical Interview fokus pada pertanyaan teknis sesuai bidang Deck atau Engine.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah ini sama seperti membaca contoh jawaban?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Tidak. Membaca contoh jawaban membantu kamu paham. Latihan suara membantu kamu membiasakan diri menjawab langsung seperti suasana interview asli.</div></div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" type="button" aria-expanded="false">
+          Apakah ini untuk Deck dan Engine?
+          <span class="arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+        </button>
+        <div class="faq-a"><div class="faq-a-inner">Ya. Kamu bisa memilih Technical Deck atau Technical Engine sesuai bidangmu.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ============================================================
+     FOOTER
+============================================================ -->
+<footer>
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 7l9 5 9-5-9-5z"/><path d="M3 17l9 5 9-5"/><path d="M3 12l9 5 9-5"/></svg>
+      </span>
+      Daily Loker Pelaut
+    </div>
+    <div class="footer-copy">© <span id="yr"></span> Daily Loker Pelaut. Tempat latihan aman sebelum interview sungguhan.</div>
+  </div>
+</footer>
+
+<!-- ============================================================
+     STICKY MOBILE CTA
+============================================================ -->
+<div class="sticky-cta" id="stickyCta" aria-hidden="true">
+  <div class="sticky-cta-left">
+    <div class="sticky-cta-eyebrow">Promo Beta Tester</div>
+    <div class="sticky-cta-price">3 Credits · Rp49.000 <s>Rp99.000</s></div>
+  </div>
+  <!-- payment link placeholder -->
+  <a class="btn btn-primary" href="#pricing">Ambil Akses</a>
+</div>
+
+<script>
+  // Year
+  document.getElementById('yr').textContent = new Date().getFullYear();
+
+  // Scroll reveal
+  const reveals = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window){
+    const io = new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if (e.isIntersecting){
+          e.target.classList.add('in');
+          io.unobserve(e.target);
         }
       });
-
-      const answerSdp = await sdpResponse.text();
-      if (!sdpResponse.ok) {
-        throw new Error('OpenAI Realtime SDP failed: HTTP ' + sdpResponse.status + ' - ' + answerSdp.slice(0, 1000));
-      }
-
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-    }
-
-    function sendInitialResponse() {
-      // Disabled intentionally for Trial 6.3.11.
-      // Candidate-led opening must be preserved: Yuliana waits until the candidate speaks first.
-      // Do not send response.create here, otherwise Yuliana may speak at the same time as the candidate.
-      logDebug('sendInitialResponse() is disabled. Waiting for candidate first speech.');
-    }
-
-    function handleRealtimeEvent(raw) {
-      let event;
-      try { event = JSON.parse(raw); }
-      catch (err) { logDebug('Non-JSON event: ' + raw); return; }
-
-      const type = event.type || '';
-
-      if (type === 'error') {
-        logDebug({ realtimeError: event });
-
-        // v6.3.15: conversation_already_has_active_response is non-fatal.
-        // It means we tried to send response.create while a VAD auto-response was running.
-        // Clear the activeResponseInProgress flag so queued instructions can drain,
-        // then finalize cleanly if we were in the closing phase.
-        const errCode = (event.error && event.error.code) || (event.code) || '';
-        const errMsg = (event.error && event.error.message) || (event.message) || '';
-        const isActiveResponseError =
-          errCode === 'conversation_already_has_active_response' ||
-          String(errMsg).toLowerCase().includes('active_response') ||
-          String(errMsg).toLowerCase().includes('already has active');
-
-        if (isActiveResponseError) {
-          logDebug({ activeResponseCollision: true, note: 'Non-fatal. Queued instruction will retry after response.done.', label: state.pendingResponseQueue && state.pendingResponseQueue.label });
-          // Do NOT clear activeResponseInProgress here — the in-flight response will clear it on response.done.
-          setStatus('Yuliana is still responding...', 'warn');
-          return;
-        }
-
-        setStatus('Realtime error. Check debug.', 'err');
-        state.activeResponseInProgress = false;
-        state.aiSpeaking = false;
-        state.waitingForAudioStop = false;
-        if (state.finalCloseRequested || state.closingInProgress) {
-          finalizeClosedInterview('realtime_error_during_closing');
-        } else {
-          scheduleMicrophoneEnable(900, 'realtime_error_recovery');
-        }
-        return;
-      }
-
-      // As soon as a response is created, lock the mic. This prevents the user mic
-      // from creating a second response while Yuliana is still preparing/speaking.
-      if (type === 'response.created') {
-        state.activeResponseInProgress = true;  // may already be true; safe to repeat
-        markAssistantSpeaking('response_created');
-        setStatus('Yuliana is responding...', 'warn');
-      }
-
-      if (type === 'output_audio_buffer.started') {
-        markAssistantSpeaking('output_audio_buffer_started');
-        setStatus('Yuliana is speaking...', 'warn');
-      }
-
-      if (type === 'output_audio_buffer.cleared' || type === 'conversation.item.truncated') {
-        logDebug({ halfDuplexWarning: type, note: 'Assistant audio was interrupted/truncated. Mic guard will recover.' });
-        state.aiSpeaking = false;
-        state.waitingForAudioStop = false;
-        scheduleMicrophoneEnable(900, 'audio_truncated_recovery');
-      }
-
-      if (type === 'input_audio_buffer.speech_started') {
-        if (state.interviewClosed || state.closingInProgress || state.feedbackInProgress) {
-          logDebug({ ignoredSpeechStartedAfterClosing: true, type });
-          setMicrophoneEnabled(false, 'speech_after_closing');
-        } else if (state.aiSpeaking || !state.micEnabled) {
-          logDebug({ ignoredSpeechStartedWhileAssistantSpeaking: true, type });
-        } else {
-          state.userSpeaking = true;
-          setStatus('Listening...', 'ok');
-        }
-      }
-
-      if (type === 'input_audio_buffer.speech_stopped') {
-        state.userSpeaking = false;
-        // v6.3.15: pre-mark assistant as responding. With create_response:true, the server
-        // will auto-create a response immediately after speech_stopped + committed.
-        // Marking aiSpeaking=true NOW closes the race window where a timer-triggered
-        // final_closing_instruction could be sent before response.created arrives,
-        // causing conversation_already_has_active_response.
-        if (!state.interviewClosed && !state.feedbackInProgress && !state.finalizingSession) {
-          state.aiSpeaking = true;
-          state.waitingForAudioStop = true;
-          clearMicResumeTimer();
-          logDebug({ preMarkedAssistantSpeaking: true, reason: 'speech_stopped_vad_response_incoming' });
-        }
-        setStatus('Processing answer...', 'warn');
-      }
-
-      if (type === 'conversation.item.input_audio_transcription.completed') {
-        const text = (event.transcript || '').trim();
-        if (text) {
-          if (state.interviewClosed || state.closingInProgress || state.feedbackInProgress) {
-            logDebug({ ignoredUserTranscriptAfterClosing: text.slice(0, 120) });
-            return;
-          }
-          if (!state.candidateStarted) {
-            state.candidateStarted = true;
-            startTimer();
-            logDebug({ timerStarted: 'first_user_speech' });
-          }
-          addTranscript('user', text, type);
-          state.userTurns += 1;
-          state.lastUserAnswerAt = new Date();
-          state.awaitingCandidateAnswer = false;
-
-          if (state.pendingWrapUpInstruction && !state.finalCloseRequested) {
-            // Candidate has answered the last pending question; allow wrap-up to be sent later when the turn is clean.
-            logDebug({ wrapUpPendingAfterUserAnswer: true });
-          }
-
-          if (state.finalCloseAfterCurrentUser && state.finalCloseRequested && !state.finalCloseInstructionSent) {
-            state.finalCloseAfterCurrentUser = false;
-            state.closingInProgress = true;
-            state.interviewClosed = true;
-            setMicrophoneEnabled(false, 'final_closing_after_user_answer');
-            setStatus('Final closing. Please wait...', 'warn');
-            sendFinalClosingInstruction('after_final_user_answer');
-            return;
-          }
-
-          setStatus('Yuliana is responding...', 'warn');
-        }
-      }
-
-      if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done' || type === 'response.output_text.done') {
-        const text = (event.transcript || event.text || '').trim();
-        if (text) {
-          addTranscript('assistant', text, type);
-          state.assistantTurns += 1;
-
-          const isClosingText = looksLikeAssistantClosing(text);
-          const hasQuestion = /\?\s*$/.test(text) || (text.match(/\?/g) || []).length > 0;
-          if (hasQuestion && !isClosingText && !state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
-            state.awaitingCandidateAnswer = true;
-            state.lastAssistantQuestionAt = new Date();
-            state.lastAssistantText = text;
-            logDebug({ awaitingCandidateAnswer: true, assistantQuestion: text.slice(0, 160) });
-          }
-
-          if (isClosingText && !state.feedbackInProgress && !state.finalizingSession) {
-            if (state.finalCloseInstructionSent || state.finalCloseRequested || canAcceptAssistantClosingNow()) {
-              // Expected final closing, or an AI self-closing that is late enough to accept.
-              state.earlyClosingCorrectionPending = false;
-              state.earlyClosingCorrectionSent = false;
-              state.earlyClosingText = text;
-              if (!state.finalCloseInstructionSent && !state.finalCloseRequested && canAcceptAssistantClosingNow()) {
-                state.interviewClosed = true;
-                state.closingInProgress = true;
-                logDebug({ closingTextAcceptedAfterMinimumDuration: true, remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), minElapsedSeconds: getMinimumFinalizeElapsedSeconds(), recoveryCount: state.earlyClosingRecoveryCount, text: text.slice(0, 160) });
-              } else {
-                logDebug({ closingTextAccepted: true, remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), text: text.slice(0, 160) });
-              }
-            } else {
-              // Too early: do not accept, even if this is the 2nd or 3rd early closing.
-              // Continue until the minimum duration guard is satisfied or the timer sends FINAL_CLOSE.
-              state.earlyClosingCorrectionPending = true;
-              state.earlyClosingCorrectionSent = false;
-              state.earlyClosingText = text;
-              state.interviewClosed = false;
-              state.closingInProgress = false;
-              state.finalCloseRequested = false;
-              state.finalCloseInstructionSent = false;
-              logDebug({ earlyClosingDetectedBeforeMinimumDuration: true, remainingSeconds: state.remainingSeconds, elapsedSeconds: getElapsedInterviewSeconds(), minElapsedSeconds: getMinimumFinalizeElapsedSeconds(), recoveryCount: state.earlyClosingRecoveryCount, text: text.slice(0, 160) });
-            }
-          }
-        }
-      }
-
-      // Do NOT re-enable mic on response.output_audio.done alone; the audio buffer may still be playing.
-      // Wait for output_audio_buffer.stopped when available, with response.done fallback below.
-      if (type === 'output_audio_buffer.stopped') {
-        if (state.earlyClosingCorrectionPending && !isNearEnoughForFinalClosing()) {
-          state.aiSpeaking = false;
-          state.waitingForAudioStop = false;
-          sendContinueAfterEarlyClosing('output_audio_buffer_stopped');
-          return;
-        }
-
-        if (state.closingInProgress && state.interviewClosed && !state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
-          state.aiSpeaking = false;
-          state.waitingForAudioStop = false;
-          finalizeClosedInterview('accepted_early_closing_audio_stopped');
-          return;
-        }
-
-        markAssistantDone('output_audio_buffer_stopped');
-        maybeSendPendingWrapUp('output_audio_buffer_stopped');
-        maybeSendPendingFinalClose('output_audio_buffer_stopped');
-        if (state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
-          setTimeout(() => finalizeClosedInterview('final_closing_audio_stopped'), 350);
-        }
-      }
-
-      if (type === 'response.done') {
-        // v6.3.15: clear active-response flag so queued instructions can be sent.
-        state.activeResponseInProgress = false;
-
-        // Flush any queued response instruction (queued because a response was already active).
-        // Priority: final close > wrap-up > others. Drain only if session is still live.
-        if (state.pendingResponseQueue && !state.feedbackInProgress && !state.finalizingSession && state.connected) {
-          const queued = state.pendingResponseQueue;
-          state.pendingResponseQueue = null;
-          // Safety: don't flush if the queued item is a final close that was already sent
-          const skipQueue = state.finalCloseInstructionSent && queued.label.includes('final_clos');
-          if (!skipQueue) {
-            logDebug({ pendingResponseQueueFlushing: true, label: queued.label });
-            setTimeout(() => {
-              // Re-check: session might have ended in the meantime
-              if (state.connected && !state.feedbackInProgress && !state.finalizingSession) {
-                if (state.finalCloseInstructionSent && queued.label.includes('final_clos')) return;
-                sendRealtimeResponse(queued.instructions, queued.label + '_from_queue');
-              }
-            }, 150);
-          } else {
-            logDebug({ pendingResponseQueueSkipped: true, reason: 'final_close_already_sent', label: queued.label });
-          }
-        }
-
-        if (state.earlyClosingCorrectionPending && !isNearEnoughForFinalClosing()) {
-          setTimeout(() => sendContinueAfterEarlyClosing('response_done'), 500);
-          return;
-        }
-        if (state.closingInProgress && state.interviewClosed && !state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
-          setTimeout(() => finalizeClosedInterview('accepted_early_closing_response_done'), 900);
-          return;
-        }
-        // Fallback: if no audio-buffer stopped event arrives, unlock after a safe delay.
-        if (state.waitingForAudioStop) {
-          setTimeout(() => {
-            if (state.waitingForAudioStop) {
-              state.aiSpeaking = false;
-              state.waitingForAudioStop = false;
-              if (state.pendingFinalCloseInstruction) {
-                sendFinalClosingInstruction('response_done_fallback');
-              } else if (state.finalCloseInstructionSent) {
-                finalizeClosedInterview('final_closing_response_done_fallback');
-              } else {
-                maybeSendPendingWrapUp('response_done_fallback');
-                scheduleMicrophoneEnable(700, 'response_done_fallback');
-              }
-            }
-          }, 1400);
-        } else if (state.aiSpeaking) {
-          markAssistantDone('response_done_no_audio_buffer');
-          maybeSendPendingWrapUp('response_done_no_audio_buffer');
-          maybeSendPendingFinalClose('response_done_no_audio_buffer');
-        } else {
-          maybeSendPendingWrapUp('response_done');
-          maybeSendPendingFinalClose('response_done');
-        }
-
-        if (state.finalCloseInstructionSent && !state.finalizingSession && !state.feedbackInProgress) {
-          setTimeout(() => finalizeClosedInterview('final_closing_response_done'), 1800);
-        }
-      }
-
-      if (!type.includes('delta')) logDebug({ realtimeEvent: type });
-    }
-
-    function addTranscript(role, text, eventType) {
-      state.transcript.push({ role, text, eventType, time: new Date().toISOString() });
-      renderTranscript();
-    }
-
-    function renderTranscript() {
-      const box = el('transcriptBox');
-      if (!state.transcript.length) {
-        box.textContent = 'Belum ada transcript. Setelah klik Start dan status connected, sapa Yuliana dulu: “Good morning, Yuliana.”';
-        return;
-      }
-      box.innerHTML = state.transcript.map((item) => {
-        const roleLabel = item.role === 'assistant' ? 'AI Interviewer' : 'User';
-        const roleClass = item.role === 'assistant' ? 'assistant' : 'user';
-        return `<div class="transcript-item"><span class="role ${roleClass}">${escapeHtml(roleLabel)}</span><br>${escapeHtml(item.text)}</div>`;
-      }).join('');
-      box.scrollTop = box.scrollHeight;
-    }
-
-    function transcriptText() {
-      return state.transcript.map((item) => {
-        const role = item.role === 'assistant' ? 'AI INTERVIEWER' : 'USER';
-        return '[' + role + '] ' + item.text;
-      }).join('\n\n');
-    }
-
-    async function stopVoice(markStopped = true) {
-      try {
-        stopTimer();
-        clearMicResumeTimer();
-        state.aiSpeaking = false;
-        state.waitingForAudioStop = false;
-        state.voiceEndedAt = state.voiceEndedAt || new Date();
-        state.endedAt = state.endedAt || new Date();
-
-        if (state.dc && state.dc.readyState === 'open') { try { state.dc.close(); } catch (e) {} }
-        state.dc = null;
-
-        if (state.pc) {
-          try { state.pc.getSenders().forEach((sender) => sender.track && sender.track.stop()); } catch (e) {}
-          try { state.pc.close(); } catch (e) {}
-        }
-        state.pc = null;
-
-        if (state.localStream) state.localStream.getTracks().forEach((track) => track.stop());
-        state.localStream = null;
-
-        el('orb').classList.remove('live');
-        state.connected = false;
-        if (markStopped) {
-          setButtons('stopped');
-          setStatus('Voice stopped. You can get feedback now.', 'warn');
-        }
-      } catch (err) {
-        handleError(err);
-      }
-    }
-
-    async function autoEndInterviewAndGetFeedback() {
-      if (state.autoFeedbackStarted) return;
-      state.autoFeedbackStarted = true;
-      await endInterviewAndGetFeedback(true);
-    }
-
-    async function generateFeedbackWithRetry(maxAttempts = 2) {
-      let lastErr = null;
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          logDebug({ feedbackAttempt: attempt, maxAttempts });
-          return await jsonp('feedback', { sessionId: state.sessionId, _t: Date.now() }, 90000);
-        } catch (err) {
-          lastErr = err;
-          logDebug({ feedbackAttemptFailed: attempt, error: err.message });
-          if (attempt < maxAttempts) await sleep(2500);
-        }
-      }
-      throw lastErr || new Error('Feedback generation failed.');
-    }
-
-    async function endInterviewAndGetFeedback(isAuto = false) {
-      try {
-        if (state.feedbackInProgress) {
-          setStatus('Feedback is already being prepared...', 'warn');
-          return;
-        }
-        if (state.autoFeedbackStarted && !isAuto && state.feedback) {
-          setStatus('Feedback is already ready.', 'ok');
-          return;
-        }
-        state.autoFeedbackStarted = true;
-        state.feedbackInProgress = true;
-        state.interviewClosed = true;
-        state.closingInProgress = false;
-        if (!state.sessionId) throw new Error('No sessionId. Start interview first.');
-        if (!state.transcript.length) throw new Error('Transcript masih kosong. Jalankan interview dulu.');
-
-        setButtons('busy');
-        setStatus('Stopping voice...', 'warn');
-        await stopVoice(false);
-
-        setStatus('Saving transcript to Google Sheets...', 'warn');
-        await saveTranscriptViaHiddenForm();
-        await confirmTranscriptSaved();
-
-        setStatus('Generating written feedback...', 'warn');
-        const feedbackData = await generateFeedbackWithRetry(2);
-        state.feedback = feedbackData.feedback || '';
-        el('feedbackBox').textContent = state.feedback || 'Feedback kosong.';
-        logDebug({ feedbackResult: Object.assign({}, feedbackData, { feedback: '[hidden in debug]' }) });
-
-        const cached = feedbackData.feedbackCached ? 'cached' : 'new';
-        state.feedbackInProgress = false;
-        state.finalizingSession = false;
-        state.lastCompletedSession = buildSessionExportSnapshot();
-        setStatus('Feedback ready (' + cached + ').', 'ok');
-        setButtons('stopped');
-      } catch (err) {
-        state.autoFeedbackStarted = false;
-        state.feedbackInProgress = false;
-        state.finalizingSession = false;
-        handleError(err);
-        setButtons('stopped');
-      }
-    }
-
-    function saveTranscriptViaHiddenForm() {
-      return new Promise((resolve, reject) => {
-        if (!state.sessionId) return reject(new Error('No sessionId for saveTranscript.'));
-
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = WEB_APP_URL;
-        form.target = 'hiddenSaveFrame';
-        form.style.display = 'none';
-
-        const payload = {
-          action: 'saveTranscriptForm',
-          sessionId: state.sessionId,
-          transcriptJson: JSON.stringify(state.transcript),
-          transcriptText: transcriptText(),
-          totalItems: String(state.transcript.length),
-          startedAt: state.startedAt ? state.startedAt.toISOString() : '',
-          endedAt: state.endedAt ? state.endedAt.toISOString() : new Date().toISOString(),
-          duration: elapsedDurationLabel(),
-          notes: 'Saved from Trial 6.3.15 v3+v4 active-response-guard half-duplex HTML'
-        };
-
-        Object.keys(payload).forEach((key) => {
-          const input = document.createElement('textarea');
-          input.name = key;
-          input.value = payload[key];
-          form.appendChild(input);
-        });
-
-        let resolved = false;
-        const iframe = el('hiddenSaveFrame');
-        const done = () => {
-          if (resolved) return;
-          resolved = true;
-          cleanup();
-          logDebug('Transcript save form submitted.');
-          resolve(true);
-        };
-
-        function cleanup() {
-          iframe.removeEventListener('load', done);
-          if (form.parentNode) form.parentNode.removeChild(form);
-        }
-
-        iframe.addEventListener('load', done);
-        document.body.appendChild(form);
-        form.submit();
-
-        setTimeout(done, 5000);
-      });
-    }
-
-    async function confirmTranscriptSaved() {
-      const maxTries = 5;
-      for (let i = 0; i < maxTries; i++) {
-        try {
-          const data = await jsonp('getSession', { sessionId: state.sessionId, _t: Date.now() });
-          const text = data && data.session && data.session.transcriptText ? String(data.session.transcriptText) : '';
-          if (text && text.length > 20) {
-            logDebug('Transcript save confirmed in Google Sheets.');
-            return true;
-          }
-        } catch (err) {
-          logDebug('confirmTranscriptSaved warning: ' + err.message);
-        }
-        await sleep(1200);
-      }
-      logDebug('Transcript save confirmation not available, continuing anyway.');
-      return false;
-    }
-
-    function elapsedDurationLabel() {
-      const start = state.voiceStartedAt || state.startedAt;
-      if (!start) return '';
-      const end = state.voiceEndedAt || state.endedAt || new Date();
-      const seconds = Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000));
-      return formatTime(seconds);
-    }
-
-    function lifecycleDurationLabel() {
-      if (!state.startedAt) return '';
-      const end = state.endedAt || new Date();
-      const seconds = Math.max(0, Math.round((end.getTime() - state.startedAt.getTime()) / 1000));
-      return formatTime(seconds);
-    }
-
-    function resetSessionUi(clearAll = true) {
-      if (clearAll) {
-        state.sessionId = '';
-        state.sessionMeta = null;
-      }
-      state.transcript = [];
-      state.feedback = '';
-      state.startedAt = null;
-      state.endedAt = null;
-      state.openingSent = false;
-      state.candidateStarted = false;
-      state.voiceStartedAt = null;
-      state.voiceEndedAt = null;
-      state.aiSpeaking = false;
-      state.waitingForAudioStop = false;
-      state.userSpeaking = false;
-      state.finalCloseAfterCurrentUser = false;
-      state.feedbackInProgress = false;
-      state.finalizingSession = false;
-      state.interviewClosed = false;
-      state.closingInProgress = false;
-      state.finalCloseRequested = false;
-      state.finalCloseInstructionSent = false;
-      state.pendingFinalCloseInstruction = false;
-      state.wrapUpRequested = false;
-      state.wrapUpInstructionSent = false;
-      state.pendingWrapUpInstruction = false;
-      state.awaitingCandidateAnswer = false;
-      state.lastAssistantQuestionAt = null;
-      state.lastAssistantText = '';
-      state.lastUserAnswerAt = null;
-      state.activeResponseInProgress = false;
-      state.pendingResponseQueue = null;
-      state.earlyClosingCorrectionPending = false;
-      state.earlyClosingCorrectionSent = false;
-      state.earlyClosingText = '';
-      state.earlyClosingRecoveryCount = 0;
-      state.suppressWrapUpAfterEarlyClosing = false;
-      clearMicResumeTimer();
-      state.assistantTurns = 0;
-      state.userTurns = 0;
-      state.lastError = '';
-      el('feedbackBox').textContent = 'Belum ada feedback.';
-      renderTranscript();
-      state.remainingSeconds = getConfiguredDurationSeconds();
-      updateTimerDisplay();
-      setStatus('Ready', '');
-      setButtons('ready');
-    }
-
-    function clearAll() {
-      stopVoice(false);
-      resetSessionUi(true);
-      state.lastCompletedSession = null;
-      state.lockedQuestionIds = '';
-      state.previewMeta = null;
-      state.debugLog = [];
-      el('debugBox').textContent = 'Waiting...';
-    }
-
-    function handleError(err) {
-      const message = err && err.message ? err.message : String(err);
-      state.lastError = message;
-      setStatus(message, 'err');
-      logDebug({ error: message, stack: err && err.stack ? err.stack : '' });
-      showConfigWarning(message);
-    }
-
-    function showConfigWarning(message) {
-      const box = el('configWarning');
-      box.style.display = 'block';
-      box.textContent = message;
-    }
-
-    function hideConfigWarning() {
-      const box = el('configWarning');
-      box.style.display = 'none';
-      box.textContent = '';
-    }
-
-    function copyText(text) {
-      if (!text) return;
-      navigator.clipboard.writeText(text).then(() => setStatus('Copied.', 'ok')).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        setStatus('Copied.', 'ok');
-      });
-    }
-
-    function buildSessionExportSnapshot() {
-      return {
-        exportedAt: new Date().toISOString(),
-        appVersion: HTML_APP_VERSION,
-        sessionId: state.sessionId,
-        duration: elapsedDurationLabel(),
-        lifecycleDuration: lifecycleDurationLabel(),
-        lockedQuestionIds: state.lockedQuestionIds,
-        totalItems: state.transcript.length,
-        feedbackGenerated: !!state.feedback,
-        sessionMeta: state.sessionMeta,
-        feedback: state.feedback,
-        transcript: state.transcript.slice(),
-        debugLog: state.debugLog.slice()
-      };
-    }
-
-    function downloadSessionJson() {
-      const data = state.lastCompletedSession || buildSessionExportSnapshot();
-      if (!data.sessionId || !data.transcript || !data.transcript.length) {
-        setStatus('Cannot download JSON: no completed session/transcript found.', 'err');
-        logDebug({ downloadJsonBlocked: true, reason: 'missing_session_or_transcript' });
-        return;
-      }
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'dlp-ai-interview-trial6-3-15-v3-v4-active-response-guard-' + Date.now() + '.json';
-      document.body.appendChild(a);
-      a.click();
-      URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    }
-
-    function escapeHtml(value) {
-      return String(value || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
-    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-    async function checkBackendHealth() {
-      if (!isConfigured()) return;
-      try {
-        const data = await jsonp('health');
-        el('versionPill').textContent = 'Backend: ' + (data.appVersion || 'OK');
-        logDebug({ health: data });
-        if (String(data.appVersion || '').indexOf('trial-6.3.11-v3-v4-qbank') < 0) {
-          showConfigWarning('Warning: backend appVersion bukan trial-6.3.11-v3-v4-qbank. HTML v6.3.15 active-response-guard ini dipasangkan dengan Code.gs Trial 6.3.11+ v3+v4 QuestionBank.');
-        }
-      } catch (err) {
-        el('versionPill').textContent = 'Backend: check failed';
-        logDebug('Health check failed: ' + err.message);
-      }
-    }
-
-    function init() {
-      updateRankOptions();
-      updateTimerDisplay();
-      setButtons('ready');
-
-      el('category').addEventListener('change', updateRankOptions);
-      el('durationMinutes').addEventListener('change', () => {
-        if (!state.connected) {
-          state.remainingSeconds = getConfiguredDurationSeconds();
-          updateTimerDisplay();
+    }, { rootMargin:'0px 0px -8% 0px', threshold:0.06 });
+    reveals.forEach(el=> io.observe(el));
+  } else {
+    reveals.forEach(el=> el.classList.add('in'));
+  }
+
+  // FAQ accordion
+  document.querySelectorAll('.faq-item').forEach(item=>{
+    const btn = item.querySelector('.faq-q');
+    btn.addEventListener('click', ()=>{
+      const isOpen = item.classList.contains('open');
+      // close others
+      document.querySelectorAll('.faq-item.open').forEach(o=>{
+        if (o!==item){
+          o.classList.remove('open');
+          o.querySelector('.faq-q').setAttribute('aria-expanded','false');
         }
       });
-      el('previewBtn').addEventListener('click', previewQuestions);
-      el('startBtn').addEventListener('click', startInterview);
-      el('stopBtn').addEventListener('click', () => endInterviewAndGetFeedback(false));
-      el('feedbackBtn').addEventListener('click', endInterviewAndGetFeedback);
-      el('copyTranscriptBtn').addEventListener('click', () => copyText(transcriptText()));
-      el('copyFeedbackBtn').addEventListener('click', () => copyText(state.feedback || el('feedbackBox').textContent));
-      el('downloadBtn').addEventListener('click', downloadSessionJson);
-      el('clearBtn').addEventListener('click', clearAll);
+      item.classList.toggle('open', !isOpen);
+      btn.setAttribute('aria-expanded', String(!isOpen));
+    });
+  });
 
-      if (!isConfigured()) {
-        showConfigWarning('WEB_APP_URL belum diisi. Paste Web App URL Apps Script kamu di bagian JavaScript: const WEB_APP_URL = ...');
-        el('versionPill').textContent = 'Backend: URL not set';
-      } else {
-        hideConfigWarning();
-        checkBackendHealth();
-      }
+  // Sticky mobile CTA: show after small scroll, hide near pricing/footer
+  const sticky = document.getElementById('stickyCta');
+  const pricingEl = document.getElementById('pricing');
+  let lastShow = false;
+  function updateSticky(){
+    const y = window.scrollY;
+    const winH = window.innerHeight;
+    const docH = document.documentElement.scrollHeight;
+    const nearBottom = (y + winH) > (docH - 120);
+    let inPricing = false;
+    if (pricingEl){
+      const r = pricingEl.getBoundingClientRect();
+      inPricing = r.top < winH * 0.6 && r.bottom > winH * 0.2;
     }
-
-    window.addEventListener('beforeunload', () => { try { stopVoice(false); } catch (e) {} });
-    init();
-  </script>
+    const show = y > 360 && !nearBottom && !inPricing;
+    if (show !== lastShow){
+      sticky.classList.toggle('show', show);
+      sticky.setAttribute('aria-hidden', String(!show));
+      lastShow = show;
+    }
+  }
+  window.addEventListener('scroll', updateSticky, { passive:true });
+  window.addEventListener('resize', updateSticky);
+  updateSticky();
+</script>
 </body>
 </html>
