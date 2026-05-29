@@ -644,6 +644,62 @@ section{
 }
 
 /* ===========================================================
+   PERSONALIZATION
+   =========================================================== */
+.personalize{ background:#fff }
+.pz-grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:40px;
+  align-items:center;
+}
+@media (min-width:960px){
+  .pz-grid{ grid-template-columns:0.92fr 1.08fr; gap:56px }
+  .pz-media{ order:2 }
+}
+.pz-list{
+  list-style:none; padding:0; margin:28px 0 0;
+  display:grid; gap:18px;
+}
+.pz-list li{
+  display:flex; align-items:flex-start; gap:14px;
+}
+.pz-ico{
+  width:42px; height:42px; flex-shrink:0;
+  border-radius:11px;
+  background:var(--bg-cyan); color:var(--navy-700);
+  display:grid; place-items:center;
+}
+.pz-ico svg{ width:21px; height:21px }
+.pz-list b{ display:block; font-size:15px; font-weight:700; color:var(--ink) }
+.pz-list span{ display:block; font-size:13.5px; color:var(--muted); margin-top:3px; line-height:1.45 }
+.pz-chips{
+  display:flex; flex-wrap:wrap; gap:8px;
+  margin-top:26px;
+}
+
+.pz-media{ position:relative }
+.pz-figure{
+  margin:0;
+  border-radius:var(--r-lg);
+  overflow:hidden;
+  box-shadow:var(--shadow-lg);
+  border:1px solid var(--line);
+  background:#eaf3fa;
+  animation:float 8s ease-in-out infinite;
+}
+.pz-figure img{ width:100%; height:auto; display:block }
+.pz-caption{
+  margin-top:16px;
+  text-align:center;
+  font-size:12.5px; color:var(--muted);
+  font-style:italic;
+}
+@media (max-width:600px){
+  .pz-figure{ animation:none }
+}
+
+/* ===========================================================
    MODES
    =========================================================== */
 .modes{
@@ -1461,6 +1517,61 @@ footer{
         </ul>
         <p class="ex-micro">Gunakan feedback untuk memperbaiki sesi berikutnya.</p>
       </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     PERSONALIZATION (rank & vessel) + REAL PRODUCT PREVIEW
+============================================================ -->
+<section class="personalize">
+  <div class="wrap">
+    <div class="pz-grid">
+      <div class="pz-copy reveal">
+        <span class="eyebrow">Disesuaikan untukmu</span>
+        <h2 class="section-h">Latihan sesuai rank dan kapal yang kamu tuju.</h2>
+        <p class="section-sub">
+          Sebelum mulai, atur sesi sesuai posisimu. Pertanyaan akan menyesuaikan rank, pengalaman kapal sebelumnya, dan jenis kapal yang ingin kamu tuju — jadi latihan terasa sedekat mungkin dengan interview aslimu.
+        </p>
+
+        <ul class="pz-list">
+          <li>
+            <span class="pz-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></span>
+            <div>
+              <b>Pilih rank-mu</b>
+              <span>Dari Rating sampai Officer — Engineer Officer, Fourth Engineer, Deck Officer, dan lainnya.</span>
+            </div>
+          </li>
+          <li>
+            <span class="pz-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18l2-8h14l2 8M5 10V7a2 2 0 012-2h10a2 2 0 012 2v3M2 18h20"/></svg></span>
+            <div>
+              <b>Pilih jenis kapal</b>
+              <span>Bulk Carrier, Chemical Tanker, Container, dan tipe kapal lain — kapal sebelumnya maupun kapal yang kamu tuju.</span>
+            </div>
+          </li>
+          <li>
+            <span class="pz-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0zM2 12h20M12 2a15 15 0 010 20 15 15 0 010-20z"/></svg></span>
+            <div>
+              <b>Sesuaikan level English</b>
+              <span>Mulai dari Basic. Pertanyaan dan ritme menyesuaikan supaya kamu tetap nyaman berlatih.</span>
+            </div>
+          </li>
+        </ul>
+
+        <div class="pz-chips">
+          <span class="chip">Engineer Officer</span>
+          <span class="chip">Fourth Engineer</span>
+          <span class="chip orange">Bulk Carrier</span>
+          <span class="chip orange">Chemical Tanker</span>
+        </div>
+      </div>
+
+      <div class="pz-media reveal" data-delay="2">
+        <figure class="pz-figure">
+          <img src="images/simulator-preview.png" alt="Tampilan AI Interview Simulator: panel pengaturan untuk memilih rank, kategori, kapal sebelumnya, kapal tujuan, dan level English" width="1672" height="941" loading="lazy" decoding="async" />
+        </figure>
+        <p class="pz-caption">Tampilan asli pengaturan sesi latihan — pilih rank, kategori, dan jenis kapal sebelum mulai.</p>
+      </div>
     </div>
   </div>
 </section>
