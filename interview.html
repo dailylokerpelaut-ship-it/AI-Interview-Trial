@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DLP AI Interview Simulator</title>
+<style>
+  :root {
+    --bg:#0a1628; --bg2:#0d1d33; --card:#13243d; --card2:#162a47;
+    --line:#1f3a5c; --line2:#2a4a72;
+    --txt:#e8f0f8; --mut:#8aa3c0; --dim:#5d7591;
+    --teal:#2dd4bf; --teal-dim:#1a9e8f; --cyan:#38bdf8;
+    --ok:#3fd9a0; --warn:#fbbf24; --err:#f87171;
+    --teal-glow:rgba(45,212,191,0.25); --cyan-glow:rgba(56,189,248,0.25);
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    background:radial-gradient(ellipse at top, #0d1d33 0%, #0a1628 60%);
+    background-attachment:fixed;
+    color:var(--txt); padding:20px; max-width:1180px; margin:0 auto;
+    font-size:15px; line-height:1.6; min-height:100vh;
+  }
+  ::selection { background:var(--teal-glow); }
+
+  /* ---- header ---- */
+  .brand { display:flex; align-items:center; gap:11px; margin-bottom:4px; }
+  .brand-mark {
+    width:40px; height:40px; border-radius:11px; flex-shrink:0;
+    background:linear-gradient(135deg, var(--teal) 0%, var(--cyan) 100%);
+    display:flex; align-items:center; justify-content:center;
+    font-size:21px; box-shadow:0 4px 14px var(--teal-glow);
+  }
+  .brand h1 { font-size:1.3rem; font-weight:700; letter-spacing:-0.02em; line-height:1.1; }
+  .brand .tag { font-size:0.74rem; color:var(--mut); font-weight:500; }
+  .sub { color:var(--mut); font-size:0.8rem; margin-bottom:20px; display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+  .ver-chip { background:var(--card2); border:1px solid var(--line); border-radius:99px; padding:2px 10px; font-size:0.7rem; color:var(--teal); font-weight:600; }
+
+  /* ---- layout grid ---- */
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+  .col { display:flex; flex-direction:column; gap:16px; }
+
+  /* ---- cards ---- */
+  .card {
+    background:linear-gradient(180deg, var(--card) 0%, var(--bg2) 100%);
+    border:1px solid var(--line); border-radius:16px; padding:20px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.4); transition:border-color 0.2s ease;
+  }
+  .card:hover { border-color:var(--line2); }
+  h2 {
+    font-size:0.7rem; margin-bottom:14px; color:var(--mut); font-weight:700;
+    letter-spacing:0.08em; text-transform:uppercase; display:flex; align-items:center; gap:8px;
+  }
+  h2::before { content:''; width:14px; height:2px; background:var(--teal); border-radius:2px; }
+
+  label { display:block; font-size:0.78rem; color:var(--mut); margin:10px 0 4px; font-weight:500; }
+  label .hint { color:var(--dim); font-size:0.72rem; font-weight:400; }
+  input, select, textarea {
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--line);
+    background:#0a1830; color:var(--txt); font-size:0.92rem; font-family:inherit;
+    transition:border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  input:focus, select:focus { outline:none; border-color:var(--teal); box-shadow:0 0 0 3px var(--teal-glow); }
+  input[readonly] { opacity:0.6; cursor:not-allowed; }
+  select { cursor:pointer; appearance:none;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238aa3c0' stroke-width='2'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
+
+  button {
+    padding:11px 18px; border-radius:9px; border:none; font-weight:600; cursor:pointer;
+    font-size:0.88rem; margin:7px 7px 0 0; font-family:inherit;
+    transition:transform 0.12s ease, filter 0.15s ease, background 0.15s ease;
+  }
+  button:hover:not(:disabled) { transform:translateY(-1px); filter:brightness(1.08); }
+  button:active:not(:disabled) { transform:translateY(0); }
+  button:disabled { opacity:0.4; cursor:not-allowed; }
+  .b-acc { background:linear-gradient(135deg, var(--teal) 0%, var(--teal-dim) 100%); color:#04201c; box-shadow:0 3px 12px var(--teal-glow); }
+  .b-ok { background:var(--ok); color:#04261a; }
+  .b-err { background:var(--err); color:#3d0a0a; }
+  .b-mut { background:var(--card2); color:var(--txt); border:1px solid var(--line2); }
+  .btn-block { display:block; width:100%; margin:10px 0 0; }
+
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:130px; }
+
+  .status {
+    padding:10px 13px; border-radius:9px; font-size:0.84rem; margin-top:12px;
+    background:#0a1830; border:1px solid var(--line); display:flex; align-items:center; gap:9px;
+    animation:fadeIn 0.25s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
+  .status::before { content:''; width:8px; height:8px; border-radius:50%; background:var(--mut); flex-shrink:0; }
+  .status.ok { border-color:rgba(63,217,160,0.4); color:var(--ok); }
+  .status.ok::before { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  .status.warn { border-color:rgba(251,191,36,0.4); color:var(--warn); }
+  .status.warn::before { background:var(--warn); box-shadow:0 0 8px var(--warn); }
+  .status.err { border-color:rgba(248,113,113,0.4); color:var(--err); }
+  .status.err::before { background:var(--err); box-shadow:0 0 8px var(--err); }
+
+  .pill {
+    display:inline-block; background:#0a1830; border:1px solid var(--line); border-radius:99px;
+    padding:4px 11px; font-size:0.73rem; margin:4px 5px 0 0; color:var(--mut);
+  }
+  .pill b { color:var(--txt); font-weight:600; }
+
+  pre {
+    background:#081224; border:1px solid var(--line); border-radius:10px; padding:12px;
+    font-size:0.74rem; overflow-x:auto; white-space:pre-wrap; word-break:break-word;
+    max-height:280px; overflow-y:auto; font-family:ui-monospace,'SF Mono',monospace; color:#b8cce0;
+  }
+  .transcript { max-height:320px; min-height:120px; overflow-y:auto; padding-right:4px; }
+  .transcript::-webkit-scrollbar { width:7px; }
+  .transcript::-webkit-scrollbar-thumb { background:var(--line2); border-radius:4px; }
+  .t-ai { color:var(--teal); margin-bottom:10px; line-height:1.5; }
+  .t-user { color:var(--cyan); margin-bottom:10px; line-height:1.5; }
+  .t-ai b, .t-user b { font-weight:600; opacity:0.7; font-size:0.8rem; }
+
+  details summary { cursor:pointer; color:var(--mut); font-size:0.83rem; padding:5px 0; font-weight:500; user-select:none; }
+  details summary:hover { color:var(--txt); }
+  .warnbox {
+    background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.3); color:#fde68a;
+    padding:10px 13px; border-radius:9px; font-size:0.8rem; margin-top:4px;
+  }
+  .check { display:flex; align-items:flex-start; gap:9px; margin-top:12px; font-size:0.84rem; }
+  .check input { width:auto; margin-top:4px; accent-color:var(--teal); }
+  .check label { margin:0; color:var(--txt); }
+
+  /* ============ AUDIO-REACTIVE SONAR ============ */
+  .viz-wrap { display:flex; flex-direction:column; align-items:center; gap:12px; margin:18px 0; }
+  .sonar {
+    position:relative; width:200px; height:200px;
+    display:flex; align-items:center; justify-content:center;
+    --amp:0;
+  }
+  .sonar-ring {
+    position:absolute; top:50%; left:50%; width:96px; height:96px; border-radius:50%;
+    border:2px solid var(--mut);
+    transform:translate(-50%,-50%) scale(1);
+    opacity:0; pointer-events:none;
+    transition:transform 0.08s linear, opacity 0.12s linear, border-color 0.3s ease;
+  }
+  /* live amplitude scaling — driven by --amp inline var */
+  .sonar.live .sonar-ring:nth-child(1) { transform:translate(-50%,-50%) scale(calc(1 + var(--amp) * 0.45)); opacity:calc(0.10 + var(--amp) * 0.55); }
+  .sonar.live .sonar-ring:nth-child(2) { transform:translate(-50%,-50%) scale(calc(1 + var(--amp) * 0.80)); opacity:calc(0.05 + var(--amp) * 0.40); }
+  .sonar.live .sonar-ring:nth-child(3) { transform:translate(-50%,-50%) scale(calc(1 + var(--amp) * 1.15)); opacity:calc(var(--amp) * 0.28); }
+
+  .sonar-core {
+    position:relative; width:96px; height:96px; border-radius:50%; z-index:2;
+    background:radial-gradient(circle at 38% 32%, #5db4e8 0%, #3b82c4 45%, #1f4f80 100%);
+    border:3px solid rgba(255,255,255,0.12);
+    display:flex; align-items:center; justify-content:center;
+    font-size:34px; color:rgba(255,255,255,0.92);
+    box-shadow:0 6px 20px rgba(0,0,0,0.5), inset 0 2px 8px rgba(255,255,255,0.25);
+    transition:transform 0.1s ease, box-shadow 0.3s ease, background 0.4s ease;
+  }
+  .sonar-label { font-size:0.82rem; font-weight:600; color:var(--mut); letter-spacing:0.01em; transition:color 0.3s ease; min-height:18px; }
+
+  /* state colors */
+  .sonar.viz-idle .sonar-core { background:radial-gradient(circle at 38% 32%, #3a5a7d 0%, #28455f 50%, #1a2f44 100%); }
+  .sonar.viz-ai-speaking .sonar-ring { border-color:var(--teal); }
+  .sonar.viz-ai-speaking .sonar-core { box-shadow:0 6px 24px var(--teal-glow), inset 0 2px 8px rgba(255,255,255,0.3); }
+  .sonar.viz-ai-speaking .sonar-label { color:var(--teal); }
+  .sonar.viz-listening .sonar-ring { border-color:var(--cyan); }
+  .sonar.viz-listening .sonar-core { box-shadow:0 6px 24px var(--cyan-glow), inset 0 2px 8px rgba(255,255,255,0.3); }
+  .sonar.viz-listening .sonar-label { color:var(--cyan); }
+  .sonar.viz-waiting .sonar-ring { border-color:rgba(251,191,36,0.5); }
+  .sonar.viz-waiting .sonar-label { color:var(--warn); }
+  /* gentle idle breathing when connected but silent */
+  .sonar.viz-waiting:not(.live) .sonar-core,
+  .sonar.viz-listening:not(.live) .sonar-core,
+  .sonar.viz-ai-speaking:not(.live) .sonar-core { animation:breathe 2.4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { transform:scale(1); } 50% { transform:scale(1.03); } }
+
+  .timer {
+    font-size:2.4rem; font-weight:700; font-variant-numeric:tabular-nums;
+    letter-spacing:0.02em; color:var(--teal); transition:color 0.3s ease;
+  }
+  .timer-label { font-size:0.66rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--dim); font-weight:700; margin-bottom:2px; }
+  .timer.t-warn { color:var(--warn); }
+  .timer.t-danger { color:var(--err); animation:breathe 1s ease-in-out infinite; }
+
+  .hint-box {
+    background:rgba(56,189,248,0.06); border:1px solid rgba(56,189,248,0.2);
+    border-radius:10px; padding:11px 14px; font-size:0.8rem; color:#b8d4e8; margin-top:6px; text-align:center;
+  }
+  .hint-box b { color:var(--cyan); }
+
+  audio { display:none; }
+  iframe { display:none; }
+
+  /* admin panel — hidden from normal view */
+  .admin { margin-top:18px; }
+  .admin .card { border-style:dashed; opacity:0.92; }
+
+  @media (max-width:860px) {
+    .grid, .grid-2 { grid-template-columns:1fr; }
+  }
+  @media (max-width:520px) {
+    body { padding:13px; }
+    .card { padding:16px; }
+  }
+  @media (prefers-reduced-motion:reduce) {
+    .sonar-core, .timer, .sonar-ring { animation:none !important; transition:opacity 0.2s linear !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="brand">
+  <div class="brand-mark">⚓</div>
+  <div>
+    <h1>DLP AI Interview</h1>
+    <div class="tag">Maritime Interview Simulator · Powered by AI</div>
+  </div>
+</div>
+<div class="sub">
+  <span class="ver-chip" id="htmlVerLabel"></span>
+  <span>Latihan wawancara kerja pelaut — suara, real-time, dengan laporan tertulis.</span>
+</div>
+
+<div class="grid">
+  <!-- ============ LEFT COLUMN ============ -->
+  <div class="col">
+
+    <!-- ACCESS CODE -->
+    <div class="card">
+      <h2>Access Code</h2>
+      <label>testerCode</label>
+      <input id="testerCode" placeholder="DLP-XXXXXX" autocomplete="off">
+      <div id="creditPills" style="margin-top:8px">
+        <span class="pill">creditsRemaining: <b id="pillCredits">—</b></span>
+        <span class="pill">lastSessionId: <b id="pillSession">—</b></span>
+      </div>
+      <div class="sub" style="margin-top:10px; margin-bottom:0">Credits hanya berkurang saat Start Interview valid. Preview tidak memakan credit.</div>
+    </div>
+
+    <!-- INTERVIEW SETUP -->
+    <div class="card">
+      <h2>Interview Setup</h2>
+      <div class="row">
+        <div>
+          <label>Category</label>
+          <select id="category">
+            <option value="Deck Officer">Deck Officer</option>
+            <option value="Engineer Officer">Engineer Officer</option>
+          </select>
+        </div>
+        <div>
+          <label>Rank</label>
+          <select id="rank"></select>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Interview Mode</label>
+          <select id="productMode"></select>
+        </div>
+        <div>
+          <label>Duration (menit)</label>
+          <input id="durationMinutes" value="7" readonly>
+        </div>
+      </div>
+      <div style="margin-top:10px">
+        <label>Target Vessel Type <span class="hint">(kapal yang dilamar)</span></label>
+        <select id="targetVesselType">
+          <option value="General">General / Tidak Spesifik</option>
+          <option value="Bulk Carrier">Bulk Carrier</option>
+          <option value="Tanker">Tanker (Oil/Product/Chemical)</option>
+          <option value="Container">Container</option>
+          <option value="General Cargo">General Cargo</option>
+          <option value="Offshore">AHTS / Offshore / PSV</option>
+          <option value="Tug Boat/Harbour Tug">Tug Boat / Harbour Tug</option>
+          <option value="Dredger">Dredger</option>
+          <option value="LNG/LPG">LNG / LPG Carrier</option>
+        </select>
+      </div>
+      <div class="sub" style="margin-top:10px; margin-bottom:0">Final duration follows access code setting (allowedDurationMinutes dari Sheet meng-override input ini).</div>
+    </div>
+
+  </div>
+
+  <!-- ============ RIGHT COLUMN ============ -->
+  <div class="col">
+    <div class="card">
+      <h2>Voice Interview</h2>
+      <div class="warnbox">Perhatian: tombol Start Interview akan membuat session baru dan dapat mengurangi 1 credit jika access code valid.</div>
+      <div class="check">
+        <input type="checkbox" id="creditConfirm">
+        <label for="creditConfirm">I understand this may consume 1 credit</label>
+      </div>
+
+      <!-- AUDIO-REACTIVE SONAR -->
+      <div class="viz-wrap">
+        <div class="sonar viz-idle" id="sonar">
+          <div class="sonar-ring"></div>
+          <div class="sonar-ring"></div>
+          <div class="sonar-ring"></div>
+          <div class="sonar-core" id="sonarCore">⚓</div>
+        </div>
+        <div class="sonar-label" id="sonarLabel">Belum terhubung</div>
+        <div style="text-align:center">
+          <div class="timer-label">Session Time Remaining</div>
+          <span class="timer" id="timer">--:--</span>
+        </div>
+      </div>
+
+      <div class="hint-box">
+        Setelah koneksi siap, <b>sapa Yuliana dulu</b> — ucapkan "Good morning". Saat Yuliana bicara, microphone dikunci sebentar agar suara tidak terpotong.
+      </div>
+
+      <div style="margin-top:14px">
+        <button class="b-acc btn-block" id="btnStart" disabled>▶ Start Interview</button>
+        <div class="row" style="margin-top:0">
+          <div style="min-width:0"><button class="b-mut btn-block" id="btnStop" disabled>Stop Voice</button></div>
+          <div style="min-width:0"><button class="b-ok btn-block" id="btnFeedback" disabled>End &amp; Get Feedback</button></div>
+        </div>
+      </div>
+
+      <div id="sessionPills" style="margin-top:12px">
+        <span class="pill">sessionId: <b id="pillSid">—</b></span>
+        <span class="pill">mode: <b id="pillMode">—</b></span>
+        <span class="pill">questions: <b id="pillQids">—</b></span>
+      </div>
+      <div class="status" id="voiceStatus">Idle. Isi access code, centang konfirmasi, lalu Start Interview.</div>
+      <audio id="remoteAudio" autoplay playsinline></audio>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TRANSCRIPT + FEEDBACK ============ -->
+<div class="grid-2">
+  <div class="card">
+    <h2>Live Transcript</h2>
+    <div class="transcript" id="transcriptPanel"><span class="sub">Transcript akan muncul di sini. Sapa Yuliana lebih dulu — ucapkan "Good morning".</span></div>
+  </div>
+  <div class="card">
+    <h2>Feedback</h2>
+    <div class="status" id="feedbackStatus">Belum ada feedback.</div>
+    <pre id="feedbackPanel" style="display:none; max-height:420px"></pre>
+    <div>
+      <button class="b-mut" id="btnCopyFb" disabled>Copy Feedback</button>
+      <button class="b-mut" id="btnCopyTr" disabled>Copy Transcript</button>
+      <button class="b-mut" id="btnDownload" disabled>Download JSON</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ADMIN / DEV (tersembunyi total dari user) ============ -->
+<!-- Panel ini display:none. Untuk membukanya: tap logo ⚓ di pojok kiri atas 5x cepat. -->
+<div class="admin" id="adminPanel" style="display:none">
+  <div class="card">
+    <details open>
+      <summary>⚙ Admin / Dev Tools — jangan dibagikan ke user</summary>
+      <div style="margin-top:12px">
+        <label>WEB_APP_URL (Apps Script /exec)</label>
+        <input id="webAppUrl" placeholder="https://script.google.com/macros/s/XXXX/exec">
+        <button class="b-mut" id="btnHealth">Test Backend Health</button>
+        <button class="b-mut" id="btnValidate">Validate QuestionBank</button>
+        <div class="status" id="backendStatus">Backend belum dicek.</div>
+
+        <label style="margin-top:14px">Parameter Mapping Preview</label>
+        <pre id="paramPreview"></pre>
+
+        <button class="b-mut" id="btnPreviewQ">Preview Selected Questions</button>
+        <pre id="questionPreview" style="display:none"></pre>
+
+        <label style="margin-top:14px">Debug Log</label>
+        <pre id="debugLog" style="max-height:300px"></pre>
+        <button class="b-mut" id="btnClearDebug">Clear Debug</button>
+      </div>
+    </details>
+  </div>
+</div>
+
+<iframe name="hiddenSaveFrame"></iframe>
+
+<script>
+'use strict';
+// =====================================================================
+// CONFIG
+// =====================================================================
+const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEljEuwOfl2Znwa65zDOhQFCUYWPw7yWf8/exec';
+const HTML_VERSION = 'prod-6.5.7';
+const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
+const EXPECTED_BACKEND_PREFIX = 'trial-6.5';
+
+document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
+
+const RANKS = {
+  'Deck Officer': ['Third Officer','Second Officer','Chief Officer','Master'],
+  'Engineer Officer': ['Fourth Engineer','Third Engineer','Second Engineer','Chief Engineer']
+};
+const MODES = {
+  'Deck Officer': [
+    { value:'Crewing', label:'Crewing Interview' },
+    { value:'Technical Deck', label:'Technical Deck Interview' }
+  ],
+  'Engineer Officer': [
+    { value:'Crewing', label:'Crewing Interview' },
+    { value:'Technical Engine', label:'Technical Engine Interview' }
+  ]
+};
+const ERROR_MAP = {
+  CODE_REQUIRED: 'Kode akses belum diisi.',
+  CODE_INVALID: 'Kode akses tidak ditemukan. Periksa kembali ketikan kode.',
+  CODE_INACTIVE: 'Kode akses tidak aktif. Hubungi admin.',
+  CODE_EXPIRED: 'Kode akses sudah kadaluarsa. Hubungi admin.',
+  CREDITS_EMPTY: 'Credit pada kode ini sudah habis (maks 3 sesi).',
+  INVALID_MODE_FOR_RANK: 'Mode tidak cocok dengan rank. Technical Deck = rank Deck, Technical Engine = rank Engine.',
+  UNSUPPORTED_RANK_FOR_MVP: 'Rank ini belum didukung di MVP (hanya Officer Deck/Engine).',
+  MODE_NOT_ALLOWED_BY_ACCESS_CODE: 'Kode akses ini terkunci untuk mode tertentu. Pilih mode sesuai paket, atau hubungi admin.',
+  INVALID_PRODUCT_MODE: 'Mode interview tidak dikenal. Pilih Crewing / Technical Deck / Technical Engine.'
+};
+
+const el = (id) => document.getElementById(id);
+const state = {
+  pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'',
+  connected:false, transcript:[], startedAt:null, endedAt:null,
+  candidateStarted:false, timerInterval:null, remainingSeconds:0, totalSeconds:420,
+  aiResponding:false, micResumeTimer:null,
+  cueInFlightUntil:0,
+  closeGuardCount:0,
+  lastOverrideAt:0,
+  idleNudgeTimer1:null, idleNudgeTimer2:null,
+  wrapUpSent:false, finalCloseSent:false, finalized:false, feedbackBusy:false,
+  pendingCue:null, lastFeedback:'', sessionMeta:null,
+  // audio-reactive viz
+  audioCtx:null, userAnalyser:null, aiAnalyser:null, userBuf:null, aiBuf:null,
+  vizRaf:0, aiSilentFrames:0, audioReactive:false
+};
+
+// ---------------- helpers ----------------
+function getUrl() { return (el('webAppUrl').value || DEFAULT_WEB_APP_URL).trim(); }
+function logDebug(x) {
+  const line = typeof x === 'string' ? x : JSON.stringify(x, null, 1);
+  el('debugLog').textContent = '[' + new Date().toLocaleTimeString() + '] ' + line + '\n' + el('debugLog').textContent;
+}
+function setStatus(id, msg, kind) {
+  const n = el(id); n.textContent = msg; n.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+// ---------------- audio-reactive sonar ----------------
+function setVizClass(stateName, labelText) {
+  const sonar = el('sonar');
+  if (!sonar) return;
+  // preserve .live flag, swap only the viz-* state class
+  const isLive = sonar.classList.contains('live');
+  sonar.className = 'sonar ' + stateName + (isLive ? ' live' : '');
+  if (labelText !== undefined) el('sonarLabel').textContent = labelText;
+}
+function updateVizState() {
+  if (!state.connected) { setVizClass('viz-idle', 'Belum terhubung'); return; }
+  if (state.aiResponding) { setVizClass('viz-ai-speaking', 'Yuliana berbicara...'); return; }
+  const micOn = state.localStream && state.localStream.getAudioTracks().some(t => t.enabled);
+  if (micOn) setVizClass('viz-listening', 'Mendengarkan...');
+  else setVizClass('viz-waiting', 'Giliran kamu...');
+}
+// Web Audio amplitude (0..1) from an analyser
+function readLevel(analyser, buf) {
+  if (!analyser || !buf) return 0;
+  analyser.getByteTimeDomainData(buf);
+  let sum = 0;
+  for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+  const rms = Math.sqrt(sum / buf.length);     // ~0..0.5 typical speech
+  return Math.min(1, rms * 3.2);               // boost to fill 0..1
+}
+function setupAnalyser(stream) {
+  if (!state.audioCtx || !stream) return null;
+  try {
+    const src = state.audioCtx.createMediaStreamSource(stream);
+    const an = state.audioCtx.createAnalyser();
+    an.fftSize = 256; an.smoothingTimeConstant = 0.6;
+    src.connect(an); // NOT connected to destination — analysis only
+    return an;
+  } catch (e) { logDebug({ analyserFail: String(e.message || e) }); return null; }
+}
+function startVizLoop() {
+  cancelAnimationFrame(state.vizRaf);
+  const sonar = el('sonar'), core = el('sonarCore');
+  function loop() {
+    if (!state.connected) { sonar.classList.remove('live'); sonar.style.setProperty('--amp','0'); return; }
+    const ai = readLevel(state.aiAnalyser, state.aiBuf);
+    const usr = readLevel(state.userAnalyser, state.userBuf);
+    // track whether AI analyser ever produces sound (some browsers mute remote WebRTC in WebAudio)
+    if (state.aiResponding) { if (ai > 0.04) state.aiSilentFrames = 0; else state.aiSilentFrames++; }
+    // choose dominant amplitude
+    let amp = Math.max(ai, usr);
+    // if AI is supposed to talk but analyser is silent (browser quirk), synthesize a gentle pulse
+    if (state.aiResponding && state.aiSilentFrames > 30) {
+      amp = 0.35 + 0.25 * Math.abs(Math.sin(Date.now() / 220));
+    }
+    const live = amp > 0.06;
+    if (live) sonar.classList.add('live'); else sonar.classList.remove('live');
+    sonar.style.setProperty('--amp', amp.toFixed(3));
+    if (core) core.style.transform = 'scale(' + (1 + amp * 0.10).toFixed(3) + ')';
+    state.vizRaf = requestAnimationFrame(loop);
+  }
+  state.vizRaf = requestAnimationFrame(loop);
+}
+function stopVizLoop() {
+  cancelAnimationFrame(state.vizRaf); state.vizRaf = 0;
+  const sonar = el('sonar'), core = el('sonarCore');
+  if (sonar) { sonar.classList.remove('live'); sonar.style.setProperty('--amp','0'); }
+  if (core) core.style.transform = '';
+}
+
+function friendlyError(err) {
+  const msg = String(err && err.message ? err.message : err);
+  const m = msg.match(/\[([A-Z_]+)\]/);
+  if (m && ERROR_MAP[m[1]]) return ERROR_MAP[m[1]] + ' (' + m[1] + ')';
+  if (/Permission denied|NotAllowedError/i.test(msg)) return 'Akses microphone ditolak. Buka pengaturan browser → izinkan Microphone untuk halaman ini, lalu reload.';
+  if (/JSONP timeout/i.test(msg)) return 'Server lambat / tidak merespons. Cek WEB_APP_URL dan deploy Apps Script.';
+  if (/SDP failed|Realtime/i.test(msg)) return 'Koneksi voice OpenAI gagal. Coba mulai ulang sesi. (' + msg.slice(0,120) + ')';
+  if (/Transcript is empty/i.test(msg)) return 'Transcript kosong di server — tunggu beberapa detik lalu klik feedback lagi.';
+  return msg;
+}
+function jsonp(action, params = {}, timeoutMs = 30000) {
+  const base = getUrl();
+  if (!base) return Promise.reject(new Error('WEB_APP_URL belum diisi.'));
+  return new Promise((resolve, reject) => {
+    const cb = '__dlpJsonp_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+    const url = new URL(base);
+    url.searchParams.set('action', action);
+    url.searchParams.set('callback', cb);
+    Object.keys(params).forEach(k => { if (params[k] !== undefined && params[k] !== null) url.searchParams.set(k, params[k]); });
+    const s = document.createElement('script');
+    const t = setTimeout(() => { cleanup(); reject(new Error('JSONP timeout for action=' + action)); }, timeoutMs);
+    function cleanup(){ clearTimeout(t); try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
+    window[cb] = (data) => { cleanup(); logDebug({ action, response: data });
+      if (!data || data.ok === false) reject(new Error((data && data.error) || 'Unknown JSONP error'));
+      else resolve(data); };
+    s.onerror = () => { cleanup(); reject(new Error('JSONP script load failed for ' + action)); };
+    s.src = url.toString(); document.body.appendChild(s);
+  });
+}
+
+// ---------------- setup dropdowns + mapping preview ----------------
+function mapParams() {
+  const category = el('category').value;
+  const rank = el('rank').value;
+  const productMode = el('productMode').value;
+  const department = category === 'Engineer Officer' ? 'Engine' : 'Deck';
+  const targetVesselType = el('targetVesselType').value || 'General';
+  return {
+    testerCode: el('testerCode').value.trim(),
+    productMode: productMode,
+    focus: productMode === 'Crewing' ? 'Crewing' : 'Technical',
+    userCategory: category,
+    department: department,
+    rank: rank,
+    targetVesselType: targetVesselType,
+    interviewMode: 'simulation',
+    englishLevel: 'basic',
+    experienceLevel: 'any',
+    durationMinutes: el('durationMinutes').value || '7',
+    htmlVersion: HTML_VERSION,
+    clientHint: navigator.userAgent.slice(0, 120)
+  };
+}
+function refreshSetup() {
+  const category = el('category').value;
+  const rankSel = el('rank'); const prevRank = rankSel.value;
+  rankSel.innerHTML = RANKS[category].map(r => `<option>${r}</option>`).join('');
+  if (RANKS[category].includes(prevRank)) rankSel.value = prevRank;
+  const modeSel = el('productMode'); const prevMode = modeSel.value;
+  modeSel.innerHTML = MODES[category].map(m => `<option value="${m.value}">${m.label}</option>`).join('');
+  if (MODES[category].some(m => m.value === prevMode)) modeSel.value = prevMode;
+  const p = mapParams(); delete p.clientHint;
+  el('paramPreview').textContent = JSON.stringify(p, null, 1);
+}
+['category','rank','productMode','testerCode','targetVesselType'].forEach(id => el(id).addEventListener('change', refreshSetup));
+el('testerCode').addEventListener('input', () => { localStorage.setItem('dlpTesterCode', el('testerCode').value.trim()); refreshSetup(); });
+el('webAppUrl').addEventListener('input', () => localStorage.setItem('dlpWebAppUrl', el('webAppUrl').value.trim()));
+el('creditConfirm').addEventListener('change', () => { el('btnStart').disabled = !el('creditConfirm').checked || state.connected; });
+
+// ---------------- backend buttons ----------------
+el('btnHealth').onclick = async () => {
+  try {
+    setStatus('backendStatus', 'Checking health...', 'warn');
+    const d = await jsonp('health', { _t: Date.now() });
+    const verOk = String(d.appVersion || '').indexOf(EXPECTED_BACKEND_PREFIX) === 0;
+    setStatus('backendStatus', 'Health OK · ' + d.appVersion + (verOk ? '' : ' — PERHATIAN: bukan versi 6.5.x'), verOk ? 'ok' : 'warn');
+  } catch (e) { setStatus('backendStatus', 'Health FAILED: ' + friendlyError(e), 'err'); }
+};
+el('btnValidate').onclick = async () => {
+  try {
+    setStatus('backendStatus', 'Validating QuestionBank...', 'warn');
+    const d = await jsonp('validateQuestionBank', { _t: Date.now() }, 60000);
+    const ok = d.ok && (d.errors || []).length === 0 && d.activeQuestions > 0;
+    setStatus('backendStatus', `QuestionBank: active=${d.activeQuestions}, errors=${(d.errors||[]).length}, warnings=${(d.warnings||[]).length}`, ok ? 'ok' : 'err');
+  } catch (e) { setStatus('backendStatus', 'Validate FAILED: ' + friendlyError(e), 'err'); }
+};
+el('btnPreviewQ').onclick = async () => {
+  try {
+    setStatus('voiceStatus', 'Previewing questions (tidak memakan credit)...', 'warn');
+    const p = mapParams(); delete p.testerCode;
+    const d = await jsonp('getSelectedQuestions', p, 60000);
+    const qs = d.selectedQuestions || [];
+    const dist = {};
+    qs.forEach(q => { dist[q.category || '?'] = (dist[q.category || '?'] || 0) + 1; });
+    el('questionPreview').style.display = 'block';
+    el('questionPreview').textContent =
+      'productMode: ' + (d.productMode || '-') +
+      '\nfocus: ' + (d.profile ? d.profile.focus : '-') + ' · department: ' + (d.profile ? d.profile.department : '-') +
+      '\nIDs: ' + (d.selectedQuestionIds || '-') +
+      '\ncategoryDistribution: ' + JSON.stringify(dist) + '\n\n' +
+      qs.map((q,i) => (i+1) + '. [' + (q.category||'?') + '] ' + (q.question || q.mainQuestion)).join('\n');
+    setStatus('voiceStatus', 'Preview OK — cek department & kategori soal di admin panel.', 'ok');
+  } catch (e) { el('questionPreview').style.display='block'; el('questionPreview').textContent = friendlyError(e); setStatus('voiceStatus', 'Preview gagal: ' + friendlyError(e), 'err'); }
+};
+
+// ---------------- voice core ----------------
+function setButtons(stage) {
+  el('btnStart').disabled = stage !== 'idle' || !el('creditConfirm').checked;
+  el('btnStop').disabled = stage !== 'live';
+  el('btnFeedback').disabled = !(stage === 'stopped' && state.transcript.length) && stage !== 'live';
+  if (stage === 'live') el('btnFeedback').disabled = false;
+}
+function transcriptText() {
+  return state.transcript.map(it => '[' + String(it.role).toUpperCase() + '] ' + it.text).join('\n\n');
+}
+function pushTranscript(role, text) {
+  if (!text || !String(text).trim()) return;
+  state.transcript.push({ role, text: String(text).trim(), time: new Date().toISOString() });
+  const div = document.createElement('div');
+  div.className = role === 'user' ? 't-user' : 't-ai';
+  div.innerHTML = '<b>' + (role === 'user' ? 'Kamu' : 'Yuliana') + '</b> ' + text.replace(/</g,'&lt;');
+  const panel = el('transcriptPanel');
+  if (state.transcript.length === 1) panel.innerHTML = '';
+  panel.appendChild(div); panel.scrollTop = panel.scrollHeight;
+}
+function setMic(enabled) {
+  if (!state.localStream) return;
+  state.localStream.getAudioTracks().forEach(t => { t.enabled = enabled; });
+  updateVizState();
+}
+function scheduleMicResume(ms) {
+  clearTimeout(state.micResumeTimer);
+  state.micResumeTimer = setTimeout(() => { if (state.connected && !state.finalCloseSent) setMic(true); }, ms);
+}
+function sendCue(instructions, label) {
+  if (!state.dc || state.dc.readyState !== 'open') return false;
+  if (state.aiResponding || Date.now() < state.cueInFlightUntil) {
+    state.pendingCue = { instructions, label };
+    logDebug({ cueQueued: label });
+    return true;
+  }
+  try {
+    state.dc.send(JSON.stringify({ type: 'response.create', response: { instructions } }));
+    state.aiResponding = true;
+    state.cueInFlightUntil = Date.now() + 1500;
+    updateVizState();
+    logDebug({ cueSent: label });
+    return true;
+  } catch (e) { logDebug({ cueSendFailed: label, error: e.message }); return false; }
+}
+function armIdleNudges() {
+  clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
+  state.idleNudgeTimer1 = setTimeout(() => {
+    if (state.connected && !state.candidateStarted) {
+      setStatus('voiceStatus', 'Yuliana sedang menunggu kamu. Ucapkan "Good morning" untuk memulai.', 'warn');
+    }
+  }, 25000);
+  state.idleNudgeTimer2 = setTimeout(() => {
+    if (state.connected && !state.candidateStarted) {
+      sendCue(
+        'FRONTEND CUE: CANDIDATE_SILENT_NUDGE. The candidate has been silent since connecting. ' +
+        'Say only this, warmly: "Hello, can you hear me? Please say good morning when you are ready to begin." ' +
+        'Then stop and wait. Do not start the interview questions yet.',
+        'idle_nudge'
+      );
+    }
+  }, 55000);
+}
+function startTimer() {
+  state.startedAt = state.startedAt || new Date();
+  clearInterval(state.timerInterval);
+  state.remainingSeconds = state.totalSeconds;
+  state.timerInterval = setInterval(() => {
+    state.remainingSeconds--;
+    const m = Math.max(0, Math.floor(state.remainingSeconds / 60));
+    const s = Math.max(0, state.remainingSeconds % 60);
+    el('timer').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+    const tEl = el('timer');
+    if (state.remainingSeconds <= 20) tEl.className = 'timer t-danger';
+    else if (state.remainingSeconds <= 90) tEl.className = 'timer t-warn';
+    else tEl.className = 'timer';
+    if (state.remainingSeconds === 90 && !state.wrapUpSent && !state.finalCloseSent) {
+      state.wrapUpSent = true;
+      setMic(false);
+      sendCue([
+        'FRONTEND TIMER CUE: WRAP_UP_60_SECONDS.',
+        'Do not open a heavy new topic. Do not ask multi-part questions.',
+        'Ask one short final readiness question only if the candidate is not already answering a previous question.',
+        'Prefer a light question such as: Is there anything important you want to add for this position?',
+        'Ask only one question, then stop and wait for the candidate answer. Do not close yet.'
+      ].join(' '), 'wrap_up');
+      scheduleMicResume(800);
+      setStatus('voiceStatus', 'Wrap-up: 90 detik terakhir.', 'warn');
+    }
+    if (state.remainingSeconds === 20 && !state.finalCloseSent) {
+      state.finalCloseSent = true;
+      setMic(false);
+      sendCue([
+        'FRONTEND TIMER CUE: FINAL_CLOSE. The session is in the final 20-25 seconds. Close the interview now.',
+        'Do not ask any new question. Do not continue probing. Ignore any unfinished question plan and close only.',
+        'Say one short, professional closing line only.',
+        'Use this exact sentence: "Thank you. That concludes the interview. Please wait for your written feedback."'
+      ].join(' '), 'final_close');
+      setStatus('voiceStatus', 'Final close terkirim...', 'warn');
+    }
+    if (state.remainingSeconds <= 0) { clearInterval(state.timerInterval); finalizeSession('timer_zero'); }
+  }, 1000);
+}
+function isClosingPhrase(text) {
+  const t = String(text || '').toLowerCase();
+  return (
+    t.indexOf('concludes the interview') >= 0 ||
+    t.indexOf('conclude the interview') >= 0 ||
+    t.indexOf('that concludes') >= 0 ||
+    t.indexOf('wait for your written feedback') >= 0 ||
+    t.indexOf('this concludes') >= 0 ||
+    (t.indexOf('interview is') >= 0 && (t.indexOf('over') >= 0 || t.indexOf('complete') >= 0 || t.indexOf('finished') >= 0 || t.indexOf('done') >= 0)) ||
+    t.indexOf('end of the interview') >= 0 ||
+    t.indexOf('thank you for your time') >= 0 && t.indexOf('feedback') >= 0
+  );
+}
+function overridePrematureClose() {
+  if (state.remainingSeconds <= 90 || state.wrapUpSent || state.finalCloseSent) {
+    logDebug({ gracefulCloseAllowed: true, remainingSeconds: state.remainingSeconds });
+    return;
+  }
+  if (state.closeGuardCount >= 2) {
+    logDebug({ overrideSkipped: 'max_reached', remainingSeconds: state.remainingSeconds });
+    return;
+  }
+  if (Date.now() - state.lastOverrideAt < 20000) {
+    logDebug({ overrideSkipped: 'cooldown', remainingSeconds: state.remainingSeconds });
+    return;
+  }
+  state.closeGuardCount += 1;
+  state.lastOverrideAt = Date.now();
+  logDebug({ prematureCloseOverridden: state.closeGuardCount, remainingSeconds: state.remainingSeconds });
+  setStatus('voiceStatus', 'Interview masih berjalan. Yuliana melanjutkan pertanyaan.', 'warn');
+  sendCue(
+    'SYSTEM CORRECTION: The interview is NOT over. The frontend has NOT sent FINAL_CLOSE. ' +
+    'You closed too early — ignore that. Do NOT say goodbye, do NOT say the interview concludes, ' +
+    'do NOT ask the candidate to wait for feedback. Continue the interview now: ask ONE single ' +
+    'short adaptive question that has not been asked yet (target-vessel preparation, motivation for ' +
+    'the company/vessel, joining date, document readiness if not yet confirmed, or safety attitude). ' +
+    'Ask only ONE question, then stop and wait for the candidate.',
+    'premature_close_override'
+  );
+}
+function handleRealtimeEvent(raw) {
+  let ev; try { ev = JSON.parse(raw); } catch(e){ return; }
+  const type = ev.type || '';
+  if (type === 'error') {
+    const code = (ev.error && ev.error.code) || '';
+    if (code === 'conversation_already_has_active_response' || /active_response/i.test(JSON.stringify(ev))) {
+      logDebug({ nonFatal: 'active_response collision' }); return;
+    }
+    logDebug({ realtimeError: ev });
+    return;
+  }
+  if (type === 'response.created') { state.aiResponding = true; state.cueInFlightUntil = 0; state.aiSilentFrames = 0; setMic(false); updateVizState(); }
+  if (type === 'response.done') {
+    state.aiResponding = false;
+    state.cueInFlightUntil = 0;
+    updateVizState();
+    if (state.pendingCue) { const c = state.pendingCue; state.pendingCue = null; sendCue(c.instructions, c.label + '_retry'); }
+  }
+  if (type === 'output_audio_buffer.stopped') {
+    state.aiResponding = false;
+    if (state.finalCloseSent) { finalizeSession('after_final_close_audio'); return; }
+    scheduleMicResume(700);
+    updateVizState();
+    setStatus('voiceStatus', 'Giliran kamu. Silakan jawab.', 'ok');
+  }
+  if (type === 'conversation.item.input_audio_transcription.completed') {
+    clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
+    pushTranscript('user', ev.transcript || '');
+    if (!state.candidateStarted) { state.candidateStarted = true; startTimer(); setStatus('voiceStatus', 'Interview berjalan. Timer dimulai.', 'ok'); }
+  }
+  if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done' || type === 'response.output_text.done') {
+    const aiText = ev.transcript || ev.text || '';
+    pushTranscript('ai', aiText);
+    if (!state.finalCloseSent && !state.finalized && isClosingPhrase(aiText)) {
+      overridePrematureClose();
+    }
+  }
+}
+async function connectRealtime() {
+  const pc = new RTCPeerConnection(); state.pc = pc;
+  pc.ontrack = (e) => {
+    const a = el('remoteAudio'); a.srcObject = e.streams[0]; a.play().catch(()=>{});
+    state.remoteStream = e.streams[0];
+    // hook AI analyser for audio-reactive viz
+    if (state.audioCtx) { state.aiAnalyser = setupAnalyser(state.remoteStream); if (state.aiAnalyser) state.aiBuf = new Uint8Array(state.aiAnalyser.fftSize); }
+  };
+  state.localStream.getTracks().forEach(t => pc.addTrack(t, state.localStream));
+  const dc = pc.createDataChannel('oai-events'); state.dc = dc;
+  dc.addEventListener('message', (e) => handleRealtimeEvent(e.data));
+  dc.addEventListener('open', () => {
+    setStatus('voiceStatus', 'Terhubung. Ucapkan "Good morning" untuk memulai — Yuliana menunggu kamu bicara dulu.', 'ok');
+    updateVizState();
+    armIdleNudges();
+  });
+  pc.onconnectionstatechange = () => {
+    logDebug('pc state: ' + pc.connectionState);
+    if ((pc.connectionState === 'failed' || pc.connectionState === 'disconnected') && state.connected && !state.finalized) {
+      clearInterval(state.timerInterval);
+      state.connected = false;
+      setButtons('stopped');
+      stopVizLoop();
+      updateVizState();
+      setStatus('voiceStatus', 'Koneksi terputus. Jawabanmu tersimpan — klik "End & Get Feedback" untuk tetap dapat laporan.', 'err');
+    }
+  };
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  const r = await fetch(OPENAI_REALTIME_SDP_URL, { method:'POST', body: offer.sdp,
+    headers: { Authorization: 'Bearer ' + state.clientSecret, 'Content-Type': 'application/sdp' } });
+  const answer = await r.text();
+  if (!r.ok) throw new Error('OpenAI Realtime SDP failed: HTTP ' + r.status + ' - ' + answer.slice(0, 300));
+  await pc.setRemoteDescription({ type:'answer', sdp: answer });
+}
+el('btnStart').onclick = async () => {
+  try {
+    if (!getUrl()) { setStatus('voiceStatus', 'WEB_APP_URL belum diisi di Admin / Dev Tools.', 'err'); return; }
+    setButtons('busy');
+    Object.assign(state, { transcript:[], startedAt:null, endedAt:null, candidateStarted:false,
+      wrapUpSent:false, finalCloseSent:false, finalized:false, aiResponding:false, pendingCue:null, lastFeedback:'',
+      aiSilentFrames:0 });
+    el('transcriptPanel').innerHTML = '<span class="sub">Menunggu...</span>';
+    el('feedbackPanel').style.display='none';
+    setStatus('voiceStatus', 'Meminta izin microphone...', 'warn');
+    state.localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
+
+    // set up Web Audio for amplitude-reactive sonar (after user gesture, so resume works)
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) {
+        state.audioCtx = new AC();
+        if (state.audioCtx.state === 'suspended') await state.audioCtx.resume();
+        state.userAnalyser = setupAnalyser(state.localStream);
+        if (state.userAnalyser) state.userBuf = new Uint8Array(state.userAnalyser.fftSize);
+        state.audioReactive = !!state.userAnalyser;
+      }
+    } catch (acErr) { logDebug({ audioCtxFail: String(acErr.message || acErr) }); state.audioReactive = false; }
+
+    setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn');
+    const params = mapParams();
+    const token = await jsonp('createRealtimeClientSecret', params, 90000);
+    state.sessionMeta = token;
+    state.sessionId = token.sessionId;
+    state.clientSecret = token.value || (token.clientSecret && token.clientSecret.value) || '';
+    if (!state.clientSecret) throw new Error('Client secret tidak ditemukan di response (cek value / clientSecret.value).');
+    state.totalSeconds = (parseInt(token.durationMinutes, 10) || 7) * 60;
+    el('pillSid').textContent = token.sessionId;
+    el('pillMode').textContent = token.productMode || token.focus || '-';
+    el('pillQids').textContent = token.selectedQuestionIds || '-';
+    el('pillCredits').textContent = (token.creditsRemaining === null || token.creditsRemaining === undefined) ? 'no-gate' : token.creditsRemaining;
+    el('pillSession').textContent = token.sessionId;
+    el('durationMinutes').value = token.durationMinutes || 7;
+    setStatus('voiceStatus', 'Menghubungkan voice...', 'warn');
+    await connectRealtime();
+    state.connected = true;
+    setButtons('live');
+    updateVizState();
+    startVizLoop();
+  } catch (e) {
+    logDebug({ startError: String(e.message || e) });
+    setStatus('voiceStatus', friendlyError(e), 'err');
+    if (state.localStream) { state.localStream.getTracks().forEach(t=>t.stop()); state.localStream = null; }
+    stopVizLoop();
+    setButtons('idle');
+    updateVizState();
+  }
+};
+function stopVoice() {
+  clearInterval(state.timerInterval); clearTimeout(state.micResumeTimer);
+  clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
+  stopVizLoop();
+  try { if (state.dc) state.dc.close(); } catch(e){}
+  try { if (state.pc) state.pc.close(); } catch(e){}
+  if (state.localStream) { state.localStream.getTracks().forEach(t=>t.stop()); state.localStream = null; }
+  try { if (state.audioCtx && state.audioCtx.state !== 'closed') state.audioCtx.close(); } catch(e){}
+  state.audioCtx = null; state.userAnalyser = null; state.aiAnalyser = null; state.userBuf = null; state.aiBuf = null;
+  state.connected = false; state.endedAt = state.endedAt || new Date();
+  setVizClass('viz-idle', 'Sesi berakhir');
+}
+el('btnStop').onclick = () => { stopVoice(); setButtons('stopped'); setStatus('voiceStatus', 'Voice dihentikan. Klik feedback untuk simpan transcript + laporan.', 'warn'); };
+async function finalizeSession(source) {
+  if (state.finalized) return; state.finalized = true;
+  logDebug({ finalize: source });
+  stopVoice(); setButtons('stopped');
+  setStatus('voiceStatus', 'Sesi selesai. Mengambil feedback otomatis...', 'warn');
+  el('btnFeedback').click();
+}
+// ---------------- save + feedback ----------------
+function saveTranscriptViaHiddenForm() {
+  return new Promise((resolve) => {
+    const form = document.createElement('form');
+    form.method = 'POST'; form.action = getUrl(); form.target = 'hiddenSaveFrame'; form.style.display = 'none';
+    const payload = {
+      action: 'saveTranscriptForm', sessionId: state.sessionId,
+      transcriptJson: JSON.stringify(state.transcript), transcriptText: transcriptText(),
+      totalItems: String(state.transcript.length),
+      startedAt: state.startedAt ? state.startedAt.toISOString() : '',
+      endedAt: (state.endedAt || new Date()).toISOString(),
+      duration: '', notes: 'Saved from ' + HTML_VERSION
+    };
+    logDebug({ saveTranscriptPayloadItems: state.transcript.length });
+    Object.keys(payload).forEach(k => { const i = document.createElement('textarea'); i.name = k; i.value = payload[k]; form.appendChild(i); });
+    let done = false;
+    const fin = () => { if (done) return; done = true; if (form.parentNode) form.parentNode.removeChild(form); resolve(true); };
+    document.getElementsByName('hiddenSaveFrame')[0].addEventListener('load', fin, { once:true });
+    document.body.appendChild(form); form.submit();
+    setTimeout(fin, 5000);
+  });
+}
+async function confirmSaved() {
+  for (let i = 0; i < 5; i++) {
+    try {
+      const d = await jsonp('getSession', { sessionId: state.sessionId, _t: Date.now() });
+      const t = d && d.session && d.session.transcriptText ? String(d.session.transcriptText) : '';
+      if (t.length > 20) return true;
+    } catch (e) { logDebug('confirmSaved retry: ' + e.message); }
+    await new Promise(r => setTimeout(r, 1200));
+  }
+  return false;
+}
+el('btnFeedback').onclick = async () => {
+  if (state.feedbackBusy) return;
+  state.feedbackBusy = true;
+  try {
+    if (!state.sessionId) throw new Error('Belum ada session.');
+    if (!state.transcript.length) throw new Error('Transcript is empty — belum ada percakapan.');
+    if (state.connected) { stopVoice(); setButtons('stopped'); }
+    setStatus('feedbackStatus', 'Menyimpan transcript ke Sheet...', 'warn');
+    await saveTranscriptViaHiddenForm();
+    const confirmed = await confirmSaved();
+    logDebug({ transcriptConfirmed: confirmed });
+    setStatus('feedbackStatus', 'Generating feedback (boleh sampai 60 detik)...', 'warn');
+    let data = null, lastErr = null;
+    for (let i = 0; i < 2; i++) {
+      try { data = await jsonp('generateWrittenFeedbackBySessionId', { sessionId: state.sessionId, _t: Date.now() }, 120000); break; }
+      catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 2500)); }
+    }
+    if (!data) throw lastErr || new Error('Feedback gagal.');
+    state.lastFeedback = data.feedback || '';
+    el('feedbackPanel').style.display = 'block';
+    el('feedbackPanel').textContent = state.lastFeedback;
+    setStatus('feedbackStatus', 'Feedback OK · cached=' + String(data.feedbackCached), 'ok');
+    el('btnCopyFb').disabled = el('btnCopyTr').disabled = el('btnDownload').disabled = false;
+  } catch (e) {
+    setStatus('feedbackStatus', friendlyError(e), 'err');
+  } finally { state.feedbackBusy = false; }
+};
+el('btnCopyFb').onclick = () => navigator.clipboard.writeText(state.lastFeedback || '');
+el('btnCopyTr').onclick = () => navigator.clipboard.writeText(transcriptText());
+el('btnDownload').onclick = () => {
+  const blob = new Blob([JSON.stringify({ sessionId: state.sessionId, meta: state.sessionMeta, transcript: state.transcript, feedback: state.lastFeedback }, null, 2)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (state.sessionId || 'session') + '.json'; a.click();
+};
+el('btnClearDebug').onclick = () => { el('debugLog').textContent = ''; };
+window.addEventListener('beforeunload', () => { if (state.connected) stopVoice(); });
+
+// ---------------- init ----------------
+// URL hardcoded di DEFAULT_WEB_APP_URL. localStorage hanya dipakai kalau admin sengaja mengubahnya.
+el('webAppUrl').value = localStorage.getItem('dlpWebAppUrl') || DEFAULT_WEB_APP_URL;
+el('testerCode').value = localStorage.getItem('dlpTesterCode') || '';
+refreshSetup();
+setButtons('idle');
+updateVizState();
+
+// ---------------- secret admin reveal ----------------
+// User TIDAK melihat panel admin. Untuk membukanya (hanya kamu): tap logo ⚓ 5x cepat.
+(function(){
+  let taps = 0, lastTap = 0;
+  const mark = document.querySelector('.brand-mark');
+  if (!mark) return;
+  mark.style.cursor = 'default';
+  mark.addEventListener('click', () => {
+    const now = Date.now();
+    taps = (now - lastTap < 600) ? taps + 1 : 1;
+    lastTap = now;
+    if (taps >= 5) {
+      taps = 0;
+      const p = el('adminPanel');
+      p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+      if (p.style.display === 'block') p.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+})();
+</script>
+</body>
+</html>
