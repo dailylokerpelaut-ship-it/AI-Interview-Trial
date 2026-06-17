@@ -215,6 +215,93 @@
 </head>
 <body>
 
+<!-- ============ IN-APP BROWSER WARNING ============ -->
+<style>
+  #inAppOverlay {
+    position:fixed; inset:0; z-index:99999;
+    background:radial-gradient(ellipse at top, #0d1d33 0%, #0a1628 60%);
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    padding:24px; text-align:center; overflow-y:auto;
+  }
+  #inAppOverlay.show { display:flex; }
+  .iao-card {
+    max-width:480px; width:100%;
+    background:linear-gradient(180deg, #13243d 0%, #0d1d33 100%);
+    border:1px solid #2a4a72; border-radius:16px; padding:28px 22px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  }
+  .iao-icon { width:64px; height:64px; margin:0 auto 16px; border-radius:16px;
+    background:linear-gradient(135deg, #fbbf24 0%, #f87171 100%);
+    display:flex; align-items:center; justify-content:center; font-size:32px; }
+  #inAppOverlay h2 { color:#e8f0f8; font-size:1.3rem; margin-bottom:10px; font-weight:700; }
+  #inAppOverlay p { color:#b8cce0; font-size:0.95rem; margin-bottom:14px; line-height:1.6; }
+  .iao-steps { background:#0a1830; border:1px solid #1f3a5c; border-radius:11px;
+    padding:14px 18px; text-align:left; margin:16px 0; }
+  .iao-steps ol { margin-left:18px; color:#e8f0f8; font-size:0.9rem; }
+  .iao-steps li { margin:6px 0; }
+  .iao-steps b { color:#2dd4bf; }
+  .iao-copy { background:#081224; border:1px dashed #2a4a72; border-radius:9px;
+    padding:11px 13px; font-family:ui-monospace,monospace; font-size:0.78rem;
+    color:#38bdf8; word-break:break-all; margin:12px 0; }
+  .iao-btn { display:inline-block; background:linear-gradient(135deg, #2dd4bf 0%, #1a9e8f 100%);
+    color:#04201c; padding:13px 24px; border-radius:10px; font-weight:700;
+    font-size:0.95rem; margin-top:8px; box-shadow:0 4px 14px rgba(45,212,191,0.3);
+    border:none; cursor:pointer; font-family:inherit; }
+  .iao-mut { color:#8aa3c0; font-size:0.78rem; margin-top:14px; }
+</style>
+
+<div id="inAppOverlay" role="dialog" aria-modal="true">
+  <div class="iao-card">
+    <div class="iao-icon">⚠️</div>
+    <h2>Buka di Chrome atau Safari</h2>
+    <p>Kamu sedang membuka link ini dari dalam aplikasi (WhatsApp / Instagram / Facebook). Browser bawaan aplikasi tidak mendukung fitur voice interview.</p>
+    <div class="iao-steps">
+      <b style="color:#2dd4bf; font-size:0.85rem; display:block; margin-bottom:6px;">CARA MEMBUKA DI BROWSER ASLI:</b>
+      <ol>
+        <li>Tap titik tiga (⋮) atau ikon menu di pojok kanan atas</li>
+        <li>Pilih <b>"Buka di Chrome"</b> (Android) atau <b>"Buka di Safari"</b> (iPhone)</li>
+        <li>Atau salin link di bawah → paste ke Chrome/Safari</li>
+      </ol>
+    </div>
+    <div class="iao-copy" id="iaoUrl"></div>
+    <button class="iao-btn" id="iaoCopyBtn">📋 Salin Link</button>
+    <p class="iao-mut">Voice interview membutuhkan akses microphone & WebRTC yang hanya tersedia di browser asli.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var ua = navigator.userAgent || '';
+  var isInApp =
+    /WhatsApp/i.test(ua) ||
+    /Instagram/i.test(ua) ||
+    /FBAN|FBAV|FB_IAB|FBIOS/i.test(ua) ||
+    /Bytedance|musical_ly|TTWebView|TikTok/i.test(ua) ||
+    /Line\//i.test(ua) ||
+    /Twitter/i.test(ua);
+  if (!isInApp) return;
+  var ov = document.getElementById('inAppOverlay');
+  if (!ov) return;
+  ov.classList.add('show');
+  var urlEl = document.getElementById('iaoUrl');
+  if (urlEl) urlEl.textContent = location.host + location.pathname;
+  var btn = document.getElementById('iaoCopyBtn');
+  if (btn) btn.addEventListener('click', function(){
+    var fullUrl = location.href;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(fullUrl).then(function(){
+        btn.textContent = '✅ Tersalin! Buka Chrome/Safari → Paste';
+      }).catch(function(){ btn.textContent = '⚠️ Gagal salin — salin manual dari kotak di atas'; });
+    } else {
+      var range = document.createRange();
+      range.selectNodeContents(urlEl);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+      btn.textContent = '✅ Link tersorot — copy manual';
+    }
+  });
+})();
+</script>
+
 <div class="brand">
   <div class="brand-mark">⚓</div>
   <div>
