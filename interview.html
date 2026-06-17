@@ -389,7 +389,7 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.5.7';
+const HTML_VERSION = 'prod-6.5.8';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'trial-6.5';
 
@@ -518,8 +518,12 @@ function friendlyError(err) {
   const m = msg.match(/\[([A-Z_]+)\]/);
   if (m && ERROR_MAP[m[1]]) return ERROR_MAP[m[1]] + ' (' + m[1] + ')';
   if (/Permission denied|NotAllowedError/i.test(msg)) return 'Akses microphone ditolak. Buka pengaturan browser → izinkan Microphone untuk halaman ini, lalu reload.';
-  if (/JSONP timeout/i.test(msg)) return 'Server lambat / tidak merespons. Cek WEB_APP_URL dan deploy Apps Script.';
-  if (/SDP failed|Realtime/i.test(msg)) return 'Koneksi voice OpenAI gagal. Coba mulai ulang sesi. (' + msg.slice(0,120) + ')';
+  // JSONP errors HARUS dicek dulu sebelum Realtime/SDP. Nama action `createRealtimeClientSecret`
+  // mengandung kata "Realtime", jadi kalau urutan terbalik, semua kegagalan backend akan
+  // misleadingly disebut "OpenAI voice failed" — bug yang membingungkan tim debug berjam-jam.
+  if (/JSONP script load failed/i.test(msg)) return 'Koneksi ke server gagal. Coba: (1) buka di Chrome/Safari, bukan dari WhatsApp, (2) matikan VPN/Private DNS/adblock, (3) reload halaman. Kalau masih gagal, hubungi admin.';
+  if (/JSONP timeout/i.test(msg)) return 'Server lambat atau tidak merespons. Periksa koneksi internet, lalu coba lagi.';
+  if (/SDP failed|OpenAI Realtime/i.test(msg)) return 'Koneksi voice ke OpenAI gagal. Coba mulai ulang sesi. (' + msg.slice(0,120) + ')';
   if (/Transcript is empty/i.test(msg)) return 'Transcript kosong di server — tunggu beberapa detik lalu klik feedback lagi.';
   return msg;
 }
@@ -580,7 +584,13 @@ function refreshSetup() {
 ['category','rank','productMode','testerCode','targetVesselType'].forEach(id => el(id).addEventListener('change', refreshSetup));
 el('testerCode').addEventListener('input', () => { localStorage.setItem('dlpTesterCode', el('testerCode').value.trim()); refreshSetup(); });
 el('webAppUrl').addEventListener('input', () => localStorage.setItem('dlpWebAppUrl', el('webAppUrl').value.trim()));
-el('creditConfirm').addEventListener('change', () => { el('btnStart').disabled = !el('creditConfirm').checked || state.connected; });
+function updateStartButton() {
+  const hasCode = el('testerCode').value.trim().length > 0;
+  const hasConfirm = el('creditConfirm').checked;
+  el('btnStart').disabled = !hasCode || !hasConfirm || state.connected;
+}
+el('creditConfirm').addEventListener('change', updateStartButton);
+el('testerCode').addEventListener('input', updateStartButton);
 
 // ---------------- backend buttons ----------------
 el('btnHealth').onclick = async () => {
@@ -620,7 +630,8 @@ el('btnPreviewQ').onclick = async () => {
 
 // ---------------- voice core ----------------
 function setButtons(stage) {
-  el('btnStart').disabled = stage !== 'idle' || !el('creditConfirm').checked;
+  const hasCode = el('testerCode').value.trim().length > 0;
+  el('btnStart').disabled = stage !== 'idle' || !el('creditConfirm').checked || !hasCode;
   el('btnStop').disabled = stage !== 'live';
   el('btnFeedback').disabled = !(stage === 'stopped' && state.transcript.length) && stage !== 'live';
   if (stage === 'live') el('btnFeedback').disabled = false;
@@ -978,8 +989,10 @@ el('btnClearDebug').onclick = () => { el('debugLog').textContent = ''; };
 window.addEventListener('beforeunload', () => { if (state.connected) stopVoice(); });
 
 // ---------------- init ----------------
-// URL hardcoded di DEFAULT_WEB_APP_URL. localStorage hanya dipakai kalau admin sengaja mengubahnya.
-el('webAppUrl').value = localStorage.getItem('dlpWebAppUrl') || DEFAULT_WEB_APP_URL;
+// PRODUCTION: URL selalu dari DEFAULT_WEB_APP_URL (hardcoded). localStorage TIDAK dipakai
+// untuk webAppUrl supaya tidak ada user yang stuck di deployment URL lama yang salah.
+// Admin yang mau override sementara cukup edit field di Admin panel — tidak persistent.
+el('webAppUrl').value = DEFAULT_WEB_APP_URL;
 el('testerCode').value = localStorage.getItem('dlpTesterCode') || '';
 refreshSetup();
 setButtons('idle');
