@@ -476,7 +476,7 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.5.8';
+const HTML_VERSION = 'prod-6.5.9';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'trial-6.5';
 
@@ -515,6 +515,7 @@ const state = {
   candidateStarted:false, timerInterval:null, remainingSeconds:0, totalSeconds:420,
   aiResponding:false, micResumeTimer:null,
   cueInFlightUntil:0,
+  awaitingAnswer:false, heldCue:null,
   closeGuardCount:0,
   lastOverrideAt:0,
   idleNudgeTimer1:null, idleNudgeTimer2:null,
@@ -761,6 +762,17 @@ function sendCue(instructions, label) {
     return true;
   } catch (e) { logDebug({ cueSendFailed: label, error: e.message }); return false; }
 }
+// v6.5.9 — timer cues (WRAP_UP / FINAL_CLOSE) tidak boleh barge-in saat kandidat
+// baru ditanya & belum jawab, atau saat Yuliana masih bicara. Tahan; lepas saat kandidat jawab.
+function sendTimerCue(instructions, label) {
+  if (state.awaitingAnswer || state.aiResponding) {
+    state.heldCue = { instructions, label };
+    logDebug({ timerCueHeld: label });
+    return;
+  }
+  setMic(false);
+  sendCue(instructions, label);
+}
 function armIdleNudges() {
   clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
   state.idleNudgeTimer1 = setTimeout(() => {
@@ -794,21 +806,18 @@ function startTimer() {
     else tEl.className = 'timer';
     if (state.remainingSeconds === 90 && !state.wrapUpSent && !state.finalCloseSent) {
       state.wrapUpSent = true;
-      setMic(false);
-      sendCue([
+      sendTimerCue([
         'FRONTEND TIMER CUE: WRAP_UP_60_SECONDS.',
         'Do not open a heavy new topic. Do not ask multi-part questions.',
         'Ask one short final readiness question only if the candidate is not already answering a previous question.',
         'Prefer a light question such as: Is there anything important you want to add for this position?',
         'Ask only one question, then stop and wait for the candidate answer. Do not close yet.'
       ].join(' '), 'wrap_up');
-      scheduleMicResume(800);
       setStatus('voiceStatus', 'Wrap-up: 90 detik terakhir.', 'warn');
     }
     if (state.remainingSeconds === 20 && !state.finalCloseSent) {
       state.finalCloseSent = true;
-      setMic(false);
-      sendCue([
+      sendTimerCue([
         'FRONTEND TIMER CUE: FINAL_CLOSE. The session is in the final 20-25 seconds. Close the interview now.',
         'Do not ask any new question. Do not continue probing. Ignore any unfinished question plan and close only.',
         'Say one short, professional closing line only.',
@@ -880,6 +889,7 @@ function handleRealtimeEvent(raw) {
   if (type === 'output_audio_buffer.stopped') {
     state.aiResponding = false;
     if (state.finalCloseSent) { finalizeSession('after_final_close_audio'); return; }
+    state.awaitingAnswer = true;
     scheduleMicResume(700);
     updateVizState();
     setStatus('voiceStatus', 'Giliran kamu. Silakan jawab.', 'ok');
@@ -888,6 +898,8 @@ function handleRealtimeEvent(raw) {
     clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
     pushTranscript('user', ev.transcript || '');
     if (!state.candidateStarted) { state.candidateStarted = true; startTimer(); setStatus('voiceStatus', 'Interview berjalan. Timer dimulai.', 'ok'); }
+    state.awaitingAnswer = false;
+    if (state.heldCue) { const c = state.heldCue; state.heldCue = null; logDebug({ heldCueFlushed: c.label }); sendTimerCue(c.instructions, c.label); }
   }
   if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done' || type === 'response.output_text.done') {
     const aiText = ev.transcript || ev.text || '';
@@ -938,7 +950,7 @@ el('btnStart').onclick = async () => {
     setButtons('busy');
     Object.assign(state, { transcript:[], startedAt:null, endedAt:null, candidateStarted:false,
       wrapUpSent:false, finalCloseSent:false, finalized:false, aiResponding:false, pendingCue:null, lastFeedback:'',
-      aiSilentFrames:0 });
+      aiSilentFrames:0, awaitingAnswer:false, heldCue:null });
     el('transcriptPanel').innerHTML = '<span class="sub">Menunggu...</span>';
     el('feedbackPanel').style.display='none';
     setStatus('voiceStatus', 'Meminta izin microphone...', 'warn');
