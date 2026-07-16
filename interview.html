@@ -1381,18 +1381,83 @@ async function confirmSaved() {
   const expectedText = normalizeTranscriptForCompare_(transcriptText());
   const expectedHash = await sha256Hex_(expectedText);
   const expectedItems = state.transcript.length;
-  for (let i=0; i<8; i++) {
+
+  for (let i = 0; i < 8; i++) {
     try {
       const d = await jsonp('getSession', {
-        sessionId:state.sessionId,
-        sessionAccessToken:state.sessionAccessToken,
-        _t:Date.now()
+        sessionId: state.sessionId,
+        sessionAccessToken: state.sessionAccessToken,
+        _t: Date.now()
       });
+
       const server = d && d.session ? d.session : {};
-      const hashOk = String(server.transcriptHash || '') === expectedHash;
-      const itemsOk = Number(server.transcriptItems || 0) === expectedItems;
-      const charsOk = Number(server.transcriptChars || 0) === expectedText.length;
-      if (hashOk && itemsOk && charsOk) {
+
+      const serverItems = Number(server.transcriptItems || 0);
+      const serverChars = Number(server.transcriptChars || 0);
+      const serverStatus = String(server.status || '');
+      const serverHash = String(server.transcriptHash || '');
+
+      const hashOk = serverHash === expectedHash;
+      const itemsOk = serverItems === expectedItems;
+
+      const charsCloseEnough =
+        Math.abs(serverChars - expectedText.length) <= 8;
+
+      const statusOk =
+        serverStatus === 'TRANSCRIPT_SAVED' ||
+        serverStatus === 'TRANSCRIPT_UPDATED_AFTER_FEEDBACK' ||
+        serverStatus === 'FEEDBACK_GENERATED';
+
+      if (
+        itemsOk &&
+        statusOk &&
+        serverChars > 20 &&
+        (hashOk || charsCloseEnough)
+      ) {
+        logFlow('[DLP_TRANSCRIPT_SAVE_CONFIRMED]', {
+          attempt: i + 1,
+          expectedItems: expectedItems,
+          serverItems: serverItems,
+          expectedChars: expectedText.length,
+          serverChars: serverChars,
+          hashExact: hashOk,
+          confirmationMode: hashOk
+            ? 'exact_hash'
+            : 'items_and_chars'
+        });
+
+        return true;
+      }
+
+      logFlow('[DLP_TRANSCRIPT_SAVE_MISMATCH]', {
+        attempt: i + 1,
+        serverStatus: serverStatus,
+        expectedItems: expectedItems,
+        serverItems: serverItems,
+        expectedChars: expectedText.length,
+        serverChars: serverChars,
+        expectedHash: expectedHash.slice(0, 12),
+        serverHash: serverHash.slice(0, 12),
+        hashOk: hashOk,
+        itemsOk: itemsOk,
+        charsCloseEnough: charsCloseEnough,
+        statusOk: statusOk
+      });
+
+    } catch (e) {
+      logDebug(
+        'confirmSaved retry ' +
+        (i + 1) +
+        ': ' +
+        String(e && e.message ? e.message : e)
+      );
+    }
+
+    await sleep_(1200);
+  }
+
+  return false;
+}
         logFlow('[DLP_TRANSCRIPT_SAVE_CONFIRMED]', { attempt:i+1, chars:expectedText.length, items:expectedItems, hash:expectedHash.slice(0,12) });
         return true;
       }
