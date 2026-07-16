@@ -364,7 +364,10 @@
           <option value="Tanker">Tanker (Oil/Product/Chemical)</option>
           <option value="Container">Container</option>
           <option value="General Cargo">General Cargo</option>
-          <option value="Offshore">AHTS / Offshore / PSV</option>
+          <option value="Offshore">Offshore (General)</option>
+          <option value="AHTS">AHTS / Anchor Handling Tug Supply</option>
+          <option value="PSV">PSV / Platform Supply Vessel</option>
+          <option value="Crew Boat">Crew Boat / Fast Crew Boat</option>
           <option value="Tug Boat/Harbour Tug">Tug Boat / Harbour Tug</option>
           <option value="Dredger">Dredger</option>
           <option value="LNG/LPG">LNG / LPG Carrier</option>
@@ -476,9 +479,10 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.5.9';
+const HTML_VERSION = 'prod-6.6.0';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'trial-6.5';
+const EXPECTED_BACKEND_PREFIX = 'trial-6.6';
+const RESPONSE_OWNER_REQUIRED = 'frontend';
 
 document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
 
@@ -505,22 +509,26 @@ const ERROR_MAP = {
   INVALID_MODE_FOR_RANK: 'Mode tidak cocok dengan rank. Technical Deck = rank Deck, Technical Engine = rank Engine.',
   UNSUPPORTED_RANK_FOR_MVP: 'Rank ini belum didukung di MVP (hanya Officer Deck/Engine).',
   MODE_NOT_ALLOWED_BY_ACCESS_CODE: 'Kode akses ini terkunci untuk mode tertentu. Pilih mode sesuai paket, atau hubungi admin.',
-  INVALID_PRODUCT_MODE: 'Mode interview tidak dikenal. Pilih Crewing / Technical Deck / Technical Engine.'
+  INVALID_PRODUCT_MODE: 'Mode interview tidak dikenal. Pilih Crewing / Technical Deck / Technical Engine.',
+  SESSION_ACCESS_DENIED: 'Akses session tidak valid. Reload halaman dan mulai session baru.',
+  FEEDBACK_BUSY: 'Feedback sedang dibuat. Tunggu beberapa detik lalu coba lagi.'
 };
 
 const el = (id) => document.getElementById(id);
 const state = {
-  pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'',
-  connected:false, transcript:[], startedAt:null, endedAt:null,
-  candidateStarted:false, timerInterval:null, remainingSeconds:0, totalSeconds:420,
-  aiResponding:false, micResumeTimer:null,
-  cueInFlightUntil:0,
-  awaitingAnswer:false, heldCue:null,
-  closeGuardCount:0,
-  lastOverrideAt:0,
-  idleNudgeTimer1:null, idleNudgeTimer2:null,
-  wrapUpSent:false, finalCloseSent:false, finalized:false, feedbackBusy:false,
-  pendingCue:null, lastFeedback:'', sessionMeta:null,
+  pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'',
+  connected:false, dataChannelOpen:false, transcript:[], startedAt:null, endedAt:null,
+  candidateStarted:false, clientStartedReported:false, candidateSpeaking:false, pendingTranscriptions:0,
+  timerInterval:null, remainingSeconds:0, totalSeconds:420, deadlineAt:0,
+  preStartTimer:null, hardDeadlineTimer:null, disconnectTimer:null,
+  aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
+  responseRequestPending:false, responseRequestKind:'', responseRequestEventId:'',
+  queuedResponse:null, finalNoSpeechTimer:null,
+  micResumeTimer:null, awaitingAnswer:false,
+  wrapUpRequested:false, wrapUpDelivered:false,
+  finalCloseRequested:false, finalCloseResponseId:'', finalCloseAudioCompleted:false,
+  finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
+  integrityFlags:[], eventSeq:0, lastUserTranscriptAt:0,
   // audio-reactive viz
   audioCtx:null, userAnalyser:null, aiAnalyser:null, userBuf:null, aiBuf:null,
   vizRaf:0, aiSilentFrames:0, audioReactive:false
@@ -612,6 +620,8 @@ function friendlyError(err) {
   if (/JSONP script load failed/i.test(msg)) return 'Koneksi ke server gagal. Coba: (1) buka di Chrome/Safari, bukan dari WhatsApp, (2) matikan VPN/Private DNS/adblock, (3) reload halaman. Kalau masih gagal, hubungi admin.';
   if (/JSONP timeout/i.test(msg)) return 'Server lambat atau tidak merespons. Periksa koneksi internet, lalu coba lagi.';
   if (/SDP failed|OpenAI Realtime/i.test(msg)) return 'Koneksi voice ke OpenAI gagal. Coba mulai ulang sesi. (' + msg.slice(0,120) + ')';
+  if (/TRANSCRIPT_SAVE_NOT_CONFIRMED/i.test(msg)) return 'Transcript belum terkonfirmasi tersimpan. Jangan ulang feedback dulu; periksa koneksi/backend.';
+  if (/BACKEND_RESPONSE_OWNER_MISMATCH/i.test(msg)) return 'Frontend baru membutuhkan patch Code.gs pasangan: turn_detection.create_response=false dan responseOwner=frontend.';
   if (/Transcript is empty/i.test(msg)) return 'Transcript kosong di server — tunggu beberapa detik lalu klik feedback lagi.';
   return msg;
 }
@@ -633,6 +643,63 @@ function jsonp(action, params = {}, timeoutMs = 30000) {
     s.onerror = () => { cleanup(); reject(new Error('JSONP script load failed for ' + action)); };
     s.src = url.toString(); document.body.appendChild(s);
   });
+}
+
+
+async function sha256Hex_(text) {
+  const data = new TextEncoder().encode(String(text || ''));
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function reportClientStarted_() {
+  if (!state.sessionId || !state.sessionAccessToken || state.clientStartedReported) return { ok:false, skipped:true };
+  try {
+    const d = await jsonp('reportClientStarted', {
+      sessionId: state.sessionId,
+      sessionAccessToken: state.sessionAccessToken,
+      startedAt: state.startedAt ? state.startedAt.toISOString() : new Date().toISOString(),
+      _t: Date.now()
+    }, 30000);
+    state.clientStartedReported = true;
+    logFlow('[DLP_CLIENT_STARTED_REPORTED]', { status:d.status || '', changed:!!d.changed });
+    return d;
+  } catch (e) {
+    // This audit call must not interrupt a valid live interview. Retry is safe and authenticated.
+    logFlow('[DLP_CLIENT_STARTED_REPORT_FAILED]', { error:String(e.message || e) });
+    return { ok:false, error:String(e.message || e) };
+  }
+}
+
+async function reportClientStartFailure_(reason) {
+  if (!state.sessionId || !state.sessionAccessToken || state.candidateStarted) return { ok:false, skipped:true };
+  try {
+    const d = await jsonp('reportClientStartFailure', {
+      sessionId: state.sessionId,
+      sessionAccessToken: state.sessionAccessToken,
+      reason: reason || 'client_start_failure',
+      _t: Date.now()
+    }, 30000);
+    logFlow('[DLP_CLIENT_START_FAILURE_REPORTED]', { reason:reason || '', response:d });
+    if (d && d.refunded) el('pillCredits').textContent = String((parseInt(el('pillCredits').textContent, 10) || 0) + 1);
+    return d;
+  } catch (e) {
+    logDebug({ clientStartFailureReportFailed:String(e.message || e), reason:reason || '' });
+    return { ok:false, error:String(e.message || e) };
+  }
+}
+
+function reportClientStartFailureKeepalive_(reason) {
+  if (!state.sessionId || !state.sessionAccessToken || state.candidateStarted) return;
+  try {
+    const body = new URLSearchParams({
+      action:'reportClientStartFailure',
+      sessionId:state.sessionId,
+      sessionAccessToken:state.sessionAccessToken,
+      reason:reason || 'page_unload_before_start'
+    });
+    fetch(getUrl(), { method:'POST', body, keepalive:true, mode:'no-cors' }).catch(()=>{});
+  } catch(e) {}
 }
 
 // ---------------- setup dropdowns + mapping preview ----------------
@@ -670,8 +737,8 @@ function refreshSetup() {
   el('paramPreview').textContent = JSON.stringify(p, null, 1);
 }
 ['category','rank','productMode','testerCode','targetVesselType'].forEach(id => el(id).addEventListener('change', refreshSetup));
-el('testerCode').addEventListener('input', () => { localStorage.setItem('dlpTesterCode', el('testerCode').value.trim()); refreshSetup(); });
-el('webAppUrl').addEventListener('input', () => localStorage.setItem('dlpWebAppUrl', el('webAppUrl').value.trim()));
+el('testerCode').addEventListener('input', () => { sessionStorage.setItem('dlpTesterCode', el('testerCode').value.trim()); refreshSetup(); });
+
 function updateStartButton() {
   const hasCode = el('testerCode').value.trim().length > 0;
   const hasConfirm = el('creditConfirm').checked;
@@ -686,7 +753,7 @@ el('btnHealth').onclick = async () => {
     setStatus('backendStatus', 'Checking health...', 'warn');
     const d = await jsonp('health', { _t: Date.now() });
     const verOk = String(d.appVersion || '').indexOf(EXPECTED_BACKEND_PREFIX) === 0;
-    setStatus('backendStatus', 'Health OK · ' + d.appVersion + (verOk ? '' : ' — PERHATIAN: bukan versi 6.5.x'), verOk ? 'ok' : 'warn');
+    setStatus('backendStatus', 'Health OK · ' + d.appVersion + (verOk ? '' : ' — PERHATIAN: bukan versi 6.6.x'), verOk ? 'ok' : 'warn');
   } catch (e) { setStatus('backendStatus', 'Health FAILED: ' + friendlyError(e), 'err'); }
 };
 el('btnValidate').onclick = async () => {
@@ -727,15 +794,52 @@ function setButtons(stage) {
 function transcriptText() {
   return state.transcript.map(it => '[' + String(it.role).toUpperCase() + '] ' + it.text).join('\n\n');
 }
-function pushTranscript(role, text) {
-  if (!text || !String(text).trim()) return;
-  state.transcript.push({ role, text: String(text).trim(), time: new Date().toISOString() });
+function pushTranscript(role, text, meta = {}) {
+  const clean = String(text || '').trim();
+  if (!clean) return;
+  if (role === 'ai' && containsInternalCueFingerprint(clean)) {
+    markIntegrityFailure('assistant_internal_cue_fingerprint', { text: clean.slice(0, 240), responseId: meta.responseId || '' });
+    return;
+  }
+  state.transcript.push({ role, text: clean, time: new Date().toISOString(), responseId: meta.responseId || '' });
   const div = document.createElement('div');
   div.className = role === 'user' ? 't-user' : 't-ai';
-  div.innerHTML = '<b>' + (role === 'user' ? 'Kamu' : 'Yuliana') + '</b> ' + text.replace(/</g,'&lt;');
+  const who = document.createElement('b');
+  who.textContent = role === 'user' ? 'Kamu' : 'Yuliana';
+  div.appendChild(who);
+  div.appendChild(document.createTextNode(' ' + clean));
   const panel = el('transcriptPanel');
   if (state.transcript.length === 1) panel.innerHTML = '';
   panel.appendChild(div); panel.scrollTop = panel.scrollHeight;
+}
+function containsInternalCueFingerprint(text) {
+  return /FRONTEND\s+(?:TIMER\s+)?CUE|WRAP_UP_60_SECONDS|FINAL_CLOSE|SYSTEM CORRECTION|CANDIDATE_SILENT_NUDGE|manualResponseCreate|cueReason/i.test(String(text || ''));
+}
+function markIntegrityFailure(flag, detail) {
+  if (state.integrityFlags.indexOf(flag) < 0) state.integrityFlags.push(flag);
+  logDebug({ tag:'[DLP_INTEGRITY_FAILED]', flag, detail:detail || null });
+}
+function logFlow(tag, extra = {}) {
+  logDebug(Object.assign({
+    tag,
+    seq: ++state.eventSeq,
+    at: new Date().toISOString(),
+    phase: getPhase(),
+    awaitingAnswer: state.awaitingAnswer,
+    candidateSpeaking: state.candidateSpeaking,
+    pendingTranscriptions: state.pendingTranscriptions,
+    aiResponding: state.aiResponding,
+    activeResponseId: state.activeResponseId,
+    activeResponseKind: state.activeResponseKind
+  }, extra));
+}
+function getPhase() {
+  if (state.finalCloseAudioCompleted || state.finalized) return 'CLOSED';
+  if (state.finalCloseResponseId || state.activeResponseKind === 'final_close') return 'FINAL_CLOSE';
+  if (state.finalCloseRequested) return 'FINAL_CLOSE_REQUESTED';
+  if (state.wrapUpDelivered) return 'LATE_SESSION';
+  if (state.wrapUpRequested) return 'WRAP_UP_REQUESTED';
+  return 'NORMAL';
 }
 function setMic(enabled) {
   if (!state.localStream) return;
@@ -744,89 +848,174 @@ function setMic(enabled) {
 }
 function scheduleMicResume(ms) {
   clearTimeout(state.micResumeTimer);
-  state.micResumeTimer = setTimeout(() => { if (state.connected && !state.finalCloseSent) setMic(true); }, ms);
+  state.micResumeTimer = setTimeout(() => { if (state.connected && !state.finalized && !state.finalCloseResponseId) setMic(true); }, ms);
+}
+const RESPONSE_PRIORITY = { normal:10, idle_nudge:20, wrap_up:60, premature_close_override:70, final_close:100 };
+function responseInstructionsFor(kind) {
+  if (kind === 'idle_nudge') {
+    return 'The candidate has been silent since connecting. Say exactly: "Hello, can you hear me? Please say good morning when you are ready to begin." Then stop and wait. Do not ask an interview question yet.';
+  }
+  if (kind === 'wrap_up') {
+    return 'The session is entering wrap-up. Ask exactly one short, light readiness question that has not already been answered. Prefer: "Is there one important point you want to add for this position?" Do not close and do not open a heavy topic. Then stop and wait.';
+  }
+  if (kind === 'final_close') {
+    return 'Close the interview now. Do not ask a question. Say exactly: "Thank you. That concludes the interview. Please wait for your written feedback." No extra words.';
+  }
+  if (kind === 'normal' && state.wrapUpDelivered && !state.finalCloseRequested) {
+    return 'Continue in late-session mode. Ask exactly one short, light question that has not already been answered. Do not open a heavy technical topic and do not close. Then stop and wait.';
+  }
+  if (kind === 'premature_close_override') {
+    return 'The interview is not over. Ask exactly one short interview question that has not already been answered. Do not use closing language. Then stop and wait.';
+  }
+  return '';
+}
+function queueResponse(kind, reason) {
+  const candidate = { kind, reason:reason || '', priority:RESPONSE_PRIORITY[kind] || 0, queuedAt:Date.now() };
+  if (!state.queuedResponse || candidate.priority >= state.queuedResponse.priority) {
+    state.queuedResponse = candidate;
+  }
+  logFlow('[DLP_CUE_QUEUED]', { kind, reason:reason || '', queue:state.queuedResponse });
+}
+function canCreateResponse() {
+  return !!(
+    state.connected && state.dataChannelOpen && state.dc && state.dc.readyState === 'open' &&
+    !state.aiResponding && !state.responseRequestPending && !state.candidateSpeaking &&
+    state.pendingTranscriptions === 0 && !state.awaitingAnswer && !state.finalized
+  );
+}
+function createManagedResponse(kind, reason) {
+  if (!canCreateResponse()) {
+    queueResponse(kind, reason || 'busy');
+    return false;
+  }
+  const eventId = 'dlp_' + kind + '_' + Date.now() + '_' + (++state.eventSeq);
+  const response = {};
+  const instructions = responseInstructionsFor(kind);
+  if (instructions) response.instructions = instructions;
+  try {
+    state.responseRequestPending = true;
+    state.responseRequestKind = kind;
+    state.responseRequestEventId = eventId;
+    state.dc.send(JSON.stringify({ type:'response.create', event_id:eventId, response }));
+    setMic(false);
+    logFlow('[DLP_CUE_SENT]', { kind, reason:reason || '', eventId, manualResponseCreate:true });
+    return true;
+  } catch (e) {
+    state.responseRequestPending = false;
+    state.responseRequestKind = '';
+    state.responseRequestEventId = '';
+    markIntegrityFailure('response_create_send_failed', { kind, error:String(e.message || e) });
+    return false;
+  }
+}
+function flushManagedResponse(reason) {
+  if (!canCreateResponse()) return false;
+  let next = state.queuedResponse;
+  state.queuedResponse = null;
+  if (state.finalCloseRequested) next = { kind:'final_close', reason:reason || 'final_requested', priority:100 };
+  else if (state.wrapUpRequested && !state.wrapUpDelivered && (!next || next.priority < 60)) next = { kind:'wrap_up', reason:reason || 'wrap_requested', priority:60 };
+  if (!next) next = { kind:'normal', reason:reason || 'candidate_turn_complete', priority:10 };
+  return createManagedResponse(next.kind, next.reason);
 }
 function sendCue(instructions, label) {
-  if (!state.dc || state.dc.readyState !== 'open') return false;
-  if (state.aiResponding || Date.now() < state.cueInFlightUntil) {
-    state.pendingCue = { instructions, label };
-    logDebug({ cueQueued: label });
-    return true;
-  }
-  try {
-    state.dc.send(JSON.stringify({ type: 'response.create', response: { instructions } }));
-    state.aiResponding = true;
-    state.cueInFlightUntil = Date.now() + 1500;
-    updateVizState();
-    logDebug({ cueSent: label });
-    return true;
-  } catch (e) { logDebug({ cueSendFailed: label, error: e.message }); return false; }
+  // Compatibility wrapper. New orchestration never passes raw control text to transcript.
+  const kind = label === 'final_close' ? 'final_close' : label === 'wrap_up' ? 'wrap_up' : label === 'idle_nudge' ? 'idle_nudge' : 'premature_close_override';
+  return createManagedResponse(kind, label || 'legacy_wrapper');
 }
-// v6.5.9 — timer cues (WRAP_UP / FINAL_CLOSE) tidak boleh barge-in saat kandidat
-// baru ditanya & belum jawab, atau saat Yuliana masih bicara. Tahan; lepas saat kandidat jawab.
 function sendTimerCue(instructions, label) {
-  if (state.awaitingAnswer || state.aiResponding) {
-    state.heldCue = { instructions, label };
-    logDebug({ timerCueHeld: label });
-    return;
-  }
-  setMic(false);
-  sendCue(instructions, label);
+  const kind = label === 'final_close' ? 'final_close' : 'wrap_up';
+  if (kind === 'final_close') state.finalCloseRequested = true;
+  else state.wrapUpRequested = true;
+  queueResponse(kind, 'timer');
+  flushManagedResponse('timer_if_idle');
 }
 function armIdleNudges() {
   clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
   state.idleNudgeTimer1 = setTimeout(() => {
-    if (state.connected && !state.candidateStarted) {
+    if (state.connected && !state.candidateStarted && !state.candidateSpeaking) {
       setStatus('voiceStatus', 'Yuliana sedang menunggu kamu. Ucapkan "Good morning" untuk memulai.', 'warn');
     }
   }, 25000);
   state.idleNudgeTimer2 = setTimeout(() => {
-    if (state.connected && !state.candidateStarted) {
-      sendCue(
-        'FRONTEND CUE: CANDIDATE_SILENT_NUDGE. The candidate has been silent since connecting. ' +
-        'Say only this, warmly: "Hello, can you hear me? Please say good morning when you are ready to begin." ' +
-        'Then stop and wait. Do not start the interview questions yet.',
-        'idle_nudge'
-      );
+    if (state.connected && !state.candidateStarted && !state.candidateSpeaking) {
+      createManagedResponse('idle_nudge', 'candidate_silent_55s');
     }
   }, 55000);
+  clearTimeout(state.preStartTimer);
+  state.preStartTimer = setTimeout(() => {
+    if (state.connected && !state.candidateStarted && !state.finalized) {
+      markIntegrityFailure('candidate_never_started', { connectedSeconds:90 });
+      setStatus('voiceStatus', 'Sesi dihentikan karena belum dimulai. Sistem mencoba mengembalikan credit secara otomatis.', 'err');
+      reportClientStartFailure_('prestart_timeout').finally(() => gracefulFinalizeWithoutFeedback('prestart_timeout'));
+    }
+  }, 90000);
 }
 function startTimer() {
   state.startedAt = state.startedAt || new Date();
+  state.deadlineAt = state.startedAt.getTime() + state.totalSeconds * 1000;
   clearInterval(state.timerInterval);
-  state.remainingSeconds = state.totalSeconds;
-  state.timerInterval = setInterval(() => {
-    state.remainingSeconds--;
-    const m = Math.max(0, Math.floor(state.remainingSeconds / 60));
-    const s = Math.max(0, state.remainingSeconds % 60);
-    el('timer').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+  clearTimeout(state.preStartTimer);
+  let wrapTriggered = false, finalTriggered = false, deadlineTriggered = false;
+  const tick = () => {
+    state.remainingSeconds = Math.max(0, Math.ceil((state.deadlineAt - Date.now()) / 1000));
+    const m = Math.floor(state.remainingSeconds / 60);
+    const sec = state.remainingSeconds % 60;
+    el('timer').textContent = String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
     const tEl = el('timer');
     if (state.remainingSeconds <= 20) tEl.className = 'timer t-danger';
     else if (state.remainingSeconds <= 90) tEl.className = 'timer t-warn';
     else tEl.className = 'timer';
-    if (state.remainingSeconds === 90 && !state.wrapUpSent && !state.finalCloseSent) {
-      state.wrapUpSent = true;
-      sendTimerCue([
-        'FRONTEND TIMER CUE: WRAP_UP_60_SECONDS.',
-        'Do not open a heavy new topic. Do not ask multi-part questions.',
-        'Ask one short final readiness question only if the candidate is not already answering a previous question.',
-        'Prefer a light question such as: Is there anything important you want to add for this position?',
-        'Ask only one question, then stop and wait for the candidate answer. Do not close yet.'
-      ].join(' '), 'wrap_up');
-      setStatus('voiceStatus', 'Wrap-up: 90 detik terakhir.', 'warn');
+
+    if (!wrapTriggered && state.remainingSeconds <= 90 && !state.finalCloseRequested) {
+      wrapTriggered = true;
+      state.wrapUpRequested = true;
+      queueResponse('wrap_up', 'deadline_90s');
+      logFlow('[DLP_PHASE_CHANGED]', { to:'WRAP_UP_REQUESTED', remainingSeconds:state.remainingSeconds });
+      setStatus('voiceStatus', 'Wrap-up dijadwalkan setelah jawaban kandidat selesai.', 'warn');
+      flushManagedResponse('wrap_timer_idle');
     }
-    if (state.remainingSeconds === 20 && !state.finalCloseSent) {
-      state.finalCloseSent = true;
-      sendTimerCue([
-        'FRONTEND TIMER CUE: FINAL_CLOSE. The session is in the final 20-25 seconds. Close the interview now.',
-        'Do not ask any new question. Do not continue probing. Ignore any unfinished question plan and close only.',
-        'Say one short, professional closing line only.',
-        'Use this exact sentence: "Thank you. That concludes the interview. Please wait for your written feedback."'
-      ].join(' '), 'final_close');
-      setStatus('voiceStatus', 'Final close terkirim...', 'warn');
+    if (!finalTriggered && state.remainingSeconds <= 20) {
+      finalTriggered = true;
+      state.finalCloseRequested = true;
+      state.queuedResponse = { kind:'final_close', reason:'deadline_20s', priority:100, queuedAt:Date.now() };
+      logFlow('[DLP_PHASE_CHANGED]', { to:'FINAL_CLOSE_REQUESTED', remainingSeconds:state.remainingSeconds });
+      setStatus('voiceStatus', 'Final closing dijadwalkan tanpa memotong jawaban aktif.', 'warn');
+      scheduleFinalCloseIfNoSpeech();
+      flushManagedResponse('final_timer_idle');
     }
-    if (state.remainingSeconds <= 0) { clearInterval(state.timerInterval); finalizeSession('timer_zero'); }
-  }, 1000);
+    if (!deadlineTriggered && state.remainingSeconds <= 0) {
+      deadlineTriggered = true;
+      clearInterval(state.timerInterval);
+      state.finalCloseRequested = true;
+      queueResponse('final_close', 'hard_deadline');
+      logFlow('[DLP_HARD_DEADLINE]', {});
+      if (!state.candidateSpeaking && state.pendingTranscriptions === 0 && !state.aiResponding) {
+        state.awaitingAnswer = false;
+        logFlow('[DLP_AWAITING_CLEAR]', { reason:'hard_deadline' });
+        flushManagedResponse('hard_deadline_idle');
+      }
+      clearTimeout(state.hardDeadlineTimer);
+      state.hardDeadlineTimer = setTimeout(() => {
+        if (!state.finalized) {
+          markIntegrityFailure('final_close_timeout', { activeResponseId:state.activeResponseId });
+          finalizeSession('hard_deadline_grace_expired');
+        }
+      }, 12000);
+    }
+  };
+  tick();
+  state.timerInterval = setInterval(tick, 250);
+}
+function scheduleFinalCloseIfNoSpeech() {
+  clearTimeout(state.finalNoSpeechTimer);
+  if (!state.finalCloseRequested || state.finalized || state.candidateSpeaking || state.pendingTranscriptions > 0 || state.aiResponding) return;
+  state.finalNoSpeechTimer = setTimeout(() => {
+    if (state.finalCloseRequested && !state.candidateSpeaking && state.pendingTranscriptions === 0 && !state.aiResponding && !state.finalized) {
+      state.awaitingAnswer = false;
+      logFlow('[DLP_AWAITING_CLEAR]', { reason:'final_no_speech_grace_elapsed' });
+      createManagedResponse('final_close', 'no_speech_grace_elapsed');
+    }
+  }, 3500);
 }
 function isClosingPhrase(text) {
   const t = String(text || '').toLowerCase();
@@ -841,72 +1030,136 @@ function isClosingPhrase(text) {
     t.indexOf('thank you for your time') >= 0 && t.indexOf('feedback') >= 0
   );
 }
-function overridePrematureClose() {
-  if (state.remainingSeconds <= 90 || state.wrapUpSent || state.finalCloseSent) {
-    logDebug({ gracefulCloseAllowed: true, remainingSeconds: state.remainingSeconds });
-    return;
-  }
-  if (state.closeGuardCount >= 2) {
-    logDebug({ overrideSkipped: 'max_reached', remainingSeconds: state.remainingSeconds });
-    return;
-  }
-  if (Date.now() - state.lastOverrideAt < 20000) {
-    logDebug({ overrideSkipped: 'cooldown', remainingSeconds: state.remainingSeconds });
-    return;
-  }
-  state.closeGuardCount += 1;
-  state.lastOverrideAt = Date.now();
-  logDebug({ prematureCloseOverridden: state.closeGuardCount, remainingSeconds: state.remainingSeconds });
-  setStatus('voiceStatus', 'Interview masih berjalan. Yuliana melanjutkan pertanyaan.', 'warn');
-  sendCue(
-    'SYSTEM CORRECTION: The interview is NOT over. The frontend has NOT sent FINAL_CLOSE. ' +
-    'You closed too early — ignore that. Do NOT say goodbye, do NOT say the interview concludes, ' +
-    'do NOT ask the candidate to wait for feedback. Continue the interview now: ask ONE single ' +
-    'short adaptive question that has not been asked yet (target-vessel preparation, motivation for ' +
-    'the company/vessel, joining date, document readiness if not yet confirmed, or safety attitude). ' +
-    'Ask only ONE question, then stop and wait for the candidate.',
-    'premature_close_override'
-  );
+function overridePrematureClose(responseId) {
+  if (state.finalCloseResponseId && responseId === state.finalCloseResponseId) return;
+  markIntegrityFailure('premature_close_detected', { responseId, remainingSeconds:state.remainingSeconds });
+  setStatus('voiceStatus', 'Closing terlalu dini terdeteksi. Interview dilanjutkan.', 'warn');
+  queueResponse('premature_close_override', 'closing_phrase_without_final_response_id');
 }
 function handleRealtimeEvent(raw) {
   let ev; try { ev = JSON.parse(raw); } catch(e){ return; }
   const type = ev.type || '';
+
   if (type === 'error') {
     const code = (ev.error && ev.error.code) || '';
+    logFlow('[DLP_REALTIME_ERROR]', { code, event:ev });
     if (code === 'conversation_already_has_active_response' || /active_response/i.test(JSON.stringify(ev))) {
-      logDebug({ nonFatal: 'active_response collision' }); return;
+      const collidedKind = state.responseRequestKind || 'normal';
+      state.responseRequestPending = false;
+      markIntegrityFailure('active_response_collision', { code, requestedKind:collidedKind });
+      state.responseRequestKind = ''; state.responseRequestEventId = '';
+      queueResponse(collidedKind, 'retry_after_active_response_collision');
+      return;
     }
-    logDebug({ realtimeError: ev });
     return;
   }
-  if (type === 'response.created') { state.aiResponding = true; state.cueInFlightUntil = 0; state.aiSilentFrames = 0; setMic(false); updateVizState(); }
-  if (type === 'response.done') {
-    state.aiResponding = false;
-    state.cueInFlightUntil = 0;
-    updateVizState();
-    if (state.pendingCue) { const c = state.pendingCue; state.pendingCue = null; sendCue(c.instructions, c.label + '_retry'); }
-  }
-  if (type === 'output_audio_buffer.stopped') {
-    state.aiResponding = false;
-    if (state.finalCloseSent) { finalizeSession('after_final_close_audio'); return; }
+
+  if (type === 'input_audio_buffer.speech_started') {
+    state.candidateSpeaking = true;
     state.awaitingAnswer = true;
-    scheduleMicResume(700);
-    updateVizState();
-    setStatus('voiceStatus', 'Giliran kamu. Silakan jawab.', 'ok');
+    clearTimeout(state.finalNoSpeechTimer);
+    clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
+    logFlow('[DLP_SPEECH_STARTED]', { itemId:ev.item_id || '', audioStartMs:ev.audio_start_ms });
+    return;
   }
+
+  if (type === 'input_audio_buffer.speech_stopped') {
+    state.candidateSpeaking = false;
+    state.pendingTranscriptions += 1;
+    logFlow('[DLP_SPEECH_STOPPED]', { itemId:ev.item_id || '', audioEndMs:ev.audio_end_ms });
+    return;
+  }
+
   if (type === 'conversation.item.input_audio_transcription.completed') {
     clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
-    pushTranscript('user', ev.transcript || '');
-    if (!state.candidateStarted) { state.candidateStarted = true; startTimer(); setStatus('voiceStatus', 'Interview berjalan. Timer dimulai.', 'ok'); }
+    state.pendingTranscriptions = Math.max(0, state.pendingTranscriptions - 1);
+    state.candidateSpeaking = false;
+    state.lastUserTranscriptAt = Date.now();
+    pushTranscript('user', ev.transcript || '', { itemId:ev.item_id || '' });
+    if (!state.candidateStarted) {
+      state.candidateStarted = true;
+      startTimer();
+      reportClientStarted_();
+      setStatus('voiceStatus', 'Interview berjalan. Timer dimulai.', 'ok');
+    }
     state.awaitingAnswer = false;
-    if (state.heldCue) { const c = state.heldCue; state.heldCue = null; logDebug({ heldCueFlushed: c.label }); sendTimerCue(c.instructions, c.label); }
+    logFlow('[DLP_AWAITING_CLEAR]', { reason:'transcription_completed', itemId:ev.item_id || '' });
+    logFlow('[DLP_TRANSCRIPT_COMPLETED]', { itemId:ev.item_id || '', transcript:String(ev.transcript || '').slice(0,180) });
+    flushManagedResponse('candidate_transcript_completed');
+    return;
   }
+
+  if (type === 'conversation.item.input_audio_transcription.failed') {
+    state.pendingTranscriptions = Math.max(0, state.pendingTranscriptions - 1);
+    state.candidateSpeaking = false;
+    state.awaitingAnswer = false;
+    markIntegrityFailure('input_transcription_failed', { itemId:ev.item_id || '', error:ev.error || null });
+    queueResponse(state.finalCloseRequested ? 'final_close' : 'normal', 'transcription_failed');
+    flushManagedResponse('transcription_failed');
+    return;
+  }
+
+  if (type === 'response.created') {
+    const responseId = ev.response && ev.response.id ? ev.response.id : '';
+    if (!state.responseRequestPending) {
+      markIntegrityFailure('unexpected_server_response_created', { responseId, serverResponseCreateSuspected:true });
+      try { state.dc.send(JSON.stringify({ type:'response.cancel', response_id:responseId || undefined })); } catch(e) {}
+    }
+    state.aiResponding = true;
+    state.activeResponseId = responseId;
+    state.activeResponseKind = state.responseRequestKind || 'unexpected_server';
+    state.activeResponseDone = false;
+    if (state.activeResponseKind === 'final_close') state.finalCloseResponseId = responseId;
+    if (state.activeResponseKind === 'wrap_up') state.wrapUpDelivered = true;
+    state.responseRequestPending = false;
+    state.responseRequestKind = '';
+    state.responseRequestEventId = '';
+    state.aiSilentFrames = 0;
+    setMic(false); updateVizState();
+    logFlow('[DLP_RESPONSE_CREATED]', { responseId, responseKind:state.activeResponseKind });
+    return;
+  }
+
+  if (type === 'response.done') {
+    const responseId = ev.response && ev.response.id ? ev.response.id : state.activeResponseId;
+    state.activeResponseDone = true;
+    logFlow('[DLP_RESPONSE_DONE]', { responseId, status:ev.response && ev.response.status });
+    // Do not release queued cues here. Audio may still be playing.
+    return;
+  }
+
+  if (type === 'output_audio_buffer.stopped') {
+    const responseId = ev.response_id || state.activeResponseId;
+    const responseKind = responseId && responseId === state.activeResponseId ? state.activeResponseKind : '';
+    logFlow('[DLP_OUTPUT_AUDIO_STOPPED]', { responseId, responseKind });
+    state.aiResponding = false;
+    state.activeResponseDone = true;
+
+    if (responseKind === 'final_close' && responseId === state.finalCloseResponseId) {
+      state.finalCloseAudioCompleted = true;
+      setTimeout(() => finalizeSession('verified_final_close_audio_stopped'), 700);
+      return;
+    }
+
+    state.activeResponseId = '';
+    state.activeResponseKind = '';
+    state.awaitingAnswer = true;
+    logFlow('[DLP_AWAITING_SET]', { reason:'assistant_audio_stopped' });
+    scheduleMicResume(500);
+    updateVizState();
+    setStatus('voiceStatus', 'Giliran kamu. Silakan jawab.', 'ok');
+    scheduleFinalCloseIfNoSpeech();
+    return;
+  }
+
   if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done' || type === 'response.output_text.done') {
     const aiText = ev.transcript || ev.text || '';
-    pushTranscript('ai', aiText);
-    if (!state.finalCloseSent && !state.finalized && isClosingPhrase(aiText)) {
-      overridePrematureClose();
+    const responseId = ev.response_id || state.activeResponseId || '';
+    pushTranscript('ai', aiText, { responseId });
+    if (!state.finalized && isClosingPhrase(aiText) && (!state.finalCloseResponseId || responseId !== state.finalCloseResponseId)) {
+      overridePrematureClose(responseId);
     }
+    return;
   }
 }
 async function connectRealtime() {
@@ -914,43 +1167,78 @@ async function connectRealtime() {
   pc.ontrack = (e) => {
     const a = el('remoteAudio'); a.srcObject = e.streams[0]; a.play().catch(()=>{});
     state.remoteStream = e.streams[0];
-    // hook AI analyser for audio-reactive viz
     if (state.audioCtx) { state.aiAnalyser = setupAnalyser(state.remoteStream); if (state.aiAnalyser) state.aiBuf = new Uint8Array(state.aiAnalyser.fftSize); }
   };
   state.localStream.getTracks().forEach(t => pc.addTrack(t, state.localStream));
   const dc = pc.createDataChannel('oai-events'); state.dc = dc;
   dc.addEventListener('message', (e) => handleRealtimeEvent(e.data));
-  dc.addEventListener('open', () => {
-    setStatus('voiceStatus', 'Terhubung. Ucapkan "Good morning" untuk memulai — Yuliana menunggu kamu bicara dulu.', 'ok');
-    updateVizState();
-    armIdleNudges();
+
+  const dcReady = new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Realtime data channel open timeout')), 15000);
+    dc.addEventListener('open', () => {
+      clearTimeout(timer); state.dataChannelOpen = true; state.connected = true;
+      setStatus('voiceStatus', 'Terhubung. Ucapkan "Good morning" untuk memulai — Yuliana menunggu kamu bicara dulu.', 'ok');
+      updateVizState(); armIdleNudges(); resolve(true);
+    }, { once:true });
   });
+
   pc.onconnectionstatechange = () => {
-    logDebug('pc state: ' + pc.connectionState);
-    if ((pc.connectionState === 'failed' || pc.connectionState === 'disconnected') && state.connected && !state.finalized) {
-      clearInterval(state.timerInterval);
-      state.connected = false;
-      setButtons('stopped');
-      stopVizLoop();
-      updateVizState();
-      setStatus('voiceStatus', 'Koneksi terputus. Jawabanmu tersimpan — klik "End & Get Feedback" untuk tetap dapat laporan.', 'err');
+    logFlow('[DLP_PC_STATE]', { connectionState:pc.connectionState });
+    if (pc.connectionState === 'connected') clearTimeout(state.disconnectTimer);
+    if (pc.connectionState === 'disconnected' && state.connected && !state.finalized) {
+      clearTimeout(state.disconnectTimer);
+      state.disconnectTimer = setTimeout(() => {
+        if (pc.connectionState === 'disconnected' && !state.finalized) handleConnectionFailure_('disconnected_timeout');
+      }, 5000);
     }
+    if (pc.connectionState === 'failed' && state.connected && !state.finalized) handleConnectionFailure_('failed');
   };
+
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
-  const r = await fetch(OPENAI_REALTIME_SDP_URL, { method:'POST', body: offer.sdp,
-    headers: { Authorization: 'Bearer ' + state.clientSecret, 'Content-Type': 'application/sdp' } });
+  const r = await fetch(OPENAI_REALTIME_SDP_URL, { method:'POST', body:offer.sdp,
+    headers:{ Authorization:'Bearer ' + state.clientSecret, 'Content-Type':'application/sdp' } });
   const answer = await r.text();
-  if (!r.ok) throw new Error('OpenAI Realtime SDP failed: HTTP ' + r.status + ' - ' + answer.slice(0, 300));
-  await pc.setRemoteDescription({ type:'answer', sdp: answer });
+  if (!r.ok) throw new Error('OpenAI Realtime SDP failed: HTTP ' + r.status + ' - ' + answer.slice(0,300));
+  await pc.setRemoteDescription({ type:'answer', sdp:answer });
+  await dcReady;
+}
+async function handleConnectionFailure_(reason) {
+  clearInterval(state.timerInterval);
+  if (!state.candidateStarted) {
+    setStatus('voiceStatus', 'Koneksi gagal sebelum interview dimulai. Sistem mencoba mengembalikan credit otomatis.', 'err');
+    await reportClientStartFailure_(reason || 'connection_failure_before_start');
+    stopVoice();
+    setButtons('idle');
+    return;
+  }
+  markIntegrityFailure('connection_failure', { reason });
+  stopVoice();
+  setButtons('stopped');
+  setStatus('voiceStatus', 'Koneksi terputus. Transcript yang sudah diterima dapat disimpan, tetapi sesi ditandai mengalami gangguan teknis dan tidak akan diberi readiness score normal.', 'err');
+}
+function resetSessionState_() {
+  clearInterval(state.timerInterval);
+  clearTimeout(state.preStartTimer); clearTimeout(state.hardDeadlineTimer); clearTimeout(state.disconnectTimer);
+  clearTimeout(state.finalNoSpeechTimer); clearTimeout(state.micResumeTimer);
+  clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
+  Object.assign(state, {
+    pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'',
+    connected:false, dataChannelOpen:false, transcript:[], startedAt:null, endedAt:null,
+    candidateStarted:false, clientStartedReported:false, candidateSpeaking:false, pendingTranscriptions:0,
+    remainingSeconds:0, deadlineAt:0, aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
+    responseRequestPending:false, responseRequestKind:'', responseRequestEventId:'', queuedResponse:null,
+    awaitingAnswer:false, wrapUpRequested:false, wrapUpDelivered:false,
+    finalCloseRequested:false, finalCloseResponseId:'', finalCloseAudioCompleted:false,
+    finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
+    integrityFlags:[], eventSeq:0, lastUserTranscriptAt:0, aiSilentFrames:0
+  });
 }
 el('btnStart').onclick = async () => {
   try {
     if (!getUrl()) { setStatus('voiceStatus', 'WEB_APP_URL belum diisi di Admin / Dev Tools.', 'err'); return; }
     setButtons('busy');
-    Object.assign(state, { transcript:[], startedAt:null, endedAt:null, candidateStarted:false,
-      wrapUpSent:false, finalCloseSent:false, finalized:false, aiResponding:false, pendingCue:null, lastFeedback:'',
-      aiSilentFrames:0, awaitingAnswer:false, heldCue:null });
+    resetSessionState_();
     el('transcriptPanel').innerHTML = '<span class="sub">Menunggu...</span>';
     el('feedbackPanel').style.display='none';
     setStatus('voiceStatus', 'Meminta izin microphone...', 'warn');
@@ -972,7 +1260,12 @@ el('btnStart').onclick = async () => {
     const params = mapParams();
     const token = await jsonp('createRealtimeClientSecret', params, 90000);
     state.sessionMeta = token;
+    if (token.responseOwner !== RESPONSE_OWNER_REQUIRED) {
+      throw new Error('BACKEND_RESPONSE_OWNER_MISMATCH: Code.gs wajib mengirim responseOwner=frontend dan turn_detection.create_response=false sebelum memakai ' + HTML_VERSION);
+    }
     state.sessionId = token.sessionId;
+    state.sessionAccessToken = token.sessionAccessToken || '';
+    if (!state.sessionAccessToken) throw new Error('SESSION_ACCESS_DENIED: backend tidak mengirim sessionAccessToken.');
     state.clientSecret = token.value || (token.clientSecret && token.clientSecret.value) || '';
     if (!state.clientSecret) throw new Error('Client secret tidak ditemukan di response (cek value / clientSecret.value).');
     state.totalSeconds = (parseInt(token.durationMinutes, 10) || 7) * 60;
@@ -991,6 +1284,9 @@ el('btnStart').onclick = async () => {
   } catch (e) {
     logDebug({ startError: String(e.message || e) });
     setStatus('voiceStatus', friendlyError(e), 'err');
+    if (state.sessionId && state.sessionAccessToken && !state.candidateStarted) {
+      await reportClientStartFailure_('start_exception:' + String(e.message || e).slice(0,120));
+    }
     if (state.localStream) { state.localStream.getTracks().forEach(t=>t.stop()); state.localStream = null; }
     stopVizLoop();
     setButtons('idle');
@@ -1000,53 +1296,114 @@ el('btnStart').onclick = async () => {
 function stopVoice() {
   clearInterval(state.timerInterval); clearTimeout(state.micResumeTimer);
   clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
+  clearTimeout(state.preStartTimer); clearTimeout(state.finalNoSpeechTimer); clearTimeout(state.disconnectTimer); clearTimeout(state.hardDeadlineTimer);
   stopVizLoop();
   try { if (state.dc) state.dc.close(); } catch(e){}
   try { if (state.pc) state.pc.close(); } catch(e){}
-  if (state.localStream) { state.localStream.getTracks().forEach(t=>t.stop()); state.localStream = null; }
+  if (state.localStream) { state.localStream.getTracks().forEach(t => t.stop()); state.localStream = null; }
   try { if (state.audioCtx && state.audioCtx.state !== 'closed') state.audioCtx.close(); } catch(e){}
   state.audioCtx = null; state.userAnalyser = null; state.aiAnalyser = null; state.userBuf = null; state.aiBuf = null;
-  state.connected = false; state.endedAt = state.endedAt || new Date();
+  state.connected = false; state.dataChannelOpen = false; state.endedAt = state.endedAt || new Date();
   setVizClass('viz-idle', 'Sesi berakhir');
 }
-el('btnStop').onclick = () => { stopVoice(); setButtons('stopped'); setStatus('voiceStatus', 'Voice dihentikan. Klik feedback untuk simpan transcript + laporan.', 'warn'); };
-async function finalizeSession(source) {
-  if (state.finalized) return; state.finalized = true;
-  logDebug({ finalize: source });
+function sleep_(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+async function waitForRealtimeDrain_(timeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (!state.candidateSpeaking && state.pendingTranscriptions === 0 && !state.aiResponding && !state.responseRequestPending) return true;
+    await sleep_(150);
+  }
+  return false;
+}
+async function gracefulStopAndDrain_() {
+  setMic(false);
+  const drained = await waitForRealtimeDrain_(7000);
+  if (!drained) markIntegrityFailure('realtime_drain_timeout', {
+    candidateSpeaking:state.candidateSpeaking,
+    pendingTranscriptions:state.pendingTranscriptions,
+    aiResponding:state.aiResponding
+  });
+  stopVoice();
+  return drained;
+}
+function gracefulFinalizeWithoutFeedback(source) {
+  if (state.finalized) return;
+  state.finalized = true;
+  logFlow('[DLP_FINALIZE_NO_FEEDBACK]', { source });
   stopVoice(); setButtons('stopped');
+}
+el('btnStop').onclick = async () => {
+  await gracefulStopAndDrain_();
+  setButtons('stopped');
+  setStatus('voiceStatus', 'Voice dihentikan. Klik feedback untuk simpan transcript + laporan.', 'warn');
+};
+async function finalizeSession(source) {
+  if (state.finalized) return;
+  state.finalized = true;
+  logFlow('[DLP_FINALIZE]', { source, finalCloseResponseId:state.finalCloseResponseId, finalCloseAudioCompleted:state.finalCloseAudioCompleted });
+  await gracefulStopAndDrain_();
+  setButtons('stopped');
   setStatus('voiceStatus', 'Sesi selesai. Mengambil feedback otomatis...', 'warn');
   el('btnFeedback').click();
 }
 // ---------------- save + feedback ----------------
+function normalizeTranscriptForCompare_(text) {
+  return String(text || '').replace(/\r\n/g, '\n').trim();
+}
+function currentDurationSeconds_() {
+  const start = state.startedAt ? state.startedAt.getTime() : 0;
+  const end = (state.endedAt || new Date()).getTime();
+  return start && end >= start ? Math.floor((end - start) / 1000) : 0;
+}
 function saveTranscriptViaHiddenForm() {
   return new Promise((resolve) => {
     const form = document.createElement('form');
     form.method = 'POST'; form.action = getUrl(); form.target = 'hiddenSaveFrame'; form.style.display = 'none';
     const payload = {
-      action: 'saveTranscriptForm', sessionId: state.sessionId,
-      transcriptJson: JSON.stringify(state.transcript), transcriptText: transcriptText(),
-      totalItems: String(state.transcript.length),
-      startedAt: state.startedAt ? state.startedAt.toISOString() : '',
-      endedAt: (state.endedAt || new Date()).toISOString(),
-      duration: '', notes: 'Saved from ' + HTML_VERSION
+      action:'saveTranscriptForm', sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken,
+      transcriptJson:JSON.stringify(state.transcript), transcriptText:transcriptText(),
+      totalItems:String(state.transcript.length),
+      startedAt:state.startedAt ? state.startedAt.toISOString() : '',
+      endedAt:(state.endedAt || new Date()).toISOString(),
+      duration:String(currentDurationSeconds_()),
+      notes:'Saved from ' + HTML_VERSION + '; integrityFlags=' + state.integrityFlags.join('|')
     };
-    logDebug({ saveTranscriptPayloadItems: state.transcript.length });
-    Object.keys(payload).forEach(k => { const i = document.createElement('textarea'); i.name = k; i.value = payload[k]; form.appendChild(i); });
-    let done = false;
-    const fin = () => { if (done) return; done = true; if (form.parentNode) form.parentNode.removeChild(form); resolve(true); };
+    logFlow('[DLP_TRANSCRIPT_SAVE_POST]', { items:state.transcript.length, durationSeconds:payload.duration });
+    Object.keys(payload).forEach(k => { const i=document.createElement('textarea'); i.name=k; i.value=payload[k]; form.appendChild(i); });
+    let done=false;
+    const fin=()=>{ if(done)return; done=true; if(form.parentNode)form.parentNode.removeChild(form); resolve(true); };
     document.getElementsByName('hiddenSaveFrame')[0].addEventListener('load', fin, { once:true });
     document.body.appendChild(form); form.submit();
     setTimeout(fin, 5000);
   });
 }
 async function confirmSaved() {
-  for (let i = 0; i < 5; i++) {
+  const expectedText = normalizeTranscriptForCompare_(transcriptText());
+  const expectedHash = await sha256Hex_(expectedText);
+  const expectedItems = state.transcript.length;
+  for (let i=0; i<8; i++) {
     try {
-      const d = await jsonp('getSession', { sessionId: state.sessionId, _t: Date.now() });
-      const t = d && d.session && d.session.transcriptText ? String(d.session.transcriptText) : '';
-      if (t.length > 20) return true;
-    } catch (e) { logDebug('confirmSaved retry: ' + e.message); }
-    await new Promise(r => setTimeout(r, 1200));
+      const d = await jsonp('getSession', {
+        sessionId:state.sessionId,
+        sessionAccessToken:state.sessionAccessToken,
+        _t:Date.now()
+      });
+      const server = d && d.session ? d.session : {};
+      const hashOk = String(server.transcriptHash || '') === expectedHash;
+      const itemsOk = Number(server.transcriptItems || 0) === expectedItems;
+      const charsOk = Number(server.transcriptChars || 0) === expectedText.length;
+      if (hashOk && itemsOk && charsOk) {
+        logFlow('[DLP_TRANSCRIPT_SAVE_CONFIRMED]', { attempt:i+1, chars:expectedText.length, items:expectedItems, hash:expectedHash.slice(0,12) });
+        return true;
+      }
+      logFlow('[DLP_TRANSCRIPT_SAVE_MISMATCH]', {
+        attempt:i+1,
+        expectedItems, serverItems:Number(server.transcriptItems || 0),
+        expectedChars:expectedText.length, serverChars:Number(server.transcriptChars || 0),
+        expectedHash:expectedHash.slice(0,12), serverHash:String(server.transcriptHash || '').slice(0,12)
+      });
+    } catch(e) { logDebug('confirmSaved retry: ' + e.message); }
+    await sleep_(1200);
   }
   return false;
 }
@@ -1056,43 +1413,64 @@ el('btnFeedback').onclick = async () => {
   try {
     if (!state.sessionId) throw new Error('Belum ada session.');
     if (!state.transcript.length) throw new Error('Transcript is empty — belum ada percakapan.');
-    if (state.connected) { stopVoice(); setButtons('stopped'); }
+    if (state.connected) await gracefulStopAndDrain_();
+    setButtons('stopped');
     setStatus('feedbackStatus', 'Menyimpan transcript ke Sheet...', 'warn');
     await saveTranscriptViaHiddenForm();
-    const confirmed = await confirmSaved();
-    logDebug({ transcriptConfirmed: confirmed });
-    setStatus('feedbackStatus', 'Generating feedback (boleh sampai 60 detik)...', 'warn');
-    let data = null, lastErr = null;
-    for (let i = 0; i < 2; i++) {
-      try { data = await jsonp('generateWrittenFeedbackBySessionId', { sessionId: state.sessionId, _t: Date.now() }, 120000); break; }
-      catch (e) { lastErr = e; await new Promise(r => setTimeout(r, 2500)); }
+    let confirmed = await confirmSaved();
+    if (!confirmed) {
+      await saveTranscriptViaHiddenForm();
+      confirmed = await confirmSaved();
+    }
+    if (!confirmed) throw new Error('TRANSCRIPT_SAVE_NOT_CONFIRMED');
+
+    setStatus('feedbackStatus', 'Generating feedback...', 'warn');
+    let data=null, lastErr=null;
+    for (let i=0; i<2; i++) {
+      try { data=await jsonp('generateWrittenFeedbackBySessionId', { sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken, _t:Date.now() }, 120000); break; }
+      catch(e) { lastErr=e; await sleep_(2500); }
     }
     if (!data) throw lastErr || new Error('Feedback gagal.');
-    state.lastFeedback = data.feedback || '';
-    el('feedbackPanel').style.display = 'block';
-    el('feedbackPanel').textContent = state.lastFeedback;
-    setStatus('feedbackStatus', 'Feedback OK · cached=' + String(data.feedbackCached), 'ok');
+
+    const feedbackResultStatus = String(data.status || '');
+    if (/^SESSION_INTEGRITY_FAILED/.test(feedbackResultStatus)) {
+      state.lastFeedback = data.message || 'Sesi mengalami gangguan teknis dan tidak dinilai.';
+      el('feedbackPanel').style.display='block';
+      el('feedbackPanel').textContent=state.lastFeedback;
+      setStatus('feedbackStatus', feedbackResultStatus + ' — retry diperlukan' + (data.refunded ? ', credit dikembalikan.' : '.'), 'err');
+    } else if (/^INSUFFICIENT_DATA/.test(feedbackResultStatus) || data.feedbackGenerated === false) {
+      state.lastFeedback = data.message || 'Sesi belum memiliki cukup data untuk dinilai secara adil. Silakan ulangi sesi.';
+      el('feedbackPanel').style.display='block';
+      el('feedbackPanel').textContent=state.lastFeedback;
+      setStatus('feedbackStatus', feedbackResultStatus + ' — readiness score tidak dibuat' + (data.refunded ? ', credit dikembalikan.' : '.'), 'warn');
+    } else {
+      state.lastFeedback = data.feedback || '';
+      el('feedbackPanel').style.display='block';
+      el('feedbackPanel').textContent=state.lastFeedback;
+      setStatus('feedbackStatus', 'Feedback OK · cached=' + String(data.feedbackCached), 'ok');
+    }
     el('btnCopyFb').disabled = el('btnCopyTr').disabled = el('btnDownload').disabled = false;
-  } catch (e) {
+  } catch(e) {
     setStatus('feedbackStatus', friendlyError(e), 'err');
-  } finally { state.feedbackBusy = false; }
+  } finally { state.feedbackBusy=false; }
 };
 el('btnCopyFb').onclick = () => navigator.clipboard.writeText(state.lastFeedback || '');
 el('btnCopyTr').onclick = () => navigator.clipboard.writeText(transcriptText());
 el('btnDownload').onclick = () => {
-  const blob = new Blob([JSON.stringify({ sessionId: state.sessionId, meta: state.sessionMeta, transcript: state.transcript, feedback: state.lastFeedback }, null, 2)], { type:'application/json' });
+  const safeMeta = Object.assign({}, state.sessionMeta || {}); delete safeMeta.value; delete safeMeta.clientSecret; delete safeMeta.expiresAt; delete safeMeta.sessionAccessToken;
+  const blob = new Blob([JSON.stringify({ sessionId: state.sessionId, meta: safeMeta, integrityFlags: state.integrityFlags, transcript: state.transcript, feedback: state.lastFeedback }, null, 2)], { type:'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = (state.sessionId || 'session') + '.json'; a.click();
 };
 el('btnClearDebug').onclick = () => { el('debugLog').textContent = ''; };
-window.addEventListener('beforeunload', () => { if (state.connected) stopVoice(); });
+window.addEventListener('beforeunload', () => { if (state.sessionId && !state.candidateStarted) reportClientStartFailureKeepalive_('page_unload_before_start'); if (state.connected) stopVoice(); });
 
 // ---------------- init ----------------
 // PRODUCTION: URL selalu dari DEFAULT_WEB_APP_URL (hardcoded). localStorage TIDAK dipakai
 // untuk webAppUrl supaya tidak ada user yang stuck di deployment URL lama yang salah.
 // Admin yang mau override sementara cukup edit field di Admin panel — tidak persistent.
 el('webAppUrl').value = DEFAULT_WEB_APP_URL;
-el('testerCode').value = localStorage.getItem('dlpTesterCode') || '';
+el('testerCode').value = sessionStorage.getItem('dlpTesterCode') || '';
 refreshSetup();
 setButtons('idle');
 updateVizState();
