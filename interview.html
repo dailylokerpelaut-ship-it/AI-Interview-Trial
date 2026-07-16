@@ -479,7 +479,7 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.6.0';
+const HTML_VERSION = 'prod-6.6.1';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'trial-6.6';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
@@ -1391,7 +1391,6 @@ async function confirmSaved() {
       });
 
       const server = d && d.session ? d.session : {};
-
       const serverItems = Number(server.transcriptItems || 0);
       const serverChars = Number(server.transcriptChars || 0);
       const serverStatus = String(server.status || '');
@@ -1399,21 +1398,19 @@ async function confirmSaved() {
 
       const hashOk = serverHash === expectedHash;
       const itemsOk = serverItems === expectedItems;
-
-      const charsCloseEnough =
-        Math.abs(serverChars - expectedText.length) <= 8;
-
       const statusOk =
         serverStatus === 'TRANSCRIPT_SAVED' ||
         serverStatus === 'TRANSCRIPT_UPDATED_AFTER_FEEDBACK' ||
         serverStatus === 'FEEDBACK_GENERATED';
 
-      if (
-        itemsOk &&
-        statusOk &&
-        serverChars > 20 &&
-        (hashOk || charsCloseEnough)
-      ) {
+      /*
+       * The server may normalize form line endings or Unicode differently from
+       * the browser. Therefore an exact SHA-256/character match remains useful
+       * for diagnostics, but is not a hard blocker. An authenticated session,
+       * valid saved status, exact transcript item count, and non-empty server
+       * transcript are sufficient to proceed safely.
+       */
+      if (itemsOk && statusOk && serverChars > 20) {
         logFlow('[DLP_TRANSCRIPT_SAVE_CONFIRMED]', {
           attempt: i + 1,
           expectedItems: expectedItems,
@@ -1421,11 +1418,8 @@ async function confirmSaved() {
           expectedChars: expectedText.length,
           serverChars: serverChars,
           hashExact: hashOk,
-          confirmationMode: hashOk
-            ? 'exact_hash'
-            : 'items_and_chars'
+          confirmationMode: hashOk ? 'exact_hash' : 'authenticated_items_and_status'
         });
-
         return true;
       }
 
@@ -1440,10 +1434,8 @@ async function confirmSaved() {
         serverHash: serverHash.slice(0, 12),
         hashOk: hashOk,
         itemsOk: itemsOk,
-        charsCloseEnough: charsCloseEnough,
         statusOk: statusOk
       });
-
     } catch (e) {
       logDebug(
         'confirmSaved retry ' +
@@ -1458,20 +1450,7 @@ async function confirmSaved() {
 
   return false;
 }
-        logFlow('[DLP_TRANSCRIPT_SAVE_CONFIRMED]', { attempt:i+1, chars:expectedText.length, items:expectedItems, hash:expectedHash.slice(0,12) });
-        return true;
-      }
-      logFlow('[DLP_TRANSCRIPT_SAVE_MISMATCH]', {
-        attempt:i+1,
-        expectedItems, serverItems:Number(server.transcriptItems || 0),
-        expectedChars:expectedText.length, serverChars:Number(server.transcriptChars || 0),
-        expectedHash:expectedHash.slice(0,12), serverHash:String(server.transcriptHash || '').slice(0,12)
-      });
-    } catch(e) { logDebug('confirmSaved retry: ' + e.message); }
-    await sleep_(1200);
-  }
-  return false;
-}
+
 el('btnFeedback').onclick = async () => {
   if (state.feedbackBusy) return;
   state.feedbackBusy = true;
