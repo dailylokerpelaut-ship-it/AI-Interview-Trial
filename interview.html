@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- DLP AI Interview frontend prod-6.7.0-rating -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -339,6 +340,8 @@
           <select id="category">
             <option value="Deck Officer">Deck Officer</option>
             <option value="Engineer Officer">Engineer Officer</option>
+            <option value="Deck Rating">Deck Rating — AB</option>
+            <option value="Engine Rating">Engine Rating — Oiler</option>
           </select>
         </div>
         <div>
@@ -356,6 +359,7 @@
           <input id="durationMinutes" value="7" readonly>
         </div>
       </div>
+      <div class="sub" id="modeHelp" style="margin-top:9px; margin-bottom:0"></div>
       <div style="margin-top:10px">
         <label>Target Vessel Type <span class="hint">(kapal yang dilamar)</span></label>
         <select id="targetVesselType">
@@ -479,16 +483,18 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.6.1';
+const HTML_VERSION = 'prod-6.7.0-rating';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'trial-6.6';
+const EXPECTED_BACKEND_PREFIX = 'trial-6.7.0';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 
 document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
 
 const RANKS = {
   'Deck Officer': ['Third Officer','Second Officer','Chief Officer','Master'],
-  'Engineer Officer': ['Fourth Engineer','Third Engineer','Second Engineer','Chief Engineer']
+  'Engineer Officer': ['Fourth Engineer','Third Engineer','Second Engineer','Chief Engineer'],
+  'Deck Rating': ['AB'],
+  'Engine Rating': ['Oiler']
 };
 const MODES = {
   'Deck Officer': [
@@ -498,7 +504,27 @@ const MODES = {
   'Engineer Officer': [
     { value:'Crewing', label:'Crewing Interview' },
     { value:'Technical Engine', label:'Technical Engine Interview' }
+  ],
+  'Deck Rating': [
+    { value:'Crewing', label:'Crewing Interview' },
+    { value:'Technical & Behaviour Deck Rating', label:'Technical & Behaviour Interview' }
+  ],
+  'Engine Rating': [
+    { value:'Crewing', label:'Crewing Interview' },
+    { value:'Technical & Behaviour Engine Rating', label:'Technical & Behaviour Interview' }
   ]
+};
+const DEPARTMENTS = {
+  'Deck Officer': 'Deck',
+  'Engineer Officer': 'Engine',
+  'Deck Rating': 'Deck',
+  'Engine Rating': 'Engine'
+};
+const MODE_HELP = {
+  'Deck Officer': 'Technical interview disesuaikan untuk Deck Officer.',
+  'Engineer Officer': 'Technical interview disesuaikan untuk Engineer Officer.',
+  'Deck Rating': 'Khusus AB. Technical dan behaviour digabung dalam satu interview.',
+  'Engine Rating': 'Khusus Oiler. Technical dan behaviour digabung dalam satu interview.'
 };
 const ERROR_MAP = {
   CODE_REQUIRED: 'Kode akses belum diisi.',
@@ -506,10 +532,12 @@ const ERROR_MAP = {
   CODE_INACTIVE: 'Kode akses tidak aktif. Hubungi admin.',
   CODE_EXPIRED: 'Kode akses sudah kadaluarsa. Hubungi admin.',
   CREDITS_EMPTY: 'Credit pada kode ini sudah habis (maks 3 sesi).',
-  INVALID_MODE_FOR_RANK: 'Mode tidak cocok dengan rank. Technical Deck = rank Deck, Technical Engine = rank Engine.',
-  UNSUPPORTED_RANK_FOR_MVP: 'Rank ini belum didukung di MVP (hanya Officer Deck/Engine).',
+  INVALID_MODE_FOR_RANK: 'Mode interview tidak cocok dengan category atau rank yang dipilih.',
+  CATEGORY_RANK_MISMATCH: 'Category dan rank tidak cocok. Pilih ulang category dan rank.',
+  UNSUPPORTED_RANK_FOR_MVP: 'Rank ini belum didukung oleh simulator.',
+  RATING_RANK_NOT_ENABLED: 'Rank Rating ini belum dibuka. Saat ini tersedia AB dan Oiler.',
   MODE_NOT_ALLOWED_BY_ACCESS_CODE: 'Kode akses ini terkunci untuk mode tertentu. Pilih mode sesuai paket, atau hubungi admin.',
-  INVALID_PRODUCT_MODE: 'Mode interview tidak dikenal. Pilih Crewing / Technical Deck / Technical Engine.',
+  INVALID_PRODUCT_MODE: 'Mode interview tidak dikenal. Pilih ulang mode interview.',
   SESSION_ACCESS_DENIED: 'Akses session tidak valid. Reload halaman dan mulai session baru.',
   FEEDBACK_BUSY: 'Feedback sedang dibuat. Tunggu beberapa detik lalu coba lagi.'
 };
@@ -707,7 +735,7 @@ function mapParams() {
   const category = el('category').value;
   const rank = el('rank').value;
   const productMode = el('productMode').value;
-  const department = category === 'Engineer Officer' ? 'Engine' : 'Deck';
+  const department = DEPARTMENTS[category] || 'Deck';
   const targetVesselType = el('targetVesselType').value || 'General';
   return {
     testerCode: el('testerCode').value.trim(),
@@ -727,12 +755,15 @@ function mapParams() {
 }
 function refreshSetup() {
   const category = el('category').value;
+  const ranks = RANKS[category] || [];
+  const modes = MODES[category] || [];
   const rankSel = el('rank'); const prevRank = rankSel.value;
-  rankSel.innerHTML = RANKS[category].map(r => `<option>${r}</option>`).join('');
-  if (RANKS[category].includes(prevRank)) rankSel.value = prevRank;
+  rankSel.innerHTML = ranks.map(r => `<option value="${r}">${r}</option>`).join('');
+  if (ranks.includes(prevRank)) rankSel.value = prevRank;
   const modeSel = el('productMode'); const prevMode = modeSel.value;
-  modeSel.innerHTML = MODES[category].map(m => `<option value="${m.value}">${m.label}</option>`).join('');
-  if (MODES[category].some(m => m.value === prevMode)) modeSel.value = prevMode;
+  modeSel.innerHTML = modes.map(m => `<option value="${m.value}">${m.label}</option>`).join('');
+  if (modes.some(m => m.value === prevMode)) modeSel.value = prevMode;
+  el('modeHelp').textContent = MODE_HELP[category] || '';
   const p = mapParams(); delete p.clientHint;
   el('paramPreview').textContent = JSON.stringify(p, null, 1);
 }
@@ -753,7 +784,22 @@ el('btnHealth').onclick = async () => {
     setStatus('backendStatus', 'Checking health...', 'warn');
     const d = await jsonp('health', { _t: Date.now() });
     const verOk = String(d.appVersion || '').indexOf(EXPECTED_BACKEND_PREFIX) === 0;
-    setStatus('backendStatus', 'Health OK · ' + d.appVersion + (verOk ? '' : ' — PERHATIAN: bukan versi 6.6.x'), verOk ? 'ok' : 'warn');
+    const supportedModes = Array.isArray(d.supportedProductModes) ? d.supportedProductModes : [];
+    const modeOk = [
+      'Crewing',
+      'Technical Deck',
+      'Technical Engine',
+      'Technical & Behaviour Deck Rating',
+      'Technical & Behaviour Engine Rating'
+    ].every(mode => supportedModes.includes(mode));
+    const enabledRatings = Array.isArray(d.enabledMvpRatingRanks) ? d.enabledMvpRatingRanks : [];
+    const ratingOk = ['AB','Oiler'].every(rank => enabledRatings.includes(rank));
+    const ownerOk = d.responseOwner === RESPONSE_OWNER_REQUIRED;
+    const compatible = verOk && modeOk && ratingOk && ownerOk;
+    const detail = compatible
+      ? ' · Officer + AB/Oiler ready'
+      : ' — PERHATIAN: backend belum kompatibel penuh dengan frontend 6.7 Rating';
+    setStatus('backendStatus', 'Health OK · ' + d.appVersion + detail, compatible ? 'ok' : 'warn');
   } catch (e) { setStatus('backendStatus', 'Health FAILED: ' + friendlyError(e), 'err'); }
 };
 el('btnValidate').onclick = async () => {
