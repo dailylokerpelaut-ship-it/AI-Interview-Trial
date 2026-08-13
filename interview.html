@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.7.0-rating -->
+<!-- DLP AI Interview frontend prod-6.7.1-credit-integrity -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -483,9 +483,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.7.0-rating';
+const HTML_VERSION = 'prod-6.7.1-credit-integrity';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'trial-6.7.0';
+const EXPECTED_BACKEND_PREFIX = 'trial-6.7.1';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 
 document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
@@ -507,11 +507,11 @@ const MODES = {
   ],
   'Deck Rating': [
     { value:'Crewing', label:'Crewing Interview' },
-    { value:'Technical & Behaviour Deck Rating', label:'Technical & Behaviour Interview' }
+    { value:'Technical & Behaviour Deck Rating', label:'Technical & Work Situation Interview' }
   ],
   'Engine Rating': [
     { value:'Crewing', label:'Crewing Interview' },
-    { value:'Technical & Behaviour Engine Rating', label:'Technical & Behaviour Interview' }
+    { value:'Technical & Behaviour Engine Rating', label:'Technical & Work Situation Interview' }
   ]
 };
 const DEPARTMENTS = {
@@ -523,8 +523,8 @@ const DEPARTMENTS = {
 const MODE_HELP = {
   'Deck Officer': 'Technical interview disesuaikan untuk Deck Officer.',
   'Engineer Officer': 'Technical interview disesuaikan untuk Engineer Officer.',
-  'Deck Rating': 'Khusus AB. Technical dan behaviour digabung dalam satu interview.',
-  'Engine Rating': 'Khusus Oiler. Technical dan behaviour digabung dalam satu interview.'
+  'Deck Rating': 'Khusus AB. Technical dan situasi kerja digabung dalam satu interview.',
+  'Engine Rating': 'Khusus Oiler. Technical dan situasi kerja digabung dalam satu interview.'
 };
 const ERROR_MAP = {
   CODE_REQUIRED: 'Kode akses belum diisi.',
@@ -538,13 +538,17 @@ const ERROR_MAP = {
   RATING_RANK_NOT_ENABLED: 'Rank Rating ini belum dibuka. Saat ini tersedia AB dan Oiler.',
   MODE_NOT_ALLOWED_BY_ACCESS_CODE: 'Kode akses ini terkunci untuk mode tertentu. Pilih mode sesuai paket, atau hubungi admin.',
   INVALID_PRODUCT_MODE: 'Mode interview tidak dikenal. Pilih ulang mode interview.',
+  DUPLICATE_START_REQUEST: 'Permintaan Start yang sama sudah diterima. Credit tidak dipotong dua kali.',
+  CREDIT_DEBIT_VERIFY_FAILED: 'Pemotongan credit tidak terverifikasi. Session tidak dilanjutkan; hubungi admin.',
+  CREDIT_RESERVATION_FAILED: 'Session belum berhasil dibuat. Credit tidak boleh dianggap terpakai; hubungi admin.',
   SESSION_ACCESS_DENIED: 'Akses session tidak valid. Reload halaman dan mulai session baru.',
   FEEDBACK_BUSY: 'Feedback sedang dibuat. Tunggu beberapa detik lalu coba lagi.'
 };
 
 const el = (id) => document.getElementById(id);
+let startFlightActive = false;
 const state = {
-  pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'',
+  pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'', clientRequestId:'',
   connected:false, dataChannelOpen:false, transcript:[], startedAt:null, endedAt:null,
   candidateStarted:false, clientStartedReported:false, candidateSpeaking:false, pendingTranscriptions:0,
   timerInterval:null, remainingSeconds:0, totalSeconds:420, deadlineAt:0,
@@ -557,6 +561,8 @@ const state = {
   finalCloseRequested:false, finalCloseResponseId:'', finalCloseAudioCompleted:false,
   finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
   integrityFlags:[], eventSeq:0, lastUserTranscriptAt:0,
+  prematureClosePending:false, prematureCloseCorrectionDelivered:false,
+  prematureCloseCount:0, prematureCloseRecoveredCount:0,
   // audio-reactive viz
   audioCtx:null, userAnalyser:null, aiAnalyser:null, userBuf:null, aiBuf:null,
   vizRaf:0, aiSilentFrames:0, audioReactive:false
@@ -680,6 +686,13 @@ async function sha256Hex_(text) {
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+function createClientRequestId_() {
+  if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+    return 'web-' + window.crypto.randomUUID();
+  }
+  return 'web-' + Date.now() + '-' + Math.random().toString(36).slice(2, 14);
+}
+
 async function reportClientStarted_() {
   if (!state.sessionId || !state.sessionAccessToken || state.clientStartedReported) return { ok:false, skipped:true };
   try {
@@ -750,7 +763,8 @@ function mapParams() {
     experienceLevel: 'any',
     durationMinutes: el('durationMinutes').value || '7',
     htmlVersion: HTML_VERSION,
-    clientHint: navigator.userAgent.slice(0, 120)
+    clientHint: navigator.userAgent.slice(0, 120),
+    clientRequestId: state.clientRequestId || ''
   };
 }
 function refreshSetup() {
@@ -764,7 +778,7 @@ function refreshSetup() {
   modeSel.innerHTML = modes.map(m => `<option value="${m.value}">${m.label}</option>`).join('');
   if (modes.some(m => m.value === prevMode)) modeSel.value = prevMode;
   el('modeHelp').textContent = MODE_HELP[category] || '';
-  const p = mapParams(); delete p.clientHint;
+  const p = mapParams(); delete p.clientHint; delete p.clientRequestId;
   el('paramPreview').textContent = JSON.stringify(p, null, 1);
 }
 ['category','rank','productMode','testerCode','targetVesselType'].forEach(id => el(id).addEventListener('change', refreshSetup));
@@ -773,7 +787,7 @@ el('testerCode').addEventListener('input', () => { sessionStorage.setItem('dlpTe
 function updateStartButton() {
   const hasCode = el('testerCode').value.trim().length > 0;
   const hasConfirm = el('creditConfirm').checked;
-  el('btnStart').disabled = !hasCode || !hasConfirm || state.connected;
+  el('btnStart').disabled = !hasCode || !hasConfirm || state.connected || startFlightActive;
 }
 el('creditConfirm').addEventListener('change', updateStartButton);
 el('testerCode').addEventListener('input', updateStartButton);
@@ -795,7 +809,10 @@ el('btnHealth').onclick = async () => {
     const enabledRatings = Array.isArray(d.enabledMvpRatingRanks) ? d.enabledMvpRatingRanks : [];
     const ratingOk = ['AB','Oiler'].every(rank => enabledRatings.includes(rank));
     const ownerOk = d.responseOwner === RESPONSE_OWNER_REQUIRED;
-    const compatible = verOk && modeOk && ratingOk && ownerOk;
+    const integrityOk = d.startIdempotency === 'clientRequestId+sessionReservation' &&
+      d.creditWriteVerification === true &&
+      d.prematureClosePolicy === 'recovered_warning_unrecovered_critical';
+    const compatible = verOk && modeOk && ratingOk && ownerOk && integrityOk;
     const detail = compatible
       ? ' · Officer + AB/Oiler ready'
       : ' — PERHATIAN: backend belum kompatibel penuh dengan frontend 6.7 Rating';
@@ -832,7 +849,7 @@ el('btnPreviewQ').onclick = async () => {
 // ---------------- voice core ----------------
 function setButtons(stage) {
   const hasCode = el('testerCode').value.trim().length > 0;
-  el('btnStart').disabled = stage !== 'idle' || !el('creditConfirm').checked || !hasCode;
+  el('btnStart').disabled = stage !== 'idle' || !el('creditConfirm').checked || !hasCode || startFlightActive;
   el('btnStop').disabled = stage !== 'live';
   el('btnFeedback').disabled = !(stage === 'stopped' && state.transcript.length) && stage !== 'live';
   if (stage === 'live') el('btnFeedback').disabled = false;
@@ -864,6 +881,29 @@ function containsInternalCueFingerprint(text) {
 function markIntegrityFailure(flag, detail) {
   if (state.integrityFlags.indexOf(flag) < 0) state.integrityFlags.push(flag);
   logDebug({ tag:'[DLP_INTEGRITY_FAILED]', flag, detail:detail || null });
+}
+function markIntegrityWarning(flag, detail) {
+  if (state.integrityFlags.indexOf(flag) < 0) state.integrityFlags.push(flag);
+  logDebug({ tag:'[DLP_INTEGRITY_WARNING]', flag, detail:detail || null });
+}
+function removeIntegrityFlag(flag) {
+  state.integrityFlags = state.integrityFlags.filter(item => item !== flag);
+}
+function markPrematureCloseRecovered_(detail) {
+  if (!state.prematureClosePending && state.integrityFlags.indexOf('premature_close_detected') < 0) return;
+  state.prematureClosePending = false;
+  state.prematureCloseCorrectionDelivered = false;
+  state.prematureCloseRecoveredCount += 1;
+  removeIntegrityFlag('premature_close_unrecovered');
+  markIntegrityWarning('premature_close_recovered', detail || null);
+}
+function finalizePrematureCloseIntegrity_() {
+  if (!state.prematureClosePending) return;
+  markIntegrityFailure('premature_close_unrecovered', {
+    detectedCount: state.prematureCloseCount,
+    recoveredCount: state.prematureCloseRecoveredCount,
+    remainingSeconds: state.remainingSeconds
+  });
 }
 function logFlow(tag, extra = {}) {
   logDebug(Object.assign({
@@ -1078,7 +1118,23 @@ function isClosingPhrase(text) {
 }
 function overridePrematureClose(responseId) {
   if (state.finalCloseResponseId && responseId === state.finalCloseResponseId) return;
-  markIntegrityFailure('premature_close_detected', { responseId, remainingSeconds:state.remainingSeconds });
+  state.prematureCloseCount += 1;
+  markIntegrityWarning('premature_close_detected', { responseId, remainingSeconds:state.remainingSeconds });
+
+  // Near the official deadline, do not create a fresh interview question. Hand
+  // control to the frontend-authorized FINAL_CLOSE and record the incident as
+  // recovered instead of failing an otherwise complete session.
+  if (state.finalCloseRequested || state.remainingSeconds <= 20) {
+    state.prematureClosePending = true;
+    markPrematureCloseRecovered_({ responseId, recovery:'official_final_close_handoff' });
+    state.finalCloseRequested = true;
+    queueResponse('final_close', 'premature_close_near_deadline');
+    flushManagedResponse('premature_close_near_deadline');
+    return;
+  }
+
+  state.prematureClosePending = true;
+  state.prematureCloseCorrectionDelivered = false;
   setStatus('voiceStatus', 'Closing terlalu dini terdeteksi. Interview dilanjutkan.', 'warn');
   queueResponse('premature_close_override', 'closing_phrase_without_final_response_id');
 }
@@ -1122,6 +1178,9 @@ function handleRealtimeEvent(raw) {
     state.candidateSpeaking = false;
     state.lastUserTranscriptAt = Date.now();
     pushTranscript('user', ev.transcript || '', { itemId:ev.item_id || '' });
+    if (state.prematureClosePending && state.prematureCloseCorrectionDelivered && String(ev.transcript || '').trim()) {
+      markPrematureCloseRecovered_({ itemId:ev.item_id || '', recovery:'candidate_answered_after_override' });
+    }
     if (!state.candidateStarted) {
       state.candidateStarted = true;
       startTimer();
@@ -1184,6 +1243,19 @@ function handleRealtimeEvent(raw) {
     if (responseKind === 'final_close' && responseId === state.finalCloseResponseId) {
       state.finalCloseAudioCompleted = true;
       setTimeout(() => finalizeSession('verified_final_close_audio_stopped'), 700);
+      return;
+    }
+
+    if (responseKind === 'premature_close_override') {
+      state.prematureCloseCorrectionDelivered = true;
+    }
+
+    if (state.prematureClosePending && !state.prematureCloseCorrectionDelivered && responseKind !== 'premature_close_override') {
+      state.activeResponseId = '';
+      state.activeResponseKind = '';
+      state.awaitingAnswer = false;
+      logFlow('[DLP_PREMATURE_CLOSE_CORRECTION_NOW]', { responseId });
+      flushManagedResponse('after_premature_close_audio_stopped');
       return;
     }
 
@@ -1269,7 +1341,7 @@ function resetSessionState_() {
   clearTimeout(state.finalNoSpeechTimer); clearTimeout(state.micResumeTimer);
   clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
   Object.assign(state, {
-    pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'',
+    pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'', clientRequestId:'',
     connected:false, dataChannelOpen:false, transcript:[], startedAt:null, endedAt:null,
     candidateStarted:false, clientStartedReported:false, candidateSpeaking:false, pendingTranscriptions:0,
     remainingSeconds:0, deadlineAt:0, aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
@@ -1277,14 +1349,24 @@ function resetSessionState_() {
     awaitingAnswer:false, wrapUpRequested:false, wrapUpDelivered:false,
     finalCloseRequested:false, finalCloseResponseId:'', finalCloseAudioCompleted:false,
     finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
-    integrityFlags:[], eventSeq:0, lastUserTranscriptAt:0, aiSilentFrames:0
+    integrityFlags:[], eventSeq:0, lastUserTranscriptAt:0, aiSilentFrames:0,
+    prematureClosePending:false, prematureCloseCorrectionDelivered:false,
+    prematureCloseCount:0, prematureCloseRecoveredCount:0
   });
 }
 el('btnStart').onclick = async () => {
+  if (startFlightActive || state.connected) {
+    logFlow('[DLP_START_IGNORED]', { reason:startFlightActive ? 'start_request_in_flight' : 'already_connected' });
+    return;
+  }
+  startFlightActive = true;
+  const clientRequestId = createClientRequestId_();
   try {
     if (!getUrl()) { setStatus('voiceStatus', 'WEB_APP_URL belum diisi di Admin / Dev Tools.', 'err'); return; }
     setButtons('busy');
     resetSessionState_();
+    state.clientRequestId = clientRequestId;
+    logFlow('[DLP_START_SINGLE_FLIGHT]', { clientRequestId:state.clientRequestId });
     el('transcriptPanel').innerHTML = '<span class="sub">Menunggu...</span>';
     el('feedbackPanel').style.display='none';
     setStatus('voiceStatus', 'Meminta izin microphone...', 'warn');
@@ -1306,6 +1388,9 @@ el('btnStart').onclick = async () => {
     const params = mapParams();
     const token = await jsonp('createRealtimeClientSecret', params, 90000);
     state.sessionMeta = token;
+    if (token.clientRequestId && token.clientRequestId !== state.clientRequestId) {
+      throw new Error('CLIENT_REQUEST_ID_MISMATCH: backend mengembalikan request ID yang berbeda.');
+    }
     if (token.responseOwner !== RESPONSE_OWNER_REQUIRED) {
       throw new Error('BACKEND_RESPONSE_OWNER_MISMATCH: Code.gs wajib mengirim responseOwner=frontend dan turn_detection.create_response=false sebelum memakai ' + HTML_VERSION);
     }
@@ -1337,6 +1422,9 @@ el('btnStart').onclick = async () => {
     stopVizLoop();
     setButtons('idle');
     updateVizState();
+  } finally {
+    startFlightActive = false;
+    updateStartButton();
   }
 };
 function stopVoice() {
@@ -1385,6 +1473,7 @@ el('btnStop').onclick = async () => {
 };
 async function finalizeSession(source) {
   if (state.finalized) return;
+  finalizePrematureCloseIntegrity_();
   state.finalized = true;
   logFlow('[DLP_FINALIZE]', { source, finalCloseResponseId:state.finalCloseResponseId, finalCloseAudioCompleted:state.finalCloseAudioCompleted });
   await gracefulStopAndDrain_();
@@ -1403,6 +1492,7 @@ function currentDurationSeconds_() {
 }
 function saveTranscriptViaHiddenForm() {
   return new Promise((resolve) => {
+    finalizePrematureCloseIntegrity_();
     const form = document.createElement('form');
     form.method = 'POST'; form.action = getUrl(); form.target = 'hiddenSaveFrame'; form.style.display = 'none';
     const payload = {
