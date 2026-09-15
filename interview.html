@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.7.1-credit-integrity -->
+<!-- DLP AI Interview frontend prod-6.8.0-cadet-foundation -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -342,6 +342,8 @@
             <option value="Engineer Officer">Engineer Officer</option>
             <option value="Deck Rating">Deck Rating — AB</option>
             <option value="Engine Rating">Engine Rating — Oiler</option>
+            <option value="Deck Cadet">Deck Cadet</option>
+            <option value="Engine Cadet">Engine Cadet</option>
           </select>
         </div>
         <div>
@@ -483,9 +485,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.7.1-credit-integrity';
+const HTML_VERSION = 'prod-6.8.0-cadet-foundation';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'trial-6.7.1';
+const EXPECTED_BACKEND_PREFIX = 'trial-6.8.0';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 
 document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
@@ -494,7 +496,9 @@ const RANKS = {
   'Deck Officer': ['Third Officer','Second Officer','Chief Officer','Master'],
   'Engineer Officer': ['Fourth Engineer','Third Engineer','Second Engineer','Chief Engineer'],
   'Deck Rating': ['AB'],
-  'Engine Rating': ['Oiler']
+  'Engine Rating': ['Oiler'],
+  'Deck Cadet': ['Deck Cadet'],
+  'Engine Cadet': ['Engine Cadet']
 };
 const MODES = {
   'Deck Officer': [
@@ -514,11 +518,15 @@ const MODES = {
     { value:'Technical & Behaviour Engine Rating', label:'Technical & Work Situation Interview' }
   ]
 };
+MODES['Deck Cadet']=[{value:'Crewing',label:'Crewing Interview'},{value:'Technical & Behaviour Deck Cadet',label:'Technical & Behaviour — Deck Cadet'}];
+MODES['Engine Cadet']=[{value:'Crewing',label:'Crewing Interview'},{value:'Technical & Behaviour Engine Cadet',label:'Technical & Behaviour — Engine Cadet'}];
 const DEPARTMENTS = {
   'Deck Officer': 'Deck',
   'Engineer Officer': 'Engine',
   'Deck Rating': 'Deck',
-  'Engine Rating': 'Engine'
+  'Engine Rating': 'Engine',
+  'Deck Cadet': 'Deck',
+  'Engine Cadet': 'Engine'
 };
 const MODE_HELP = {
   'Deck Officer': 'Technical interview disesuaikan untuk Deck Officer.',
@@ -526,7 +534,17 @@ const MODE_HELP = {
   'Deck Rating': 'Khusus AB. Technical dan situasi kerja digabung dalam satu interview.',
   'Engine Rating': 'Khusus Oiler. Technical dan situasi kerja digabung dalam satu interview.'
 };
+MODE_HELP['Deck Cadet']='Untuk calon Deck Cadet: dasar pengetahuan, safety, dan kesiapan belajar. Pengalaman laut tidak wajib.';
+MODE_HELP['Engine Cadet']='Untuk calon Engine Cadet: dasar machinery, safety, dan kesiapan belajar. Pengalaman laut tidak wajib.';
 const ERROR_MAP = {
+  CADET_NOT_ENABLED:'Interview Cadet belum dibuka. Tunggu pengumuman akses trial.',
+  CADET_BACKEND_NOT_READY:'Interview Cadet belum tersedia pada server ini.',
+  CADET_POOL_NOT_READY:'Pertanyaan Cadet untuk pilihan ini belum tersedia atau belum memenuhi rotasi sesi.',
+  CADET_HISTORY_UNAVAILABLE:'Riwayat sesi belum dapat diperiksa. Coba lagi nanti.',
+  CADET_HISTORY_INCOMPLETE:'Riwayat sesi Cadet perlu diperiksa admin sebelum sesi berikutnya.',
+  CADET_DURATION_NOT_SUPPORTED:'Interview Cadet saat ini menggunakan durasi 7 menit.',
+  CADET_SIMULATION_ONLY:'Interview Cadet tersedia dalam mode simulation.',
+  CADET_LOCKED_IDS_INVALID:'Rencana pertanyaan Cadet belum sesuai. Pilih ulang pengaturan sesi.',
   CODE_REQUIRED: 'Kode akses belum diisi.',
   CODE_INVALID: 'Kode akses tidak ditemukan. Periksa kembali ketikan kode.',
   CODE_INACTIVE: 'Kode akses tidak aktif. Hubungi admin.',
@@ -559,7 +577,7 @@ const state = {
   micResumeTimer:null, awaitingAnswer:false,
   wrapUpRequested:false, wrapUpDelivered:false,
   finalCloseRequested:false, finalCloseResponseId:'', finalCloseAudioCompleted:false,
-  finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
+  finalizationEvidence:null, finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
   integrityFlags:[], eventSeq:0, lastUserTranscriptAt:0,
   prematureClosePending:false, prematureCloseCorrectionDelivered:false,
   prematureCloseCount:0, prematureCloseRecoveredCount:0,
@@ -722,6 +740,7 @@ async function reportClientStartFailure_(reason) {
       _t: Date.now()
     }, 30000);
     logFlow('[DLP_CLIENT_START_FAILURE_REPORTED]', { reason:reason || '', response:d });
+    if (d && d.reviewRequired) setStatus('voiceStatus', d.message || 'Laporan sesi menunggu review.', 'warn');
     if (d && d.refunded) el('pillCredits').textContent = String((parseInt(el('pillCredits').textContent, 10) || 0) + 1);
     return d;
   } catch (e) {
@@ -778,12 +797,26 @@ function refreshSetup() {
   modeSel.innerHTML = modes.map(m => `<option value="${m.value}">${m.label}</option>`).join('');
   if (modes.some(m => m.value === prevMode)) modeSel.value = prevMode;
   el('modeHelp').textContent = MODE_HELP[category] || '';
+  if (/Cadet$/.test(category)) el('durationMinutes').value = '7';
   const p = mapParams(); delete p.clientHint; delete p.clientRequestId;
   el('paramPreview').textContent = JSON.stringify(p, null, 1);
 }
 ['category','rank','productMode','testerCode','targetVesselType'].forEach(id => el(id).addEventListener('change', refreshSetup));
 el('testerCode').addEventListener('input', () => { sessionStorage.setItem('dlpTesterCode', el('testerCode').value.trim()); refreshSetup(); });
 
+function isCadetSession_() { return /Cadet$/.test(String(state.sessionMeta && state.sessionMeta.rank || '')); }
+async function assertCadetCapabilityBeforeStart_(params) {
+  setStatus('voiceStatus', 'Memeriksa ketersediaan interview Cadet...', 'warn');
+  let capability;
+  try {
+    capability=await jsonp('cadetCapabilities',{rank:params.rank,userCategory:params.userCategory,
+      department:params.department,productMode:params.productMode,targetVesselType:params.targetVesselType,
+      durationMinutes:params.durationMinutes,interviewMode:params.interviewMode,_t:Date.now()});
+  } catch(e) { throw new Error('[CADET_BACKEND_NOT_READY] Interview Cadet belum tersedia.'); }
+  if (!capability || capability.cadetPlanVersion !== 'cadet-plan-v1' || capability.responseOwner !== RESPONSE_OWNER_REQUIRED) throw new Error('[CADET_BACKEND_NOT_READY] Backend Cadet belum kompatibel.');
+  if (!capability.enabled) throw new Error('[CADET_NOT_ENABLED] Cadet belum diaktifkan.');
+  if (!capability.ready) throw new Error('[CADET_POOL_NOT_READY] Pool belum siap.');
+}
 function updateStartButton() {
   const hasCode = el('testerCode').value.trim().length > 0;
   const hasConfirm = el('creditConfirm').checked;
@@ -815,7 +848,7 @@ el('btnHealth').onclick = async () => {
     const compatible = verOk && modeOk && ratingOk && ownerOk && integrityOk;
     const detail = compatible
       ? ' · Officer + AB/Oiler ready'
-      : ' — PERHATIAN: backend belum kompatibel penuh dengan frontend 6.7 Rating';
+      : ' — PERHATIAN: backend belum kompatibel penuh dengan frontend 6.8';
     setStatus('backendStatus', 'Health OK · ' + d.appVersion + detail, compatible ? 'ok' : 'warn');
   } catch (e) { setStatus('backendStatus', 'Health FAILED: ' + friendlyError(e), 'err'); }
 };
@@ -938,6 +971,12 @@ function scheduleMicResume(ms) {
 }
 const RESPONSE_PRIORITY = { normal:10, idle_nudge:20, wrap_up:60, premature_close_override:70, final_close:100 };
 function responseInstructionsFor(kind) {
+  if (isCadetSession_() && ['wrap_up','premature_close_override'].includes(kind)) {
+    return 'Ask one short unused question from the approved Cadet main/reserve plan, then wait. Stay at supervised beginner level. Do not invent a question, ask for prior contracts, provide a model answer, or close early. If all topics have been covered, invite one relevant addition once and then wait.';
+  }
+  if (isCadetSession_() && kind === 'normal' && state.wrapUpDelivered && !state.finalCloseRequested) {
+    return 'Use only an unused short Cadet main/reserve question. No coaching, no repeated topic, no assumed sea experience. If all approved topics are covered, wait. Do not close until the frontend final-close instruction.';
+  }
   if (kind === 'idle_nudge') {
     return 'The candidate has been silent since connecting. Say exactly: "Hello, can you hear me? Please say good morning when you are ready to begin." Then stop and wait. Do not ask an interview question yet.';
   }
@@ -1296,6 +1335,7 @@ async function connectRealtime() {
     dc.addEventListener('open', () => {
       clearTimeout(timer); state.dataChannelOpen = true; state.connected = true;
       setStatus('voiceStatus', 'Terhubung. Ucapkan "Good morning" untuk memulai — Yuliana menunggu kamu bicara dulu.', 'ok');
+      if (isCadetSession_()) setStatus('voiceStatus', 'Terhubung dengan ' + (state.sessionMeta.interviewerRole || 'interviewer Cadet') + '. Ucapkan “Good morning” untuk memulai.', 'ok');
       updateVizState(); armIdleNudges(); resolve(true);
     }, { once:true });
   });
@@ -1324,12 +1364,13 @@ async function connectRealtime() {
 async function handleConnectionFailure_(reason) {
   clearInterval(state.timerInterval);
   if (!state.candidateStarted) {
-    setStatus('voiceStatus', 'Koneksi gagal sebelum interview dimulai. Sistem mencoba mengembalikan credit otomatis.', 'err');
+    setStatus('voiceStatus', 'Koneksi gagal sebelum interview dimulai. Laporan sesi dikirim untuk pemeriksaan kredit.', 'err');
     await reportClientStartFailure_(reason || 'connection_failure_before_start');
     stopVoice();
     setButtons('idle');
     return;
   }
+  captureFinalizationEvidence_('connection_failure');
   markIntegrityFailure('connection_failure', { reason });
   stopVoice();
   setButtons('stopped');
@@ -1348,7 +1389,7 @@ function resetSessionState_() {
     responseRequestPending:false, responseRequestKind:'', responseRequestEventId:'', queuedResponse:null,
     awaitingAnswer:false, wrapUpRequested:false, wrapUpDelivered:false,
     finalCloseRequested:false, finalCloseResponseId:'', finalCloseAudioCompleted:false,
-    finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
+    finalizationEvidence:null, finalized:false, feedbackBusy:false, lastFeedback:'', sessionMeta:null,
     integrityFlags:[], eventSeq:0, lastUserTranscriptAt:0, aiSilentFrames:0,
     prematureClosePending:false, prematureCloseCorrectionDelivered:false,
     prematureCloseCount:0, prematureCloseRecoveredCount:0
@@ -1386,6 +1427,7 @@ el('btnStart').onclick = async () => {
 
     setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn');
     const params = mapParams();
+    if (/Cadet$/.test(params.rank)) await assertCadetCapabilityBeforeStart_(params);
     const token = await jsonp('createRealtimeClientSecret', params, 90000);
     state.sessionMeta = token;
     if (token.clientRequestId && token.clientRequestId !== state.clientRequestId) {
@@ -1452,6 +1494,12 @@ async function waitForRealtimeDrain_(timeoutMs) {
 async function gracefulStopAndDrain_() {
   setMic(false);
   const drained = await waitForRealtimeDrain_(7000);
+  if (state.finalizationEvidence) Object.assign(state.finalizationEvidence, {
+    drainCompleted:drained,
+    drainPendingTranscriptions:state.pendingTranscriptions,
+    drainCandidateSpeaking:state.candidateSpeaking === true,
+    drainActiveResponseKind:state.activeResponseKind || state.responseRequestKind || ''
+  });
   if (!drained) markIntegrityFailure('realtime_drain_timeout', {
     candidateSpeaking:state.candidateSpeaking,
     pendingTranscriptions:state.pendingTranscriptions,
@@ -1467,6 +1515,7 @@ function gracefulFinalizeWithoutFeedback(source) {
   stopVoice(); setButtons('stopped');
 }
 el('btnStop').onclick = async () => {
+  captureFinalizationEvidence_('manual_stop');
   await gracefulStopAndDrain_();
   setButtons('stopped');
   setStatus('voiceStatus', 'Voice dihentikan. Klik feedback untuk simpan transcript + laporan.', 'warn');
@@ -1474,6 +1523,7 @@ el('btnStop').onclick = async () => {
 async function finalizeSession(source) {
   if (state.finalized) return;
   finalizePrematureCloseIntegrity_();
+  captureFinalizationEvidence_(source);
   state.finalized = true;
   logFlow('[DLP_FINALIZE]', { source, finalCloseResponseId:state.finalCloseResponseId, finalCloseAudioCompleted:state.finalCloseAudioCompleted });
   await gracefulStopAndDrain_();
@@ -1484,6 +1534,17 @@ async function finalizeSession(source) {
 // ---------------- save + feedback ----------------
 function normalizeTranscriptForCompare_(text) {
   return String(text || '').replace(/\r\n/g, '\n').trim();
+}
+function captureFinalizationEvidence_(source) {
+  if (state.finalizationEvidence) return;
+  const now = Date.now();
+  state.finalizationEvidence = {
+    version:1, source:source, finalCloseRequested:state.finalCloseRequested === true,
+    elapsedInterviewSeconds:state.startedAt ? Math.min(state.totalSeconds, Math.max(0, (now - state.startedAt.getTime()) / 1000)) : 0,
+    pendingTranscriptions:state.pendingTranscriptions, candidateSpeaking:state.candidateSpeaking === true,
+    activeResponseKind:state.activeResponseKind || state.responseRequestKind || '',
+    lastUserTranscriptAt:state.lastUserTranscriptAt || 0
+  };
 }
 function currentDurationSeconds_() {
   const start = state.startedAt ? state.startedAt.getTime() : 0;
@@ -1502,6 +1563,7 @@ function saveTranscriptViaHiddenForm() {
       startedAt:state.startedAt ? state.startedAt.toISOString() : '',
       endedAt:(state.endedAt || new Date()).toISOString(),
       duration:String(currentDurationSeconds_()),
+      finalizationEvidence:JSON.stringify(state.finalizationEvidence || {}),
       notes:'Saved from ' + HTML_VERSION + '; integrityFlags=' + state.integrityFlags.join('|')
     };
     logFlow('[DLP_TRANSCRIPT_SAVE_POST]', { items:state.transcript.length, durationSeconds:payload.duration });
@@ -1537,16 +1599,13 @@ async function confirmSaved() {
       const statusOk =
         serverStatus === 'TRANSCRIPT_SAVED' ||
         serverStatus === 'TRANSCRIPT_UPDATED_AFTER_FEEDBACK' ||
-        serverStatus === 'FEEDBACK_GENERATED';
+        serverStatus === 'FEEDBACK_GENERATED' ||
+        serverStatus === 'TRANSCRIPT_UPDATED_DURING_FEEDBACK' ||
+        /^(SESSION_INTEGRITY_FAILED|INSUFFICIENT_DATA)/.test(serverStatus) ||
+        /REFUNDED/.test(serverStatus);
 
-      /*
-       * The server may normalize form line endings or Unicode differently from
-       * the browser. Therefore an exact SHA-256/character match remains useful
-       * for diagnostics, but is not a hard blocker. An authenticated session,
-       * valid saved status, exact transcript item count, and non-empty server
-       * transcript are sufficient to proceed safely.
-       */
-      if (itemsOk && statusOk && serverChars > 20) {
+      // Exact normalized transcript hash binds feedback to the candidate work confirmed here.
+      if (hashOk && expectedHash && itemsOk && statusOk && serverChars > 20) {
         logFlow('[DLP_TRANSCRIPT_SAVE_CONFIRMED]', {
           attempt: i + 1,
           expectedItems: expectedItems,
@@ -1593,6 +1652,7 @@ el('btnFeedback').onclick = async () => {
   try {
     if (!state.sessionId) throw new Error('Belum ada session.');
     if (!state.transcript.length) throw new Error('Transcript is empty — belum ada percakapan.');
+    if (!state.finalizationEvidence) captureFinalizationEvidence_('manual_feedback');
     if (state.connected) await gracefulStopAndDrain_();
     setButtons('stopped');
     setStatus('feedbackStatus', 'Menyimpan transcript ke Sheet...', 'warn');
@@ -1613,7 +1673,12 @@ el('btnFeedback').onclick = async () => {
     if (!data) throw lastErr || new Error('Feedback gagal.');
 
     const feedbackResultStatus = String(data.status || '');
-    if (/^SESSION_INTEGRITY_FAILED/.test(feedbackResultStatus)) {
+    if (data.reviewRequired) {
+      state.lastFeedback = data.message || 'Transkrip tersimpan. Sesi memerlukan review; sertakan ID sesi saat menghubungi admin.';
+      el('feedbackPanel').style.display='block';
+      el('feedbackPanel').textContent=state.lastFeedback;
+      setStatus('feedbackStatus', 'Transkrip tersimpan · menunggu review sesi', 'warn');
+    } else if (/^SESSION_INTEGRITY_FAILED/.test(feedbackResultStatus)) {
       state.lastFeedback = data.message || 'Sesi mengalami gangguan teknis dan tidak dinilai.';
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
@@ -1627,7 +1692,11 @@ el('btnFeedback').onclick = async () => {
       state.lastFeedback = data.feedback || '';
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
-      setStatus('feedbackStatus', 'Feedback OK · cached=' + String(data.feedbackCached), 'ok');
+      const recovered = data.outcome === 'COMPLETED_RECOVERED';
+      setStatus('feedbackStatus', recovered ? 'Feedback berhasil dipulihkan untuk sesi yang sama.' : 'Feedback OK · cached=' + String(data.feedbackCached), 'ok');
+      if ((data.scoreStorage && data.scoreStorage.ok === false) || (data.outcomeStorage && data.outcomeStorage.ok === false)) {
+        logDebug({reportingStorageWarning:true, sessionId:state.sessionId});
+      }
     }
     el('btnCopyFb').disabled = el('btnCopyTr').disabled = el('btnDownload').disabled = false;
   } catch(e) {
