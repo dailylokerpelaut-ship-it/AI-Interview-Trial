@@ -485,10 +485,17 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.0-cadet-foundation';
+const HTML_VERSION = 'prod-6.8.2-transcript-recovery';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'trial-6.8.0';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
+// Apps Script POST executions can occasionally queue for more than one minute.
+// Keep polling the authenticated session instead of assuming the transcript failed.
+const TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS = 150000;
+const TRANSCRIPT_CONFIRM_RETRY_WAIT_MS = 60000;
+const TRANSCRIPT_CONFIRM_POLL_MS = 4000;
+const FEEDBACK_RECOVERY_MAX_POLLS = 30;
+const FEEDBACK_RECOVERY_POLL_MS = 5000;
 
 document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
 
@@ -1396,7 +1403,7 @@ function resetSessionState_() {
   });
 }
 el('btnStart').onclick = async () => {
-  if (startFlightActive || state.connected) {
+  if (startFlightActive || state.connected || state.feedbackBusy) {
     logFlow('[DLP_START_IGNORED]', { reason:startFlightActive ? 'start_request_in_flight' : 'already_connected' });
     return;
   }
@@ -1406,6 +1413,7 @@ el('btnStart').onclick = async () => {
     if (!getUrl()) { setStatus('voiceStatus', 'WEB_APP_URL belum diisi di Admin / Dev Tools.', 'err'); return; }
     setButtons('busy');
     resetSessionState_();
+    try { sessionStorage.removeItem('dlpPendingFeedback'); } catch (_) {}
     state.clientRequestId = clientRequestId;
     logFlow('[DLP_START_SINGLE_FLIGHT]', { clientRequestId:state.clientRequestId });
     el('transcriptPanel').innerHTML = '<span class="sub">Menunggu...</span>';
@@ -1529,7 +1537,7 @@ async function finalizeSession(source) {
   await gracefulStopAndDrain_();
   setButtons('stopped');
   setStatus('voiceStatus', 'Sesi selesai. Mengambil feedback otomatis...', 'warn');
-  el('btnFeedback').click();
+  await runFeedbackFlow();
 }
 // ---------------- save + feedback ----------------
 function normalizeTranscriptForCompare_(text) {
@@ -1575,18 +1583,22 @@ function saveTranscriptViaHiddenForm() {
     setTimeout(fin, 5000);
   });
 }
-async function confirmSaved() {
+async function confirmSaved(maxWaitMs = TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS) {
   const expectedText = normalizeTranscriptForCompare_(transcriptText());
   const expectedHash = await sha256Hex_(expectedText);
   const expectedItems = state.transcript.length;
+  const startedWaitingAt = Date.now();
+  const maxAttempts = Math.max(1, Math.ceil(maxWaitMs / TRANSCRIPT_CONFIRM_POLL_MS));
+  let attempt = 0;
 
-  for (let i = 0; i < 8; i++) {
+  while (attempt < maxAttempts && Date.now() - startedWaitingAt < maxWaitMs) {
+    attempt++;
     try {
       const d = await jsonp('getSession', {
         sessionId: state.sessionId,
         sessionAccessToken: state.sessionAccessToken,
         _t: Date.now()
-      });
+      }, 20000);
 
       const server = d && d.session ? d.session : {};
       const serverItems = Number(server.transcriptItems || 0);
@@ -1598,6 +1610,7 @@ async function confirmSaved() {
       const itemsOk = serverItems === expectedItems;
       const statusOk =
         serverStatus === 'TRANSCRIPT_SAVED' ||
+        serverStatus === 'FEEDBACK_GENERATING' ||
         serverStatus === 'TRANSCRIPT_UPDATED_AFTER_FEEDBACK' ||
         serverStatus === 'FEEDBACK_GENERATED' ||
         serverStatus === 'TRANSCRIPT_UPDATED_DURING_FEEDBACK' ||
@@ -1607,7 +1620,8 @@ async function confirmSaved() {
       // Exact normalized transcript hash binds feedback to the candidate work confirmed here.
       if (hashOk && expectedHash && itemsOk && statusOk && serverChars > 20) {
         logFlow('[DLP_TRANSCRIPT_SAVE_CONFIRMED]', {
-          attempt: i + 1,
+          attempt: attempt,
+          waitedMs: Date.now() - startedWaitingAt,
           expectedItems: expectedItems,
           serverItems: serverItems,
           expectedChars: expectedText.length,
@@ -1619,7 +1633,8 @@ async function confirmSaved() {
       }
 
       logFlow('[DLP_TRANSCRIPT_SAVE_MISMATCH]', {
-        attempt: i + 1,
+        attempt: attempt,
+        waitedMs: Date.now() - startedWaitingAt,
         serverStatus: serverStatus,
         expectedItems: expectedItems,
         serverItems: serverItems,
@@ -1634,19 +1649,67 @@ async function confirmSaved() {
     } catch (e) {
       logDebug(
         'confirmSaved retry ' +
-        (i + 1) +
+        attempt +
         ': ' +
         String(e && e.message ? e.message : e)
       );
     }
 
-    await sleep_(1200);
+    const elapsedSeconds = Math.floor((Date.now() - startedWaitingAt) / 1000);
+    setStatus('feedbackStatus', 'Transcript sudah dikirim. Menunggu konfirmasi server… ' + elapsedSeconds + ' detik. Jangan tutup halaman.', 'warn');
+    const remainingMs = maxWaitMs - (Date.now() - startedWaitingAt);
+    if (remainingMs <= 0) break;
+    await sleep_(Math.min(TRANSCRIPT_CONFIRM_POLL_MS, remainingMs));
   }
 
   return false;
 }
 
-el('btnFeedback').onclick = async () => {
+async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = false) {
+  const params = () => ({ ...identity, _t:Date.now() });
+  let attempts = 0;
+  let shouldGenerate = !readFirst;
+  for (let poll = 0; poll < FEEDBACK_RECOVERY_MAX_POLLS; poll++) {
+    if (shouldGenerate && attempts < 2) {
+      attempts++;
+      try {
+        return await jsonp('generateWrittenFeedbackBySessionId', params(), 120000);
+      } catch (e) {
+        // A timeout does not mean the server stopped. Read status before retrying.
+        if (!/timeout|script load failed|FEEDBACK_BUSY/i.test(String(e.message || e))) throw e;
+        logFlow('[DLP_FEEDBACK_RECOVERY]', { attempt:attempts, reason:String(e.message || e) });
+      }
+    }
+    shouldGenerate = false;
+    let data;
+    try { data = await jsonp('getSession', params(), 15000); }
+    catch (e) { await sleep_(FEEDBACK_RECOVERY_POLL_MS); continue; }
+    const session = data && data.session;
+    if (!session) throw new Error('FEEDBACK_SESSION_NOT_FOUND');
+    const status = String(session.status || '');
+    if (readFirst && attempts === 0 && (status === 'CREATING' || status === 'CREATED' || status === 'STARTED')) {
+      logFlow('[DLP_FEEDBACK_STATUS]', { status, attempt:attempts });
+      setStatus('feedbackStatus', 'Menunggu transcript sesi sebelumnya selesai disimpan…', 'warn');
+      await sleep_(FEEDBACK_RECOVERY_POLL_MS);
+      continue;
+    }
+    if (String(session.transcriptHash || '') !== expectedHash) {
+      throw new Error('TRANSCRIPT_CHANGED_DURING_FEEDBACK');
+    }
+    logFlow('[DLP_FEEDBACK_STATUS]', { status, attempt:attempts });
+    if (status === 'FEEDBACK_GENERATED' && String(session.feedbackText || '').trim()) {
+      return {ok:true, status, feedback:session.feedbackText, feedbackCached:true, feedbackGenerated:true};
+    }
+    if (status === 'TRANSCRIPT_SAVED' && attempts < 2) shouldGenerate = true;
+    else if (status !== 'FEEDBACK_GENERATING' && status !== 'TRANSCRIPT_SAVED' && status !== 'FEEDBACK_GENERATED') {
+      throw new Error('Feedback belum tersedia. Status sesi: ' + status + '. Transkrip tetap tersimpan.');
+    }
+    await sleep_(FEEDBACK_RECOVERY_POLL_MS);
+  }
+  throw new Error('Feedback belum terkonfirmasi. Transkrip tersimpan. Gunakan tombol Feedback untuk memeriksa sesi yang sama; tidak perlu Start ulang.');
+}
+
+async function runFeedbackFlow() {
   if (state.feedbackBusy) return;
   state.feedbackBusy = true;
   try {
@@ -1655,23 +1718,31 @@ el('btnFeedback').onclick = async () => {
     if (!state.finalizationEvidence) captureFinalizationEvidence_('manual_feedback');
     if (state.connected) await gracefulStopAndDrain_();
     setButtons('stopped');
+    const identity = { sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken };
+    const expectedHash = await sha256Hex_(normalizeTranscriptForCompare_(transcriptText()));
+    // Store only same-session recovery identity + hash before the asynchronous POST.
+    // No transcript text, API key, or Realtime client secret is persisted here.
+    try { sessionStorage.setItem('dlpPendingFeedback', JSON.stringify({ ...identity, expectedHash, backendUrl:getUrl(), phase:'transcript_submit_started' })); } catch (_) {}
     setStatus('feedbackStatus', 'Menyimpan transcript ke Sheet...', 'warn');
     await saveTranscriptViaHiddenForm();
-    let confirmed = await confirmSaved();
+    setStatus('feedbackStatus', 'Transcript sudah dikirim. Menunggu konfirmasi server… Jangan tutup halaman.', 'warn');
+    let confirmed = await confirmSaved(TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS);
     if (!confirmed) {
+      setStatus('feedbackStatus', 'Konfirmasi belum diterima. Mengirim ulang transcript sesi yang sama…', 'warn');
       await saveTranscriptViaHiddenForm();
-      confirmed = await confirmSaved();
+      confirmed = await confirmSaved(TRANSCRIPT_CONFIRM_RETRY_WAIT_MS);
     }
     if (!confirmed) throw new Error('TRANSCRIPT_SAVE_NOT_CONFIRMED');
 
-    setStatus('feedbackStatus', 'Generating feedback...', 'warn');
-    let data=null, lastErr=null;
-    for (let i=0; i<2; i++) {
-      try { data=await jsonp('generateWrittenFeedbackBySessionId', { sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken, _t:Date.now() }, 120000); break; }
-      catch(e) { lastErr=e; await sleep_(2500); }
-    }
-    if (!data) throw lastErr || new Error('Feedback gagal.');
-
+    setStatus('feedbackStatus', 'Membuat feedback kamu…', 'warn');
+    try { sessionStorage.setItem('dlpPendingFeedback', JSON.stringify({ ...identity, expectedHash, backendUrl:getUrl(), phase:'transcript_confirmed' })); } catch (_) {}
+    const data = await requestFeedbackWithRecovery_(identity, expectedHash);
+    renderFeedbackResult_(data);
+  } catch(e) {
+    setStatus('feedbackStatus', friendlyError(e), 'err');
+  } finally { state.feedbackBusy=false; }
+}
+function renderFeedbackResult_(data) {
     const feedbackResultStatus = String(data.status || '');
     if (data.reviewRequired) {
       state.lastFeedback = data.message || 'Transkrip tersimpan. Sesi memerlukan review; sertakan ID sesi saat menghubungi admin.';
@@ -1689,6 +1760,7 @@ el('btnFeedback').onclick = async () => {
       el('feedbackPanel').textContent=state.lastFeedback;
       setStatus('feedbackStatus', feedbackResultStatus + ' — readiness score tidak dibuat' + (data.refunded ? ', credit dikembalikan.' : '.'), 'warn');
     } else {
+      if (!String(data.feedback || '').trim()) throw new Error('Feedback kosong. Transkrip tersimpan; coba tombol Feedback untuk sesi ini.');
       state.lastFeedback = data.feedback || '';
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
@@ -1699,10 +1771,30 @@ el('btnFeedback').onclick = async () => {
       }
     }
     el('btnCopyFb').disabled = el('btnCopyTr').disabled = el('btnDownload').disabled = false;
-  } catch(e) {
+}
+el('btnFeedback').onclick = () => state.sessionId ? runFeedbackFlow() : resumeFeedbackAfterReload_();
+async function resumeFeedbackAfterReload_() {
+  let pending;
+  try { pending = JSON.parse(sessionStorage.getItem('dlpPendingFeedback') || 'null'); } catch (_) { return; }
+  if (!pending || pending.backendUrl !== getUrl() || !pending.sessionId || !pending.sessionAccessToken || !pending.expectedHash) return;
+  if (state.feedbackBusy || startFlightActive || state.sessionId) return;
+  state.feedbackBusy = true;
+  el('btnStart').disabled = true;
+  setStatus('feedbackStatus', 'Memeriksa feedback sesi sebelumnya…', 'warn');
+  try {
+    const identity = {sessionId:pending.sessionId, sessionAccessToken:pending.sessionAccessToken};
+    const data = await requestFeedbackWithRecovery_(identity, pending.expectedHash, true);
+    renderFeedbackResult_(data);
+    // A feedback-only recovery does not restore the previous voice/transcript state.
+    el('btnCopyTr').disabled = el('btnDownload').disabled = true;
+  } catch (e) {
     setStatus('feedbackStatus', friendlyError(e), 'err');
-  } finally { state.feedbackBusy=false; }
-};
+  } finally {
+    state.feedbackBusy = false;
+    setButtons('idle');
+    el('btnFeedback').disabled = false;
+  }
+}
 el('btnCopyFb').onclick = () => navigator.clipboard.writeText(state.lastFeedback || '');
 el('btnCopyTr').onclick = () => navigator.clipboard.writeText(transcriptText());
 el('btnDownload').onclick = () => {
@@ -1744,5 +1836,6 @@ updateVizState();
   });
 })();
 </script>
+<script>resumeFeedbackAfterReload_();</script>
 </body>
 </html>
