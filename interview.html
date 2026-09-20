@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.8.0-cadet-foundation -->
+<!-- DLP AI Interview frontend prod-6.8.3-lifecycle-qwen-report -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -485,7 +485,7 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.2-transcript-recovery';
+const HTML_VERSION = 'prod-6.8.3-lifecycle-qwen-report';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'trial-6.8.0';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
@@ -494,7 +494,7 @@ const RESPONSE_OWNER_REQUIRED = 'frontend';
 const TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS = 150000;
 const TRANSCRIPT_CONFIRM_RETRY_WAIT_MS = 60000;
 const TRANSCRIPT_CONFIRM_POLL_MS = 4000;
-const FEEDBACK_RECOVERY_MAX_POLLS = 30;
+const FEEDBACK_RECOVERY_MAX_POLLS = 60;
 const FEEDBACK_RECOVERY_POLL_MS = 5000;
 
 document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
@@ -696,7 +696,7 @@ function jsonp(action, params = {}, timeoutMs = 30000) {
     const s = document.createElement('script');
     const t = setTimeout(() => { cleanup(); reject(new Error('JSONP timeout for action=' + action)); }, timeoutMs);
     function cleanup(){ clearTimeout(t); try{ delete window[cb]; }catch(e){ window[cb]=undefined; } if (s.parentNode) s.parentNode.removeChild(s); }
-    window[cb] = (data) => { cleanup(); logDebug({ action, response: data });
+    window[cb] = (data) => { cleanup(); logDebug({ action, response: action === 'createRealtimeClientSecret' && data && data.ok !== false ? {ok:true, appVersion:data.appVersion, sessionId:data.sessionId} : data });
       if (!data || data.ok === false) reject(new Error((data && data.error) || 'Unknown JSONP error'));
       else resolve(data); };
     s.onerror = () => { cleanup(); reject(new Error('JSONP script load failed for ' + action)); };
@@ -727,14 +727,43 @@ async function reportClientStarted_() {
       startedAt: state.startedAt ? state.startedAt.toISOString() : new Date().toISOString(),
       _t: Date.now()
     }, 30000);
+    if (d.status !== 'STARTED') throw new Error('STARTUP_NOT_CONFIRMED: ' + d.status);
     state.clientStartedReported = true;
+    sessionStorage.removeItem('dlpPendingStartup');
     logFlow('[DLP_CLIENT_STARTED_REPORTED]', { status:d.status || '', changed:!!d.changed });
     return d;
   } catch (e) {
-    // This audit call must not interrupt a valid live interview. Retry is safe and authenticated.
     logFlow('[DLP_CLIENT_STARTED_REPORT_FAILED]', { error:String(e.message || e) });
+    try {
+      const recovered = await jsonp('getSession', {sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken, _t:Date.now()}, 15000);
+      if (recovered.session && recovered.session.status === 'STARTED') {
+        state.clientStartedReported = true;
+        sessionStorage.removeItem('dlpPendingStartup');
+        return {ok:true, status:'STARTED', recovered:true};
+      }
+    } catch (_) {}
     return { ok:false, error:String(e.message || e) };
   }
+}
+
+async function recoverPendingStartup_() {
+  const pending = JSON.parse(sessionStorage.getItem('dlpPendingStartup') || 'null');
+  if (!pending) return;
+  if (pending.backendUrl !== getUrl()) throw new Error('Kembalikan URL backend sesi sebelumnya untuk memulihkan reservasi sebelum Start baru.');
+  const result = await jsonp('cancelStartup', {clientRequestId:pending.clientRequestId, startupToken:pending.startupToken, _t:Date.now()}, 30000);
+  sessionStorage.removeItem('dlpPendingStartup');
+  return result;
+}
+
+function persistStartupIdentity_() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  const startupToken = Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join('');
+  const pending = {clientRequestId:state.clientRequestId, startupToken, backendUrl:getUrl()};
+  // If recovery identity cannot be persisted, fail before asking backend to debit.
+  sessionStorage.setItem('dlpPendingStartup', JSON.stringify(pending));
+  if (sessionStorage.getItem('dlpPendingStartup') !== JSON.stringify(pending)) throw new Error('Browser tidak dapat menyimpan identitas recovery. Izinkan session storage sebelum Start.');
+  return startupToken;
 }
 
 async function reportClientStartFailure_(reason) {
@@ -978,6 +1007,10 @@ function scheduleMicResume(ms) {
 }
 const RESPONSE_PRIORITY = { normal:10, idle_nudge:20, wrap_up:60, premature_close_override:70, final_close:100 };
 function responseInstructionsFor(kind) {
+  const lastUser = [...state.transcript].reverse().find(t => String(t.role).toLowerCase() === 'user');
+  if (kind !== 'final_close' && lastUser && /(?:\b(?:please|can you|could you|would you) (?:please )?(?:repeat|rephrase|say (?:that|it) again)\b|^(?:sorry[, ]*)?(?:repeat|rephrase|ulang|ulangi)[.!? ]*$|\b(?:what (?:does|do you mean)|didn.t (?:hear|understand)|don.t understand|forgot (?:the |your )?question|ulangi pertanyaan|maksud pertanyaan|tidak (?:paham|mengerti)|belum (?:paham|mengerti)|kurang (?:paham|mengerti))\b)/i.test(lastUser.text)) {
+    return 'The candidate needs clarification. Rephrase the SAME current selected question in simpler English; do not advance to another topic. If needed give one brief Indonesian helper, then ask for an answer in simple English and wait. Do not provide an ideal answer. This repair takes precedence over wrap-up topic selection, but not over final close.';
+  }
   if (isCadetSession_() && ['wrap_up','premature_close_override'].includes(kind)) {
     return 'Ask one short unused question from the approved Cadet main/reserve plan, then wait. Stay at supervised beginner level. Do not invent a question, ask for prior contracts, provide a model answer, or close early. If all topics have been covered, invite one relevant addition once and then wait.';
   }
@@ -1011,6 +1044,7 @@ function queueResponse(kind, reason) {
 function canCreateResponse() {
   return !!(
     state.connected && state.dataChannelOpen && state.dc && state.dc.readyState === 'open' &&
+    (!state.candidateStarted || state.clientStartedReported) &&
     !state.aiResponding && !state.responseRequestPending && !state.candidateSpeaking &&
     state.pendingTranscriptions === 0 && !state.awaitingAnswer && !state.finalized
   );
@@ -1184,7 +1218,7 @@ function overridePrematureClose(responseId) {
   setStatus('voiceStatus', 'Closing terlalu dini terdeteksi. Interview dilanjutkan.', 'warn');
   queueResponse('premature_close_override', 'closing_phrase_without_final_response_id');
 }
-function handleRealtimeEvent(raw) {
+async function handleRealtimeEvent(raw) {
   let ev; try { ev = JSON.parse(raw); } catch(e){ return; }
   const type = ev.type || '';
 
@@ -1230,7 +1264,14 @@ function handleRealtimeEvent(raw) {
     if (!state.candidateStarted) {
       state.candidateStarted = true;
       startTimer();
-      reportClientStarted_();
+      const acknowledged = await reportClientStarted_();
+      if (!acknowledged.ok) {
+        stopVoice();
+        setButtons('stopped');
+        try { await recoverPendingStartup_(); } catch (_) {}
+        setStatus('voiceStatus', 'Konfirmasi Start gagal. Voice dihentikan; reservasi yang belum STARTED dipulihkan otomatis. Jangan Start ulang sebelum koneksi server pulih.', 'err');
+        return;
+      }
       setStatus('voiceStatus', 'Interview berjalan. Timer dimulai.', 'ok');
     }
     state.awaitingAnswer = false;
@@ -1412,6 +1453,7 @@ el('btnStart').onclick = async () => {
   try {
     if (!getUrl()) { setStatus('voiceStatus', 'WEB_APP_URL belum diisi di Admin / Dev Tools.', 'err'); return; }
     setButtons('busy');
+    await recoverPendingStartup_();
     resetSessionState_();
     try { sessionStorage.removeItem('dlpPendingFeedback'); } catch (_) {}
     state.clientRequestId = clientRequestId;
@@ -1435,9 +1477,14 @@ el('btnStart').onclick = async () => {
 
     setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn');
     const params = mapParams();
+    const health = await jsonp('health', {_t:Date.now()}, 30000);
+    if (health.lifecycleProtocol !== 'lifecycle-qwen-v1') throw new Error('BACKEND_VERSION_MISMATCH: URL ini belum memakai Code.gs lifecycle-qwen. Credit belum dipotong; periksa deployment.');
     if (/Cadet$/.test(params.rank)) await assertCadetCapabilityBeforeStart_(params);
+    params.startupToken = persistStartupIdentity_();
     const token = await jsonp('createRealtimeClientSecret', params, 90000);
     state.sessionMeta = token;
+    state.sessionId = token.sessionId;
+    state.sessionAccessToken = token.sessionAccessToken || '';
     if (token.clientRequestId && token.clientRequestId !== state.clientRequestId) {
       throw new Error('CLIENT_REQUEST_ID_MISMATCH: backend mengembalikan request ID yang berbeda.');
     }
@@ -1465,8 +1512,12 @@ el('btnStart').onclick = async () => {
   } catch (e) {
     logDebug({ startError: String(e.message || e) });
     setStatus('voiceStatus', friendlyError(e), 'err');
+    stopVoice();
     if (state.sessionId && state.sessionAccessToken && !state.candidateStarted) {
       await reportClientStartFailure_('start_exception:' + String(e.message || e).slice(0,120));
+    }
+    try { await recoverPendingStartup_(); } catch (_) {
+      setStatus('voiceStatus', friendlyError(e) + ' Reservasi belum terkonfirmasi; recovery otomatis berjalan dan Start berikutnya memeriksa reservasi yang sama.', 'err');
     }
     if (state.localStream) { state.localStream.getTracks().forEach(t=>t.stop()); state.localStream = null; }
     stopVizLoop();
@@ -1541,7 +1592,7 @@ async function finalizeSession(source) {
 }
 // ---------------- save + feedback ----------------
 function normalizeTranscriptForCompare_(text) {
-  return String(text || '').replace(/\r\n/g, '\n').trim();
+  return String(text || '').replace(/\r\n?/g, '\n').trim();
 }
 function captureFinalizationEvidence_(source) {
   if (state.finalizationEvidence) return;
@@ -1559,14 +1610,15 @@ function currentDurationSeconds_() {
   const end = (state.endedAt || new Date()).getTime();
   return start && end >= start ? Math.floor((end - start) / 1000) : 0;
 }
-function saveTranscriptViaHiddenForm() {
+async function saveTranscriptViaHiddenForm() {
+  const expectedHash = await sha256Hex_(normalizeTranscriptForCompare_(transcriptText()));
   return new Promise((resolve) => {
     finalizePrematureCloseIntegrity_();
     const form = document.createElement('form');
     form.method = 'POST'; form.action = getUrl(); form.target = 'hiddenSaveFrame'; form.style.display = 'none';
     const payload = {
       action:'saveTranscriptForm', sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken,
-      transcriptJson:JSON.stringify(state.transcript), transcriptText:transcriptText(),
+      transcriptJson:JSON.stringify(state.transcript), expectedHash,
       totalItems:String(state.transcript.length),
       startedAt:state.startedAt ? state.startedAt.toISOString() : '',
       endedAt:(state.endedAt || new Date()).toISOString(),
@@ -1665,10 +1717,10 @@ async function confirmSaved(maxWaitMs = TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS) {
   return false;
 }
 
-async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = false) {
-  const params = () => ({ ...identity, _t:Date.now() });
+async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = true) {
+  const params = () => ({ ...identity, expectedHash, _t:Date.now() });
   let attempts = 0;
-  let shouldGenerate = !readFirst;
+  let shouldGenerate = false;
   for (let poll = 0; poll < FEEDBACK_RECOVERY_MAX_POLLS; poll++) {
     if (shouldGenerate && attempts < 2) {
       attempts++;
@@ -1687,6 +1739,7 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
     const session = data && data.session;
     if (!session) throw new Error('FEEDBACK_SESSION_NOT_FOUND');
     const status = String(session.status || '');
+    if (/FEEDBACK_RESULT_UNCERTAIN/.test(String(session.error || ''))) throw new Error(session.error);
     if (readFirst && attempts === 0 && (status === 'CREATING' || status === 'CREATED' || status === 'STARTED')) {
       logFlow('[DLP_FEEDBACK_STATUS]', { status, attempt:attempts });
       setStatus('feedbackStatus', 'Menunggu transcript sesi sebelumnya selesai disimpan…', 'warn');
@@ -1699,6 +1752,9 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
     logFlow('[DLP_FEEDBACK_STATUS]', { status, attempt:attempts });
     if (status === 'FEEDBACK_GENERATED' && String(session.feedbackText || '').trim()) {
       return {ok:true, status, feedback:session.feedbackText, feedbackCached:true, feedbackGenerated:true};
+    }
+    if (/^(INSUFFICIENT_DATA|SESSION_INTEGRITY_FAILED)/.test(status)) {
+      return await jsonp('generateWrittenFeedbackBySessionId', params(), 30000);
     }
     if (status === 'TRANSCRIPT_SAVED' && attempts < 2) shouldGenerate = true;
     else if (status !== 'FEEDBACK_GENERATING' && status !== 'TRANSCRIPT_SAVED' && status !== 'FEEDBACK_GENERATED') {
@@ -1720,6 +1776,14 @@ async function runFeedbackFlow() {
     setButtons('stopped');
     const identity = { sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken };
     const expectedHash = await sha256Hex_(normalizeTranscriptForCompare_(transcriptText()));
+    try {
+      const existing = await jsonp('getSession', {...identity, _t:Date.now()}, 15000);
+      const saved = existing.session || {};
+      if (saved.transcriptHash === expectedHash && saved.status === 'FEEDBACK_GENERATED' && saved.feedbackText) {
+        renderFeedbackResult_({status:saved.status, feedback:saved.feedbackText, feedbackCached:true});
+        return;
+      }
+    } catch (_) { /* An unavailable read does not prove that the save failed. */ }
     // Store only same-session recovery identity + hash before the asynchronous POST.
     // No transcript text, API key, or Realtime client secret is persisted here.
     try { sessionStorage.setItem('dlpPendingFeedback', JSON.stringify({ ...identity, expectedHash, backendUrl:getUrl(), phase:'transcript_submit_started' })); } catch (_) {}
@@ -1740,9 +1804,11 @@ async function runFeedbackFlow() {
     renderFeedbackResult_(data);
   } catch(e) {
     setStatus('feedbackStatus', friendlyError(e), 'err');
-  } finally { state.feedbackBusy=false; }
+    setStatus('voiceStatus', 'Interview selesai. Feedback belum terkonfirmasi; periksa pesan di bawah dan gunakan Feedback untuk sesi yang sama.', 'warn');
+  } finally { state.feedbackBusy=false; setButtons('stopped'); }
 }
 function renderFeedbackResult_(data) {
+    clearInterval(state.timerInterval);
     const feedbackResultStatus = String(data.status || '');
     if (data.reviewRequired) {
       state.lastFeedback = data.message || 'Transkrip tersimpan. Sesi memerlukan review; sertakan ID sesi saat menghubungi admin.';
@@ -1766,6 +1832,7 @@ function renderFeedbackResult_(data) {
       el('feedbackPanel').textContent=state.lastFeedback;
       const recovered = data.outcome === 'COMPLETED_RECOVERED';
       setStatus('feedbackStatus', recovered ? 'Feedback berhasil dipulihkan untuk sesi yang sama.' : 'Feedback OK · cached=' + String(data.feedbackCached), 'ok');
+      setStatus('voiceStatus', 'Interview selesai. Feedback sudah tersedia di bawah.', 'ok');
       if ((data.scoreStorage && data.scoreStorage.ok === false) || (data.outcomeStorage && data.outcomeStorage.ok === false)) {
         logDebug({reportingStorageWarning:true, sessionId:state.sessionId});
       }
@@ -1789,6 +1856,7 @@ async function resumeFeedbackAfterReload_() {
     el('btnCopyTr').disabled = el('btnDownload').disabled = true;
   } catch (e) {
     setStatus('feedbackStatus', friendlyError(e), 'err');
+    setStatus('voiceStatus', 'Pemulihan feedback belum selesai. Gunakan Feedback untuk memeriksa sesi yang sama.', 'warn');
   } finally {
     state.feedbackBusy = false;
     setButtons('idle');
@@ -1836,6 +1904,12 @@ updateVizState();
   });
 })();
 </script>
-<script>resumeFeedbackAfterReload_();</script>
+<script>
+(async () => {
+  try { await recoverPendingStartup_(); }
+  catch (_) { setStatus('voiceStatus', 'Recovery reservasi menunggu koneksi server. Start berikutnya akan memeriksa sesi yang sama.', 'warn'); }
+  await resumeFeedbackAfterReload_();
+})();
+</script>
 </body>
 </html>
