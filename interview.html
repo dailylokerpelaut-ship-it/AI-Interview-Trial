@@ -485,9 +485,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.5-transcript-ack-recovery';
+const HTML_VERSION = 'prod-6.8.6-feedback-commit-recovery';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'trial-6.8.3';
+const EXPECTED_BACKEND_PREFIX = 'trial-6.8.4';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 // Apps Script POST executions can occasionally queue for more than one minute.
 // Keep polling the authenticated session instead of assuming the transcript failed.
@@ -496,6 +496,8 @@ const TRANSCRIPT_CONFIRM_RETRY_WAIT_MS = 60000;
 const TRANSCRIPT_CONFIRM_POLL_MS = 4000;
 const FEEDBACK_RECOVERY_MAX_POLLS = 60;
 const FEEDBACK_RECOVERY_POLL_MS = 5000;
+const FEEDBACK_RECOVERY_MAX_WAIT_MS = 360000;
+const FEEDBACK_DISPATCH_COOLDOWN_MS = 420000;
 const STARTUP_RECOVERY_MAX_WAIT_MS = 45000;
 const STARTUP_RECOVERY_POLL_MS = 3000;
 const CANDIDATE_TURN_GRACE_MS = 1200;
@@ -582,7 +584,7 @@ let recoverySnapshotSequence = 0;
 const state = {
   pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'', clientRequestId:'',
   connected:false, dataChannelOpen:false, transcript:[], startedAt:null, endedAt:null,
-  candidateStarted:false, clientStartedReported:false, candidateSpeaking:false, pendingTranscriptions:0,
+  candidateStarted:false, clientStartedReported:false, openingPending:false, openingGreeting:false, candidateSpeaking:false, pendingTranscriptions:0,
   activeSpeechItems:{}, pendingSpeechItems:{}, completedSpeechItems:{}, turnGraceTimer:null,
   transcriptSavePayload:null, lastSaveReceipt:null, feedbackResolved:false,
   timerInterval:null, remainingSeconds:0, totalSeconds:420, deadlineAt:0,
@@ -624,6 +626,9 @@ function setVizClass(stateName, labelText) {
 function updateVizState() {
   if (!state.connected) { setVizClass('viz-idle', 'Belum terhubung'); return; }
   if (state.aiResponding) { setVizClass('viz-ai-speaking', 'Yuliana berbicara...'); return; }
+  if (state.openingPending && !state.candidateSpeaking) {
+    setVizClass('viz-waiting', state.clientStartedReported ? 'Yuliana menyiapkan respons…' : 'Ucapan diterima. Mengonfirmasi Start…'); return;
+  }
   const micOn = state.localStream && state.localStream.getAudioTracks().some(t => t.enabled);
   if (micOn) setVizClass('viz-listening', 'Mendengarkan...');
   else setVizClass('viz-waiting', 'Giliran kamu...');
@@ -761,16 +766,18 @@ function readPendingStartup_() {
   catch (_) { return null; }
 }
 
-async function recoverStartupBootstrap_(pending, maxWaitMs = STARTUP_RECOVERY_MAX_WAIT_MS) {
+async function recoverStartupBootstrap_(pending, maxWaitMs = STARTUP_RECOVERY_MAX_WAIT_MS, shouldStop = () => false) {
   if (!pending || pending.backendUrl !== getUrl()) return null;
   const started = Date.now();
   do {
+    if (shouldStop()) return null;
     try {
       const result = await jsonp('recoverStartup', {
         clientRequestId:pending.clientRequestId,
         startupToken:pending.startupToken,
         _t:Date.now()
       }, 20000);
+      if (shouldStop()) return null;
       logFlow('[DLP_START_RECOVERY_STATUS]', { status:result.status || '', recoverable:result.recoverable === true });
       if (result.recoverable && result.bootstrap) return result.bootstrap;
       if (result.started || result.status === 'STARTED') {
@@ -1199,13 +1206,15 @@ function finishSpeechItem_(itemId) {
 function scheduleCandidateResponse_(reason) {
   clearTurnGrace_();
   if (state.finalized || state.candidateSpeaking || state.pendingTranscriptions > 0) return;
+  // Only shorten the first short greeting, never a substantive candidate answer.
+  const waitMs = state.openingPending && state.openingGreeting ? 400 : CANDIDATE_TURN_GRACE_MS;
   state.turnGraceTimer = setTimeout(() => {
     state.turnGraceTimer = null;
     if (!state.connected || state.finalized || state.candidateSpeaking || state.pendingTranscriptions > 0) return;
     state.awaitingAnswer = false;
     flushManagedResponse(reason);
-  }, CANDIDATE_TURN_GRACE_MS);
-  logFlow('[DLP_TURN_GRACE]', {waitMs:CANDIDATE_TURN_GRACE_MS, reason});
+  }, waitMs);
+  logFlow('[DLP_TURN_GRACE]', {waitMs, reason});
 }
 function flushManagedResponse(reason) {
   if (!canCreateResponse()) return false;
@@ -1411,11 +1420,18 @@ async function handleRealtimeEvent(raw) {
     finishSpeechItem_(key);
     state.lastUserTranscriptAt = Date.now();
     pushTranscript('user', ev.transcript || '', { itemId:ev.item_id || '' });
+    if (state.openingPending) state.openingGreeting = false; // Continued speech gets the full answer grace.
     if (state.prematureClosePending && state.prematureCloseCorrectionDelivered && String(ev.transcript || '').trim()) {
       markPrematureCloseRecovered_({ itemId:ev.item_id || '', recovery:'candidate_answered_after_override' });
     }
     if (!state.candidateStarted) {
       state.candidateStarted = true;
+      state.openingPending = true;
+      state.openingGreeting = /^(?:good (?:morning|afternoon|evening)|hello|hi)(?:[,.! ]+(?:ma['’]?am|mam|sir))?[.! ]*$/i.test(String(ev.transcript || '').trim());
+      setStatus('voiceStatus', 'Ucapan diterima. Mengonfirmasi Start; Yuliana akan segera merespons…', 'warn');
+      // Do not mute a candidate who has already continued speaking.
+      if (state.openingGreeting && !state.candidateSpeaking && state.pendingTranscriptions === 0) setMic(false);
+      logFlow('[DLP_OPENING_ACK_WAIT]', {itemId:ev.item_id || ''});
       startTimer();
       const acknowledged = await reportClientStarted_();
       if (!acknowledged.ok) {
@@ -1426,7 +1442,8 @@ async function handleRealtimeEvent(raw) {
         return;
       }
       await persistTranscriptRecoverySnapshot_('started_confirmed');
-      setStatus('voiceStatus', 'Interview berjalan. Timer dimulai.', 'ok');
+      if (state.finalized || !state.connected) return;
+      setStatus('voiceStatus', 'Start terkonfirmasi. Yuliana sedang menyiapkan respons…', 'warn');
     }
     state.awaitingAnswer = state.candidateSpeaking || state.pendingTranscriptions > 0;
     logFlow('[DLP_AWAITING_CLEAR]', { reason:'transcription_completed', itemId:ev.item_id || '' });
@@ -1448,6 +1465,7 @@ async function handleRealtimeEvent(raw) {
   }
 
   if (type === 'response.created') {
+    state.openingPending = false;
     const responseId = ev.response && ev.response.id ? ev.response.id : '';
     if (!state.responseRequestPending) {
       markIntegrityFailure('unexpected_server_response_created', { responseId, serverResponseCreateSuspected:true });
@@ -1608,7 +1626,7 @@ function resetSessionState_() {
   Object.assign(state, {
     pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'', clientRequestId:'',
     connected:false, dataChannelOpen:false, transcript:[], startedAt:null, endedAt:null,
-    candidateStarted:false, clientStartedReported:false, candidateSpeaking:false, pendingTranscriptions:0,
+    candidateStarted:false, clientStartedReported:false, openingPending:false, openingGreeting:false, candidateSpeaking:false, pendingTranscriptions:0,
     activeSpeechItems:{}, pendingSpeechItems:{}, completedSpeechItems:{}, turnGraceTimer:null,
     transcriptSavePayload:null, lastSaveReceipt:null, feedbackResolved:false,
     remainingSeconds:0, deadlineAt:0, aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
@@ -1666,7 +1684,7 @@ el('btnStart').onclick = async () => {
     setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn');
     const params = mapParams();
     const health = await jsonp('health', {_t:Date.now()}, 30000);
-    if (health.lifecycleProtocol !== 'lifecycle-qwen-v2' || health.transcriptProtocol !== 'transcript-ack-v1') throw new Error('BACKEND_VERSION_MISMATCH: Deploy Code.gs transcript-ack-recovery pasangan HTML ini. Credit belum dipotong; periksa URL /exec.');
+    if (health.lifecycleProtocol !== 'lifecycle-qwen-v2' || health.transcriptProtocol !== 'transcript-ack-v1' || health.feedbackProtocol !== 'feedback-commit-v1') throw new Error('BACKEND_VERSION_MISMATCH: Deploy Code.gs feedback-commit-recovery pasangan HTML ini. Credit belum dipotong; periksa URL /exec.');
     if (/Cadet$/.test(params.rank)) await assertCadetCapabilityBeforeStart_(params);
     let token;
     if (pendingRecovery && pendingRecovery.resumed) {
@@ -1675,10 +1693,12 @@ el('btnStart').onclick = async () => {
     } else {
       params.startupToken = persistStartupIdentity_();
       try {
-        const directCreate = jsonp('createRealtimeClientSecret', params, 120000);
+        let createSettled = false;
+        const directCreate = jsonp('createRealtimeClientSecret', params, 120000).then(result => { createSettled = true; return result; });
         const earlyRecovery = (async () => {
           await sleep_(15000);
-          const recovered = await recoverStartupBootstrap_(readPendingStartup_(), 60000);
+          if (createSettled) return new Promise(() => {});
+          const recovered = await recoverStartupBootstrap_(readPendingStartup_(), 60000, () => createSettled);
           if (recovered) return recovered;
           return new Promise(() => {});
         })();
@@ -1999,29 +2019,40 @@ async function confirmSaved(maxWaitMs = TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS, payl
 
 async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = true) {
   const params = () => ({ ...identity, expectedHash, _t:Date.now() });
-  let attempts = 0;
-  let shouldGenerate = false;
-  for (let poll = 0; poll < FEEDBACK_RECOVERY_MAX_POLLS; poll++) {
-    if (shouldGenerate && attempts < 2) {
-      attempts++;
-      try {
-        return await jsonp('generateWrittenFeedbackBySessionId', params(), 120000);
-      } catch (e) {
-        // A timeout does not mean the server stopped. Read status before retrying.
-        if (!/timeout|script load failed|FEEDBACK_BUSY/i.test(String(e.message || e))) throw e;
-        logFlow('[DLP_FEEDBACK_RECOVERY]', { attempt:attempts, reason:String(e.message || e) });
+  const startedWaitingAt = Date.now();
+  const dispatchKey = 'dlpFeedbackDispatch:' + getUrl() + ':' + identity.sessionId + ':' + expectedHash;
+  let dispatched = false, directError = '';
+  let directResult = new Promise(() => {});
+  const dispatch = () => {
+    dispatched = true;
+    try { sessionStorage.setItem(dispatchKey, String(Date.now())); } catch (_) {}
+    // Poll getSession concurrently. A lost JSONP response must not hide a saved report.
+    directResult = jsonp('generateWrittenFeedbackBySessionId', params(), 120000).then(
+      result => ({kind:'result', result}),
+      error => {
+        directError = String(error && error.message || error);
+        logFlow('[DLP_FEEDBACK_RECOVERY]', {reason:directError});
+        return new Promise(() => {});
       }
-    }
-    shouldGenerate = false;
+    );
+    logFlow('[DLP_FEEDBACK_DISPATCH]', {sessionId:identity.sessionId});
+  };
+  for (let poll = 0; poll < FEEDBACK_RECOVERY_MAX_POLLS && Date.now()-startedWaitingAt < FEEDBACK_RECOVERY_MAX_WAIT_MS; poll++) {
     let data;
-    try { data = await jsonp('getSession', params(), 15000); }
-    catch (e) { await sleep_(FEEDBACK_RECOVERY_POLL_MS); continue; }
+    const observed = await Promise.race([directResult,
+      jsonp('getSession', params(), 15000).then(result => ({kind:'session', result}), error => ({kind:'readError', error}))]);
+    if (observed.kind === 'result') return observed.result;
+    if (observed.kind === 'readError') {
+      const late = await Promise.race([directResult, sleep_(FEEDBACK_RECOVERY_POLL_MS).then(() => null)]);
+      if (late) return late.result;
+      continue;
+    }
+    data = observed.result;
     const session = data && data.session;
     if (!session) throw new Error('FEEDBACK_SESSION_NOT_FOUND');
     const status = String(session.status || '');
-    if (/FEEDBACK_RESULT_UNCERTAIN/.test(String(session.error || ''))) throw new Error(session.error);
-    if (readFirst && attempts === 0 && (status === 'CREATING' || status === 'CREATED' || status === 'STARTED')) {
-      logFlow('[DLP_FEEDBACK_STATUS]', { status, attempt:attempts });
+    if (readFirst && !dispatched && (status === 'CREATING' || status === 'CREATED' || status === 'STARTED')) {
+      logFlow('[DLP_FEEDBACK_STATUS]', { status, dispatched });
       setStatus('feedbackStatus', 'Menunggu transcript sesi sebelumnya selesai disimpan…', 'warn');
       await sleep_(FEEDBACK_RECOVERY_POLL_MS);
       continue;
@@ -2029,19 +2060,35 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
     if (String(session.transcriptHash || '') !== expectedHash) {
       throw new Error('TRANSCRIPT_CHANGED_DURING_FEEDBACK');
     }
-    logFlow('[DLP_FEEDBACK_STATUS]', { status, attempt:attempts });
+    logFlow('[DLP_FEEDBACK_STATUS]', { status, dispatched });
     if (status === 'FEEDBACK_GENERATED' && String(session.feedbackText || '').trim()) {
       return {ok:true, status, feedback:session.feedbackText, feedbackCached:true, feedbackGenerated:true};
     }
     if (/^(INSUFFICIENT_DATA|SESSION_INTEGRITY_FAILED)/.test(status)) {
       return await jsonp('generateWrittenFeedbackBySessionId', params(), 30000);
     }
-    if (status === 'TRANSCRIPT_SAVED' && attempts < 2) shouldGenerate = true;
-    else if (status !== 'FEEDBACK_GENERATING' && status !== 'TRANSCRIPT_SAVED' && status !== 'FEEDBACK_GENERATED') {
+    if (status === 'FEEDBACK_GENERATED') throw new Error('Feedback tercatat selesai tetapi belum dapat dibaca. Hubungi admin dengan ID sesi; jangan Start ulang.');
+    if (status === 'FEEDBACK_FAILED') {
+      // A prior request was definitively rejected. Never retry within this run.
+      if (dispatched) {
+        try { sessionStorage.removeItem(dispatchKey); } catch (_) {}
+        throw new Error(session.error || 'Feedback gagal. Transkrip tersimpan; admin perlu memeriksa konfigurasi.');
+      }
+      dispatch();
+    }
+    if (status === 'TRANSCRIPT_SAVED' && !dispatched) {
+      let previousDispatch = 0;
+      try { previousDispatch = Number(sessionStorage.getItem(dispatchKey)) || 0; } catch (_) {}
+      if (!previousDispatch || Date.now()-previousDispatch >= FEEDBACK_DISPATCH_COOLDOWN_MS) dispatch();
+    } else if (status !== 'FEEDBACK_GENERATING' && status !== 'TRANSCRIPT_SAVED' && status !== 'FEEDBACK_FAILED') {
       throw new Error('Feedback belum tersedia. Status sesi: ' + status + '. Transkrip tetap tersimpan.');
     }
-    await sleep_(FEEDBACK_RECOVERY_POLL_MS);
+    const seconds = Math.floor((Date.now()-startedWaitingAt)/1000);
+    setStatus('feedbackStatus', (status === 'FEEDBACK_GENERATING' ? 'Membuat feedback kamu… ' : 'Menunggu server memulai feedback… ') + seconds + ' detik. Memeriksa hasil sesi yang sama.', 'warn');
+    const late = await Promise.race([directResult, sleep_(FEEDBACK_RECOVERY_POLL_MS).then(() => null)]);
+    if (late) return late.result;
   }
+  logFlow('[DLP_FEEDBACK_WAIT_ENDED]', {reason:directError || 'poll_budget_exhausted'});
   throw new Error('Feedback belum terkonfirmasi. Transkrip tersimpan. Gunakan tombol Feedback untuk memeriksa sesi yang sama; tidak perlu Start ulang.');
 }
 
