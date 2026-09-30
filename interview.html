@@ -485,9 +485,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.6-feedback-commit-recovery';
+const HTML_VERSION = 'prod-6.8.7-feedback-error-recovery';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'trial-6.8.4';
+const EXPECTED_BACKEND_PREFIX = 'trial-6.8.5';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 // Apps Script POST executions can occasionally queue for more than one minute.
 // Keep polling the authenticated session instead of assuming the transcript failed.
@@ -1684,7 +1684,7 @@ el('btnStart').onclick = async () => {
     setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn');
     const params = mapParams();
     const health = await jsonp('health', {_t:Date.now()}, 30000);
-    if (health.lifecycleProtocol !== 'lifecycle-qwen-v2' || health.transcriptProtocol !== 'transcript-ack-v1' || health.feedbackProtocol !== 'feedback-commit-v1') throw new Error('BACKEND_VERSION_MISMATCH: Deploy Code.gs feedback-commit-recovery pasangan HTML ini. Credit belum dipotong; periksa URL /exec.');
+    if (health.lifecycleProtocol !== 'lifecycle-qwen-v2' || health.transcriptProtocol !== 'transcript-ack-v1' || health.feedbackProtocol !== 'feedback-commit-v1' || health.feedbackErrorProtocol !== 'feedback-error-v1') throw new Error('BACKEND_VERSION_MISMATCH: Deploy Code.gs feedback-error-recovery pasangan HTML ini. Credit belum dipotong; periksa URL /exec.');
     if (/Cadet$/.test(params.rank)) await assertCadetCapabilityBeforeStart_(params);
     let token;
     if (pendingRecovery && pendingRecovery.resumed) {
@@ -2022,6 +2022,7 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
   const startedWaitingAt = Date.now();
   const dispatchKey = 'dlpFeedbackDispatch:' + getUrl() + ':' + identity.sessionId + ':' + expectedHash;
   let dispatched = false, directError = '';
+  let failedRecoveryReads = 0;
   let directResult = new Promise(() => {});
   const dispatch = () => {
     dispatched = true;
@@ -2064,6 +2065,23 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
     if (status === 'FEEDBACK_GENERATED' && String(session.feedbackText || '').trim()) {
       return {ok:true, status, feedback:session.feedbackText, feedbackCached:true, feedbackGenerated:true};
     }
+    const failure = session.feedbackFailure || (/FEEDBACK_RESULT_UNCERTAIN/.test(String(session.error || ''))
+      ? {code:'FEEDBACK_RESULT_UNCERTAIN', stage:'UNKNOWN_LEGACY_FAILURE', validatedResult:false} : null);
+    if (status === 'FEEDBACK_GENERATING' && failure) {
+      // getSession already attempted cached-result recovery. Retry reads a few times
+      // only if a valid result exists or this is an older, unclassified failure.
+      const mayRecover = failure.validatedResult || failure.stage === 'UNKNOWN_LEGACY_FAILURE';
+      failedRecoveryReads++;
+      if (!mayRecover || failedRecoveryReads >= 3) throw feedbackStoppedError_(failure, identity.sessionId);
+      setStatus('feedbackStatus', 'Pembuatan feedback mengalami kendala. Memeriksa apakah hasil yang sama masih dapat dipulihkan…', 'warn');
+      const recovered = await Promise.race([directResult, sleep_(FEEDBACK_RECOVERY_POLL_MS).then(() => null)]);
+      if (recovered) return recovered.result;
+      continue;
+    }
+    if (status === 'FEEDBACK_GENERATING' && /\[(?:QWEN|OPENAI)_(?:REPORT_INCOMPLETE|REPORT_INVALID|UNGROUNDED_EVIDENCE)\]/.test(directError)) {
+      // An explicit validation rejection is different from a lost HTTP/JSONP response.
+      throw feedbackStoppedError_({code:(directError.match(/\[([A-Z0-9_]+)\]/) || [,'REPORT_REJECTED'])[1], stage:'VALIDATION_RESPONSE'}, identity.sessionId);
+    }
     if (/^(INSUFFICIENT_DATA|SESSION_INTEGRITY_FAILED)/.test(status)) {
       return await jsonp('generateWrittenFeedbackBySessionId', params(), 30000);
     }
@@ -2090,6 +2108,16 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
   }
   logFlow('[DLP_FEEDBACK_WAIT_ENDED]', {reason:directError || 'poll_budget_exhausted'});
   throw new Error('Feedback belum terkonfirmasi. Transkrip tersimpan. Gunakan tombol Feedback untuk memeriksa sesi yang sama; tidak perlu Start ulang.');
+}
+
+function feedbackStoppedError_(failure, sessionId) {
+  const code = String(failure.code || 'FEEDBACK_RESULT_UNCERTAIN');
+  logFlow('[DLP_FEEDBACK_STOPPED]', {sessionId, failure});
+  const err = new Error('Feedback belum dapat diselesaikan. Transcript sudah tersimpan. ' +
+    'Hubungi admin dengan ID sesi ' + sessionId + ' dan kode ' + code +
+    '. Tombol Feedback hanya memeriksa pemulihan hasil sesi ini; jangan Start ulang.');
+  err.feedbackStopped = true;
+  return err;
 }
 
 function runFeedbackFlow() {
@@ -2157,10 +2185,14 @@ async function executeFeedbackFlow_() {
     const data = await requestFeedbackWithRecovery_(identity, expectedHash);
     renderFeedbackResult_(data);
   } catch(e) {
+    clearInterval(state.timerInterval);
+    clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer);
     logDebug({feedbackFlowError:String(e.message || e), sessionId:state.sessionId,
       saveAttemptId:state.transcriptSavePayload && state.transcriptSavePayload.saveAttemptId});
     setStatus('feedbackStatus', friendlyError(e), 'err');
-    setStatus('voiceStatus', 'Interview selesai. Feedback belum terkonfirmasi; periksa pesan di bawah dan gunakan Feedback untuk sesi yang sama.', 'warn');
+    setStatus('voiceStatus', e.feedbackStopped
+      ? 'Interview selesai. Proses feedback mengalami kendala; detail tersedia di bawah.'
+      : 'Interview selesai. Feedback belum terkonfirmasi; periksa pesan di bawah dan gunakan Feedback untuk sesi yang sama.', 'warn');
   } finally { state.feedbackBusy=false; setButtons(state.feedbackResolved ? 'idle' : 'stopped'); }
 }
 function renderFeedbackResult_(data) {
