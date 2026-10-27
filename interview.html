@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.8.5-transcript-ack-recovery -->
+<!-- DLP AI Interview frontend prod-6.8.12-cadet-all-approved -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -311,7 +311,7 @@
   </div>
 </div>
 <div class="sub">
-  <span class="ver-chip" id="htmlVerLabel"></span>
+  
   <span>Latihan wawancara kerja pelaut — suara, real-time, dengan laporan tertulis.</span>
 </div>
 
@@ -321,14 +321,14 @@
 
     <!-- ACCESS CODE -->
     <div class="card">
-      <h2>Access Code</h2>
-      <label>testerCode</label>
+      <h2>Akses Interview</h2>
+      <label for="testerCode">Kode akses</label>
       <input id="testerCode" placeholder="DLP-XXXXXX" autocomplete="off">
       <div id="creditPills" style="margin-top:8px">
-        <span class="pill">creditsRemaining: <b id="pillCredits">—</b></span>
-        <span class="pill">lastSessionId: <b id="pillSession">—</b></span>
+        <span class="pill">Sisa credit: <b id="pillCredits">—</b></span>
+        
       </div>
-      <div class="sub" style="margin-top:10px; margin-bottom:0">Credits hanya berkurang saat Start Interview valid. Preview tidak memakan credit.</div>
+      <div class="sub" style="margin-top:10px; margin-bottom:0">Satu sesi interview menggunakan 1 credit. Simpan kode akses untuk sesi berikutnya.</div>
     </div>
 
     <!-- INTERVIEW SETUP -->
@@ -379,7 +379,7 @@
           <option value="LNG/LPG">LNG / LPG Carrier</option>
         </select>
       </div>
-      <div class="sub" style="margin-top:10px; margin-bottom:0">Final duration follows access code setting (allowedDurationMinutes dari Sheet meng-override input ini).</div>
+      <div class="sub" style="margin-top:10px; margin-bottom:0">Durasi setiap sesi mengikuti paket pada kode akses Anda.</div>
     </div>
 
   </div>
@@ -388,10 +388,10 @@
   <div class="col">
     <div class="card">
       <h2>Voice Interview</h2>
-      <div class="warnbox">Perhatian: tombol Start Interview akan membuat session baru dan dapat mengurangi 1 credit jika access code valid.</div>
+      <div class="warnbox">Pastikan mikrofon dan koneksi internet siap. Satu sesi menggunakan 1 credit.</div>
       <div class="check">
         <input type="checkbox" id="creditConfirm">
-        <label for="creditConfirm">I understand this may consume 1 credit</label>
+        <label for="creditConfirm">Saya memahami bahwa satu sesi menggunakan 1 credit.</label>
       </div>
 
       <!-- AUDIO-REACTIVE SONAR -->
@@ -404,7 +404,7 @@
         </div>
         <div class="sonar-label" id="sonarLabel">Belum terhubung</div>
         <div style="text-align:center">
-          <div class="timer-label">Session Time Remaining</div>
+          <div class="timer-label">Sisa Waktu Interview</div>
           <span class="timer" id="timer">--:--</span>
         </div>
       </div>
@@ -422,11 +422,11 @@
       </div>
 
       <div id="sessionPills" style="margin-top:12px">
-        <span class="pill">sessionId: <b id="pillSid">—</b></span>
-        <span class="pill">mode: <b id="pillMode">—</b></span>
-        <span class="pill">questions: <b id="pillQids">—</b></span>
+        
+        <span class="pill">Mode: <b id="pillMode">—</b></span>
+        
       </div>
-      <div class="status" id="voiceStatus">Idle. Isi access code, centang konfirmasi, lalu Start Interview.</div>
+      <div class="status" id="voiceStatus">Masukkan kode akses, centang konfirmasi, lalu klik Start Interview.</div>
       <audio id="remoteAudio" autoplay playsinline></audio>
     </div>
   </div>
@@ -445,7 +445,7 @@
     <div>
       <button class="b-mut" id="btnCopyFb" disabled>Copy Feedback</button>
       <button class="b-mut" id="btnCopyTr" disabled>Copy Transcript</button>
-      <button class="b-mut" id="btnDownload" disabled>Download JSON</button>
+      <button class="b-mut" id="btnDownload" disabled>Unduh catatan sesi</button>
     </div>
   </div>
 </div>
@@ -457,6 +457,10 @@
     <details open>
       <summary>⚙ Admin / Dev Tools — jangan dibagikan ke user</summary>
       <div style="margin-top:12px">
+        <span class="ver-chip" id="htmlVerLabel"></span>
+        <span class="pill">lastSessionId: <b id="pillSession">—</b></span>
+        <span class="pill">sessionId: <b id="pillSid">—</b></span>
+        <span class="pill">questions: <b id="pillQids">—</b></span>
         <label>WEB_APP_URL (Apps Script /exec)</label>
         <input id="webAppUrl" placeholder="https://script.google.com/macros/s/XXXX/exec">
         <button class="b-mut" id="btnHealth">Test Backend Health</button>
@@ -485,9 +489,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.7-feedback-error-recovery';
+const HTML_VERSION = 'prod-6.8.12-cadet-all-approved';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'trial-6.8.5';
+const EXPECTED_BACKEND_PREFIX = 'rc-6.8.9';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 // Apps Script POST executions can occasionally queue for more than one minute.
 // Keep polling the authenticated session instead of assuming the transcript failed.
@@ -546,10 +550,10 @@ const MODE_HELP = {
   'Deck Rating': 'Khusus AB. Technical dan situasi kerja digabung dalam satu interview.',
   'Engine Rating': 'Khusus Oiler. Technical dan situasi kerja digabung dalam satu interview.'
 };
-MODE_HELP['Deck Cadet']='Untuk calon Deck Cadet: dasar pengetahuan, safety, dan kesiapan belajar. Pengalaman laut tidak wajib.';
-MODE_HELP['Engine Cadet']='Untuk calon Engine Cadet: dasar machinery, safety, dan kesiapan belajar. Pengalaman laut tidak wajib.';
+MODE_HELP['Deck Cadet']='Latihan Crewing atau Technical & Behaviour untuk Deck Cadet. Pertanyaan tingkat pemula dalam tugas yang disupervisi; pengalaman laut tidak wajib.';
+MODE_HELP['Engine Cadet']='Latihan Crewing atau Technical & Behaviour untuk Engine Cadet. Pertanyaan tingkat pemula dalam tugas yang disupervisi; pengalaman laut tidak wajib.';
 const ERROR_MAP = {
-  CADET_NOT_ENABLED:'Interview Cadet belum dibuka. Tunggu pengumuman akses trial.',
+  CADET_NOT_ENABLED:'Interview Cadet belum dibuka. Tunggu pengumuman pembukaan akses.',
   CADET_BACKEND_NOT_READY:'Interview Cadet belum tersedia pada server ini.',
   CADET_POOL_NOT_READY:'Pertanyaan Cadet untuk pilihan ini belum tersedia atau belum memenuhi rotasi sesi.',
   CADET_HISTORY_UNAVAILABLE:'Riwayat sesi belum dapat diperiksa. Coba lagi nanti.',
@@ -572,7 +576,7 @@ const ERROR_MAP = {
   CREDIT_DEBIT_VERIFY_FAILED: 'Pemotongan credit tidak terverifikasi. Session tidak dilanjutkan; hubungi admin.',
   CREDIT_RESERVATION_FAILED: 'Session belum berhasil dibuat. Credit tidak boleh dianggap terpakai; hubungi admin.',
   SESSION_ACCESS_DENIED: 'Akses session tidak valid. Reload halaman dan mulai session baru.',
-  STARTUP_ALREADY_STARTED: 'Session sebelumnya sudah STARTED. Sistem tidak membuat session atau debit baru.',
+  STARTUP_ALREADY_STARTED: 'Sesi sebelumnya sudah dimulai. Sistem tidak membuat sesi atau memotong credit baru.',
   FEEDBACK_BUSY: 'Feedback sedang dibuat. Tunggu beberapa detik lalu coba lagi.'
 };
 
@@ -611,6 +615,14 @@ function logDebug(x) {
   el('debugLog').textContent = '[' + new Date().toLocaleTimeString() + '] ' + line + '\n' + el('debugLog').textContent;
 }
 function setStatus(id, msg, kind) {
+  if (id === 'voiceStatus' || id === 'feedbackStatus') {
+    const original = String(msg || '');
+    msg = original.replace(/\bdebit\b/gi, 'pemotongan credit')
+      .replace(/\breservasi\b/gi, 'persiapan sesi')
+      .replace(/\brecovery\b/gi, 'pemulihan')
+      .replace(/\bSTARTED\b/g, 'dimulai');
+    if (msg !== original) logDebug({statusDetail:original});
+  }
   const n = el(id); n.textContent = msg; n.className = 'status' + (kind ? ' ' + kind : '');
 }
 
@@ -684,19 +696,23 @@ function stopVizLoop() {
 
 function friendlyError(err) {
   const msg = String(err && err.message ? err.message : err);
-  const m = msg.match(/\[([A-Z_]+)\]/);
-  if (m && ERROR_MAP[m[1]]) return ERROR_MAP[m[1]] + ' (' + m[1] + ')';
+  logDebug({userFacingError:msg});
+  const m = msg.match(/\[([A-Z0-9_]+)\]/);
+  if (m && ERROR_MAP[m[1]]) return ERROR_MAP[m[1]];
   if (/Permission denied|NotAllowedError/i.test(msg)) return 'Akses microphone ditolak. Buka pengaturan browser → izinkan Microphone untuk halaman ini, lalu reload.';
   // JSONP errors HARUS dicek dulu sebelum Realtime/SDP. Nama action `createRealtimeClientSecret`
   // mengandung kata "Realtime", jadi kalau urutan terbalik, semua kegagalan backend akan
   // misleadingly disebut "OpenAI voice failed" — bug yang membingungkan tim debug berjam-jam.
   if (/JSONP script load failed/i.test(msg)) return 'Koneksi ke server gagal. Coba: (1) buka di Chrome/Safari, bukan dari WhatsApp, (2) matikan VPN/Private DNS/adblock, (3) reload halaman. Kalau masih gagal, hubungi admin.';
   if (/JSONP timeout/i.test(msg)) return 'Server lambat atau tidak merespons. Periksa koneksi internet, lalu coba lagi.';
-  if (/SDP failed|OpenAI Realtime/i.test(msg)) return 'Koneksi voice ke OpenAI gagal. Coba mulai ulang sesi. (' + msg.slice(0,120) + ')';
+  if (/SDP failed|OpenAI Realtime/i.test(msg)) return 'Koneksi suara gagal. Tunggu pemeriksaan status sesi sebelum mencoba kembali.';
   if (/TRANSCRIPT_SAVE_NOT_CONFIRMED/i.test(msg)) return 'Server belum mengonfirmasi transcript. Salinan sesi tetap dipertahankan di tab ini. Klik End & Get Feedback untuk memulihkan sesi yang sama; jangan Start baru.';
-  if (/TRANSCRIPT_SAVE_REJECTED/i.test(msg)) return 'Backend menolak penyimpanan transcript: ' + msg + '. Salinan sesi tetap tersedia; gunakan Download JSON dan sertakan session ID kepada admin.';
-  if (/BACKEND_RESPONSE_OWNER_MISMATCH/i.test(msg)) return 'Frontend baru membutuhkan patch Code.gs pasangan: turn_detection.create_response=false dan responseOwner=frontend.';
+  if (/TRANSCRIPT_SAVE_REJECTED/i.test(msg)) return 'Transkrip belum dapat disimpan. Simpan catatan sesi dan hubungi admin; jangan mulai sesi baru.';
+  if (/BACKEND_RESPONSE_OWNER_MISMATCH/i.test(msg)) return 'Layanan belum kompatibel. Hubungi admin sebelum mencoba kembali.';
   if (/Transcript is empty/i.test(msg)) return 'Transcript kosong di server — tunggu beberapa detik lalu klik feedback lagi.';
+  if (/\b[A-Z][A-Z0-9]+_[A-Z0-9_]+\b|Code\.gs|JSONP|TypeError|ReferenceError|sessionId|startupToken|https?:\/\//.test(msg)) {
+    return 'Terjadi kendala pada layanan. Simpan catatan sesi dan hubungi admin. Jangan mulai sesi baru sebelum status sesi diperiksa.';
+  }
   return msg;
 }
 function jsonp(action, params = {}, timeoutMs = 30000) {
@@ -744,6 +760,7 @@ async function reportClientStarted_() {
     }, 30000);
     if (d.status !== 'STARTED') throw new Error('STARTUP_NOT_CONFIRMED: ' + d.status);
     state.clientStartedReported = true;
+    await persistTranscriptRecoverySnapshot_('started');
     sessionStorage.removeItem('dlpPendingStartup');
     logFlow('[DLP_CLIENT_STARTED_REPORTED]', { status:d.status || '', changed:!!d.changed });
     return d;
@@ -753,6 +770,7 @@ async function reportClientStarted_() {
       const recovered = await jsonp('getSession', {sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken, _t:Date.now()}, 15000);
       if (recovered.session && recovered.session.status === 'STARTED') {
         state.clientStartedReported = true;
+        await persistTranscriptRecoverySnapshot_('started');
         sessionStorage.removeItem('dlpPendingStartup');
         return {ok:true, status:'STARTED', recovered:true};
       }
@@ -824,8 +842,13 @@ async function inspectPendingStartupOnLoad_() {
       return;
     }
     if (result.started || result.status === 'STARTED') {
+      if (!readFeedbackSnapshot_() || readFeedbackSnapshot_().sessionId !== result.sessionId) {
+        sessionStorage.setItem('dlpPendingFeedback', JSON.stringify({sessionId:result.sessionId,
+          sessionAccessToken:pending.startupToken, backendUrl:getUrl(), phase:'started', transcript:[], totalSeconds:420}));
+      }
       sessionStorage.removeItem('dlpPendingStartup');
-      setStatus('voiceStatus', 'Session sebelumnya sudah STARTED. Sistem tidak membuat debit baru.', 'warn');
+      await resumeFeedbackAfterReload_();
+      setStatus('voiceStatus', 'Sesi sebelumnya sudah dimulai. Memeriksa hasil sesi yang sama.', 'warn');
       return;
     }
     if (/REFUNDED|CANCELLED|FAILED/.test(String(result.status || ''))) sessionStorage.removeItem('dlpPendingStartup');
@@ -856,7 +879,10 @@ async function reportClientStartFailure_(reason) {
     }, 30000);
     logFlow('[DLP_CLIENT_START_FAILURE_REPORTED]', { reason:reason || '', response:d });
     if (d && d.reviewRequired) setStatus('voiceStatus', d.message || 'Laporan sesi menunggu review.', 'warn');
-    if (d && d.refunded) el('pillCredits').textContent = String((parseInt(el('pillCredits').textContent, 10) || 0) + 1);
+    if (d && (d.refunded || d.alreadyRefunded)) {
+      const balance = d.remainingSessions;
+      el('pillCredits').textContent = Number.isInteger(balance) && balance >= 0 ? String(balance) : '—';
+    }
     return d;
   } catch (e) {
     logDebug({ clientStartFailureReportFailed:String(e.message || e), reason:reason || '' });
@@ -917,7 +943,7 @@ function refreshSetup() {
   el('paramPreview').textContent = JSON.stringify(p, null, 1);
 }
 ['category','rank','productMode','testerCode','targetVesselType'].forEach(id => el(id).addEventListener('change', refreshSetup));
-el('testerCode').addEventListener('input', () => { sessionStorage.setItem('dlpTesterCode', el('testerCode').value.trim()); refreshSetup(); });
+el('testerCode').addEventListener('input', () => { el('pillCredits').textContent = '—'; sessionStorage.setItem('dlpTesterCode', el('testerCode').value.trim()); refreshSetup(); });
 
 function isCadetSession_() { return /Cadet$/.test(String(state.sessionMeta && state.sessionMeta.rank || '')); }
 async function assertCadetCapabilityBeforeStart_(params) {
@@ -999,7 +1025,7 @@ function setButtons(stage) {
   const hasCode = el('testerCode').value.trim().length > 0;
   el('btnStart').disabled = stage !== 'idle' || !el('creditConfirm').checked || !hasCode || startFlightActive || state.feedbackBusy || hasUnresolvedFeedback_();
   el('btnStop').disabled = stage !== 'live';
-  el('btnFeedback').disabled = !(stage === 'stopped' && state.transcript.length) && stage !== 'live';
+  el('btnFeedback').disabled = !(stage === 'stopped' && state.sessionId) && stage !== 'live';
   if (stage === 'live') el('btnFeedback').disabled = false;
   if (state.feedbackBusy) el('btnFeedback').disabled = true;
 }
@@ -1018,7 +1044,7 @@ function transcriptItemsText_(items) {
     String(it.text || it.transcript || it.content || '').trim()).join('\n\n');
 }
 async function persistTranscriptRecoverySnapshot_(phase) {
-  if (!state.sessionId || !state.sessionAccessToken || !state.transcript.length) return null;
+  if (!state.sessionId || !state.sessionAccessToken) return null;
   const sequence = ++recoverySnapshotSequence;
   // Clone BEFORE the asynchronous digest, including all nested item/evidence data.
   const snapshot = {
@@ -1038,7 +1064,7 @@ async function persistTranscriptRecoverySnapshot_(phase) {
   snapshot.expectedHash = await sha256Hex_(normalizeTranscriptForCompare_(transcriptItemsText_(snapshot.transcript)));
   if (sequence === recoverySnapshotSequence && snapshot.sessionId === state.sessionId) {
     try { sessionStorage.setItem('dlpPendingFeedback', JSON.stringify(snapshot)); }
-    catch (_) { logDebug({recoveryStorageUnavailable:true}); }
+    catch (_) { logDebug({recoveryStorageUnavailable:true}); if (phase === 'started') throw new Error('Penyimpanan pemulihan sesi tidak tersedia.'); }
   }
   return snapshot;
 }
@@ -1292,7 +1318,7 @@ function startTimer() {
       state.wrapUpRequested = true;
       queueResponse('wrap_up', 'deadline_90s');
       logFlow('[DLP_PHASE_CHANGED]', { to:'WRAP_UP_REQUESTED', remainingSeconds:state.remainingSeconds });
-      setStatus('voiceStatus', 'Wrap-up dijadwalkan setelah jawaban kandidat selesai.', 'warn');
+      setStatus('voiceStatus', 'Interview segera selesai. Silakan tuntaskan jawaban Anda.', 'warn');
       flushManagedResponse('wrap_timer_idle');
     }
     if (!finalTriggered && state.remainingSeconds <= 20) {
@@ -1300,7 +1326,7 @@ function startTimer() {
       state.finalCloseRequested = true;
       state.queuedResponse = { kind:'final_close', reason:'deadline_20s', priority:100, queuedAt:Date.now() };
       logFlow('[DLP_PHASE_CHANGED]', { to:'FINAL_CLOSE_REQUESTED', remainingSeconds:state.remainingSeconds });
-      setStatus('voiceStatus', 'Final closing dijadwalkan tanpa memotong jawaban aktif.', 'warn');
+      setStatus('voiceStatus', 'Interview akan ditutup setelah jawaban Anda selesai.', 'warn');
       scheduleFinalCloseIfNoSpeech();
       flushManagedResponse('final_timer_idle');
     }
@@ -1370,7 +1396,7 @@ function overridePrematureClose(responseId) {
 
   state.prematureClosePending = true;
   state.prematureCloseCorrectionDelivered = false;
-  setStatus('voiceStatus', 'Closing terlalu dini terdeteksi. Interview dilanjutkan.', 'warn');
+  setStatus('voiceStatus', 'Interview dilanjutkan. Silakan jawab pertanyaan berikutnya.', 'warn');
   queueResponse('premature_close_override', 'closing_phrase_without_final_response_id');
 }
 async function handleRealtimeEvent(raw) {
@@ -1438,7 +1464,7 @@ async function handleRealtimeEvent(raw) {
         stopVoice();
         setButtons('stopped');
         try { await recoverPendingStartup_(); } catch (_) {}
-        setStatus('voiceStatus', 'Konfirmasi Start gagal. Voice dihentikan; reservasi yang belum STARTED dipulihkan otomatis. Jangan Start ulang sebelum koneksi server pulih.', 'err');
+        setStatus('voiceStatus', 'Awal sesi belum terkonfirmasi. Koneksi suara dihentikan dan status credit sedang dipulihkan. Jangan mulai sesi baru dahulu.', 'err');
         return;
       }
       await persistTranscriptRecoverySnapshot_('started_confirmed');
@@ -1655,7 +1681,7 @@ el('btnStart').onclick = async () => {
   startFlightActive = true;
   const clientRequestId = createClientRequestId_();
   try {
-    if (!getUrl()) { setStatus('voiceStatus', 'WEB_APP_URL belum diisi di Admin / Dev Tools.', 'err'); return; }
+    if (!getUrl()) { setStatus('voiceStatus', 'Layanan belum siap. Hubungi admin sebelum memulai interview.', 'err'); return; }
     setButtons('busy');
     const pendingRecovery = await recoverPendingStartup_({preferResume:true, maxWaitMs:20000});
     resetSessionState_();
@@ -1729,7 +1755,7 @@ el('btnStart').onclick = async () => {
     el('pillSid').textContent = token.sessionId;
     el('pillMode').textContent = token.productMode || token.focus || '-';
     el('pillQids').textContent = token.selectedQuestionIds || '-';
-    el('pillCredits').textContent = (token.creditsRemaining === null || token.creditsRemaining === undefined) ? 'no-gate' : token.creditsRemaining;
+    el('pillCredits').textContent = (token.creditsRemaining === null || token.creditsRemaining === undefined) ? '—' : token.creditsRemaining;
     el('pillSession').textContent = token.sessionId;
     el('durationMinutes').value = token.durationMinutes || 7;
     setStatus('voiceStatus', 'Menghubungkan voice...', 'warn');
@@ -1957,6 +1983,7 @@ async function confirmSaved(maxWaitMs = TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS, payl
       const statusOk =
         serverStatus === 'TRANSCRIPT_SAVED' ||
         serverStatus === 'FEEDBACK_GENERATING' ||
+        serverStatus === 'FEEDBACK_REVIEW_REQUIRED' ||
         serverStatus === 'TRANSCRIPT_UPDATED_AFTER_FEEDBACK' ||
         serverStatus === 'FEEDBACK_GENERATED' ||
         serverStatus === 'TRANSCRIPT_UPDATED_DURING_FEEDBACK' ||
@@ -2067,6 +2094,7 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
     }
     const failure = session.feedbackFailure || (/FEEDBACK_RESULT_UNCERTAIN/.test(String(session.error || ''))
       ? {code:'FEEDBACK_RESULT_UNCERTAIN', stage:'UNKNOWN_LEGACY_FAILURE', validatedResult:false} : null);
+    if (status === 'FEEDBACK_REVIEW_REQUIRED') throw feedbackStoppedError_(failure || {code:status}, identity.sessionId);
     if (status === 'FEEDBACK_GENERATING' && failure) {
       // getSession already attempted cached-result recovery. Retry reads a few times
       // only if a valid result exists or this is an older, unclassified failure.
@@ -2114,7 +2142,7 @@ function feedbackStoppedError_(failure, sessionId) {
   const code = String(failure.code || 'FEEDBACK_RESULT_UNCERTAIN');
   logFlow('[DLP_FEEDBACK_STOPPED]', {sessionId, failure});
   const err = new Error('Feedback belum dapat diselesaikan. Transcript sudah tersimpan. ' +
-    'Hubungi admin dengan ID sesi ' + sessionId + ' dan kode ' + code +
+    'Simpan catatan sesi untuk dikirim kepada admin' +
     '. Tombol Feedback hanya memeriksa pemulihan hasil sesi ini; jangan Start ulang.');
   err.feedbackStopped = true;
   return err;
@@ -2135,11 +2163,12 @@ async function executeFeedbackFlow_() {
     clearTurnGrace_();
     if (state.connected) await gracefulStopAndDrain_();
     setButtons('stopped');
-    el('btnCopyTr').disabled = el('btnDownload').disabled = !state.transcript.length;
+    el('btnCopyTr').disabled = !state.transcript.length;
+    el('btnDownload').disabled = !state.sessionId;
     const identity = { sessionId:state.sessionId, sessionAccessToken:state.sessionAccessToken };
     const pending = readFeedbackSnapshot_();
     const payload = state.transcript.length ? await prepareTranscriptSave_() : null;
-    const expectedHash = payload ? payload.expectedHash : (pending && pending.sessionId === state.sessionId ? pending.expectedHash : '');
+    let expectedHash = payload ? payload.expectedHash : (pending && pending.sessionId === state.sessionId ? pending.expectedHash : '');
     let saved = null;
     try {
       const existing = await jsonp('getSession', {...identity, _t:Date.now()}, 15000);
@@ -2153,14 +2182,16 @@ async function executeFeedbackFlow_() {
       setStatus('voiceStatus', 'Start sebelumnya tidak selesai. Periksa saldo kredit sebelum mencoba sesi baru.', 'warn');
       return;
     }
+    if (!state.transcript.length && saved && saved.transcriptHash) expectedHash = saved.transcriptHash;
     if (saved && saved.status === 'FEEDBACK_GENERATED' && saved.feedbackText) {
       if (expectedHash && saved.transcriptHash !== expectedHash) throw new Error('TRANSCRIPT_CHANGED_DURING_FEEDBACK');
       renderFeedbackResult_({status:saved.status, feedback:saved.feedbackText, feedbackCached:true});
       return;
     }
+    if (!state.transcript.length && !(saved && saved.transcriptChars > 0)) throw new Error('Sesi sudah dimulai, tetapi transkrip belum tersedia. Hubungi admin untuk memeriksa sesi ini. Jangan mulai sesi baru untuk memulihkannya.');
     if (!expectedHash) throw new Error('Transcript is empty — salinan sesi tidak tersedia.');
     let confirmed = !!(saved && saved.transcriptHash === expectedHash &&
-      /^(TRANSCRIPT_SAVED|FEEDBACK_GENERATING|FEEDBACK_GENERATED|INSUFFICIENT_DATA|SESSION_INTEGRITY_FAILED)/.test(saved.status));
+      /^(TRANSCRIPT_SAVED|FEEDBACK_GENERATING|FEEDBACK_REVIEW_REQUIRED|FEEDBACK_GENERATED|INSUFFICIENT_DATA|SESSION_INTEGRITY_FAILED)/.test(saved.status));
     if (!confirmed) {
       if (!payload) throw new Error('TRANSCRIPT_SAVE_NOT_CONFIRMED');
       if (saved && /FEEDBACK_GENERAT/.test(saved.status)) throw new Error('TRANSCRIPT_CHANGED_DURING_FEEDBACK');
@@ -2200,27 +2231,30 @@ function renderFeedbackResult_(data) {
     clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer);
     const feedbackResultStatus = String(data.status || '');
     if (data.reviewRequired) {
-      state.lastFeedback = data.message || 'Transkrip tersimpan. Sesi memerlukan review; sertakan ID sesi saat menghubungi admin.';
+      logDebug({sessionOutcome:data});
+      state.lastFeedback = 'Transkrip tersimpan. Sesi perlu diperiksa admin. Simpan catatan sesi saat menghubungi admin.';
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
       setStatus('feedbackStatus', 'Transkrip tersimpan · menunggu review sesi', 'warn');
     } else if (/^SESSION_INTEGRITY_FAILED/.test(feedbackResultStatus)) {
-      state.lastFeedback = data.message || 'Sesi mengalami gangguan teknis dan tidak dinilai.';
+      logDebug({sessionOutcome:data});
+      state.lastFeedback = 'Sesi mengalami gangguan teknis dan tidak dinilai.';
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
-      setStatus('feedbackStatus', feedbackResultStatus + ' — retry diperlukan' + (data.refunded ? ', credit dikembalikan.' : '.'), 'err');
+      setStatus('feedbackStatus', 'Sesi mengalami gangguan dan tidak dinilai' + (data.refunded ? ', credit dikembalikan.' : '.'), 'err');
     } else if (/^INSUFFICIENT_DATA/.test(feedbackResultStatus) || data.feedbackGenerated === false) {
-      state.lastFeedback = data.message || 'Sesi belum memiliki cukup data untuk dinilai secara adil. Silakan ulangi sesi.';
+      logDebug({sessionOutcome:data});
+      state.lastFeedback = 'Sesi belum memiliki cukup data untuk dinilai secara adil.';
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
-      setStatus('feedbackStatus', feedbackResultStatus + ' — readiness score tidak dibuat' + (data.refunded ? ', credit dikembalikan.' : '.'), 'warn');
+      setStatus('feedbackStatus', 'Data sesi belum cukup untuk memberikan penilaian' + (data.refunded ? ', credit dikembalikan.' : '.'), 'warn');
     } else {
       if (!String(data.feedback || '').trim()) throw new Error('Feedback kosong. Transkrip tersimpan; coba tombol Feedback untuk sesi ini.');
       state.lastFeedback = data.feedback || '';
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
       const recovered = data.outcome === 'COMPLETED_RECOVERED';
-      setStatus('feedbackStatus', recovered ? 'Feedback berhasil dipulihkan untuk sesi yang sama.' : 'Feedback OK · cached=' + String(data.feedbackCached), 'ok');
+      setStatus('feedbackStatus', recovered ? 'Feedback berhasil dipulihkan untuk sesi yang sama.' : 'Feedback sudah tersedia.', 'ok');
       setStatus('voiceStatus', 'Interview selesai. Feedback sudah tersedia di bawah.', 'ok');
       if ((data.scoreStorage && data.scoreStorage.ok === false) || (data.outcomeStorage && data.outcomeStorage.ok === false)) {
         logDebug({reportingStorageWarning:true, sessionId:state.sessionId});
@@ -2229,7 +2263,8 @@ function renderFeedbackResult_(data) {
     state.feedbackResolved = true;
     recoverySnapshotSequence++; // No older async digest may resurrect a pending phase.
     el('btnCopyFb').disabled = false;
-    el('btnCopyTr').disabled = el('btnDownload').disabled = !state.transcript.length;
+    el('btnCopyTr').disabled = !state.transcript.length;
+    el('btnDownload').disabled = !state.sessionId;
     const pending = readFeedbackSnapshot_();
     if (pending && (!state.sessionId || pending.sessionId === state.sessionId)) {
       pending.phase = 'result_rendered';
