@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.8.12-cadet-all-approved -->
+<!-- DLP AI Interview frontend prod-6.8.13-transcript-transport-rc5 -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -489,9 +489,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.12-cadet-all-approved';
+const HTML_VERSION = 'prod-6.8.13-transcript-transport-rc5';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'rc-6.8.9';
+const EXPECTED_BACKEND_PREFIX = 'rc-6.8.10';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 // Apps Script POST executions can occasionally queue for more than one minute.
 // Keep polling the authenticated session instead of assuming the transcript failed.
@@ -1912,8 +1912,20 @@ async function prepareTranscriptSave_() {
   await persistTranscriptRecoverySnapshot_('transcript_submit_started');
   return state.transcriptSavePayload;
 }
+// Escape non-ASCII JSON code units on the wire only; JSON.parse restores the
+// exact text, including smart quotes, Indonesian and emoji. Frozen evidence,
+// expectedHash, attempt ID and session identity remain unchanged on retries.
+function transcriptWirePayload_(payload) {
+  const wire = Object.assign({}, payload);
+  if (typeof wire.transcriptJson === 'string') {
+    wire.transcriptJson = wire.transcriptJson.replace(/[\u007f-\uffff]/g,
+      ch => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'));
+  }
+  return wire;
+}
 async function saveTranscriptViaHiddenForm(payload, transport = 'form_post') {
   payload = payload || await prepareTranscriptSave_();
+  const wirePayload = transcriptWirePayload_(payload);
   state.lastSaveReceipt = null;
   logFlow('[DLP_TRANSCRIPT_SAVE_POST]', {items:Number(payload.totalItems), durationSeconds:payload.duration,
     saveAttemptId:payload.saveAttemptId, transport});
@@ -1922,7 +1934,7 @@ async function saveTranscriptViaHiddenForm(payload, transport = 'form_post') {
       const form = document.createElement('form');
       form.method = 'POST'; form.action = getUrl(); form.target = 'hiddenSaveFrame';
       form.enctype = 'application/x-www-form-urlencoded'; form.acceptCharset = 'UTF-8'; form.style.display = 'none';
-      Object.keys(payload).forEach(k => { const input = document.createElement('textarea'); input.name=k; input.value=payload[k]; form.appendChild(input); });
+      Object.keys(payload).forEach(k => { const input = document.createElement('textarea'); input.name=k; input.value=wirePayload[k]; form.appendChild(input); });
       document.body.appendChild(form);
       try { form.submit(); }
       finally { setTimeout(() => { if (form.parentNode) form.parentNode.removeChild(form); }, 60000); }
@@ -1937,7 +1949,7 @@ async function saveTranscriptViaHiddenForm(payload, transport = 'form_post') {
   let timeout;
   try {
     await Promise.race([
-      fetch(getUrl(), {method:'POST', body:new URLSearchParams(payload), mode:'no-cors',
+      fetch(getUrl(), {method:'POST', body:new URLSearchParams(wirePayload), mode:'no-cors',
         credentials:'omit', redirect:'follow', ...(controller ? {signal:controller.signal} : {})}),
       new Promise((_, reject) => { timeout=setTimeout(() => {
         if (controller) controller.abort(); reject(new Error('TRANSCRIPT_POST_TIMEOUT'));
@@ -1974,7 +1986,8 @@ async function confirmSaved(maxWaitMs = TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS, payl
       const serverStatus = String(server.status || '');
       const serverHash = String(server.transcriptHash || '');
       const receipt = d.transcriptSaveReceipt;
-      if (receipt && receipt.attemptId === payload.saveAttemptId && receipt.expectedHash === expectedHash) {
+      if (receipt && receipt.appVersion === d.backendVersion &&
+          receipt.attemptId === payload.saveAttemptId && receipt.expectedHash === expectedHash) {
         state.lastSaveReceipt = receipt;
       }
 
