@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.8.13-transcript-transport-rc5 -->
+<!-- DLP AI Interview frontend prod-6.8.14-clarification-adaptive-rc6 -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -489,9 +489,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.13-transcript-transport-rc5';
+const HTML_VERSION = 'prod-6.8.14-clarification-adaptive-rc6';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'rc-6.8.10';
+const EXPECTED_BACKEND_PREFIX = 'rc-6.8.11';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 // Apps Script POST executions can occasionally queue for more than one minute.
 // Keep polling the authenticated session instead of assuming the transcript failed.
@@ -1150,16 +1150,34 @@ function scheduleMicResume(ms) {
   state.micResumeTimer = setTimeout(() => { if (state.connected && !state.finalized && !state.finalCloseResponseId) setMic(true); }, ms);
 }
 const RESPONSE_PRIORITY = { normal:10, idle_nudge:20, wrap_up:60, premature_close_override:70, final_close:100 };
+// Match a present request, not a hypothetical work practice or reported speech.
+function isClarificationRequest_(text) {
+  const normalized = String(text || '').toLowerCase().replace(/[’‘]/g, "'").trim();
+  return normalized.split(/[.!?;\n]+/).some(part => {
+    let clause = part.trim().replace(/^(?:(?:sorry|excuse me|sir|maaf|pak|permisi)[, :]+)+/, '').trim();
+    clause = clause.replace(/[, ]+(?:sir|pak)$/, '').replace(/,\s*please$/, ' please').trim();
+    if (!clause || /^(?:if|when|whenever|unless|kalau|jika|bila|apabila|saat|ketika)\b/.test(clause)) return false;
+    return /^(?:(?:please|can you|could you|would you)\s+(?:please\s+)?(?:repeat|rephrase|say (?:that|it) again|speak (?:more )?slowly)|(?:repeat|rephrase|say (?:that|it) again)\b)/.test(clause) ||
+      /^(?:i\s+)?(?:don't|do not|didn't|did not|cannot|can't)\s+(?:understand|hear)(?:\s+(?:the question|your question|that|it|you|what you (?:said|asked)))?$/.test(clause) ||
+      /^(?:i\s+)?(?:forgot|have forgotten)\s+(?:the|your)\s+question$/.test(clause) ||
+      /^(?:what do you mean|what does .+ mean|could you explain (?:the|your) question|can you explain (?:the|your) question)$/.test(clause) ||
+      /^(?:(?:tolong|bisa|boleh)\s+)?(?:diulang|ulang|ulangi|jelaskan)(?:\s+(?:lagi|pertanyaannya|pertanyaan|maksud pertanyaannya))*$/.test(clause) ||
+      /^(?:saya\s+)?(?:tidak|belum|kurang|nggak|gak)\s+(?:paham|mengerti)(?:\s+(?:pertanyaan|pertanyaannya|maksud pertanyaannya))?$/.test(clause) ||
+      /^(?:(?:tolong|bisa|pakai|gunakan|dalam)\s+)?bahasa indonesia(?:\s+(?:saja|please))?$/.test(clause) ||
+      /^(?:please\s+)?(?:in indonesian|translate (?:that|it|the question)(?: into indonesian)?)$/.test(clause) ||
+      /^(?:apa maksud(?:nya| pertanyaannya)?|maksud pertanyaannya apa|sorry|maaf)$/.test(clause);
+  });
+}
 function responseInstructionsFor(kind) {
   const lastUser = [...state.transcript].reverse().find(t => String(t.role).toLowerCase() === 'user');
-  if (kind !== 'final_close' && lastUser && /(?:\b(?:please|can you|could you|would you) (?:please )?(?:repeat|rephrase|say (?:that|it) again)\b|\bsay (?:that |it )?again\b|^sorry[.!? ]*$|^(?:sorry[, ]*)?(?:repeat|rephrase|ulang|ulangi)[.!? ]*$|\b(?:what (?:does|do you mean)|didn.t (?:hear|understand)|don.t understand|forgot (?:the |your )?question|ulangi pertanyaan|maksud pertanyaan|tidak (?:paham|mengerti)|belum (?:paham|mengerti)|kurang (?:paham|mengerti))\b)/i.test(lastUser.text)) {
-    return 'The candidate needs clarification. Rephrase the SAME current selected question in simpler English; do not advance to another topic. If needed give one brief Indonesian translation, then ask for an answer in simple English and wait. Do not provide an ideal answer, hints, examples of correct checks, equipment lists, or silent judging points. This repair takes precedence over wrap-up topic selection, but not over final close.';
+  if (kind !== 'final_close' && lastUser && isClarificationRequest_(lastUser.text)) {
+    return 'The candidate explicitly requests clarification of the current question. Rephrase ONLY that same question in simple English, or translate it into Indonesian if requested. Use the listed simpler question/translation when available. Do not add answer categories, examples, hints, equipment lists, or phrases such as "You can mention" or "You can talk about". Complete the translation, then wait for the answer. Once answered, continue; do not repeat merely because the answer describes asking for help. Never delay final close.';
   }
   if (isCadetSession_() && ['wrap_up','premature_close_override'].includes(kind)) {
-    return 'Ask one short unused question from the approved Cadet main/reserve plan, then wait. Stay at supervised beginner level. Do not invent a question, ask for prior contracts, provide a model answer, or close early. If all topics have been covered, invite one relevant addition once and then wait.';
+    return 'Finish the current answer. Prefer one unused short Cadet main/reserve question. If those topics are covered, a short relevant adaptive follow-up about this department, an earlier answer, or supervised beginner safety is allowed. No repeated answered question, assumed sea service, independent Officer duties, hints or model answers. Ask one question, then wait. Never mention internal systems or close before final_close.';
   }
   if (isCadetSession_() && kind === 'normal' && state.wrapUpDelivered && !state.finalCloseRequested) {
-    return 'Use only an unused short Cadet main/reserve question. No coaching, no repeated topic, no assumed sea experience. If all approved topics are covered, wait. Do not close until the frontend final-close instruction.';
+    return 'Prefer an unused short Cadet main/reserve question. After those topics, a relevant short adaptive follow-up within the same department and supervised Cadet role is allowed. Do not repeat an answered question, give hints, assume sea experience, or introduce heavy technical topics. Ask one question then wait. Do not mention internal systems or close before final_close.';
   }
   if (kind === 'idle_nudge') {
     return 'The candidate has been silent since connecting. Say exactly: "Hello, can you hear me? Please say good morning when you are ready to begin." Then stop and wait. Do not ask an interview question yet.';
