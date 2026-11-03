@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.8.14-clarification-adaptive-rc6 -->
+<!-- DLP AI Interview frontend prod-6.8.15-interview-recovery-rc7 -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -427,6 +427,8 @@
         
       </div>
       <div class="status" id="voiceStatus">Masukkan kode akses, centang konfirmasi, lalu klik Start Interview.</div>
+      <button class="b-acc btn-block" id="btnEnableAudio" style="display:none" type="button">Aktifkan suara</button>
+      <div class="status warn" id="audioNotice" style="display:none" role="status"></div>
       <audio id="remoteAudio" autoplay playsinline></audio>
     </div>
   </div>
@@ -441,6 +443,13 @@
   <div class="card">
     <h2>Feedback</h2>
     <div class="status" id="feedbackStatus">Belum ada feedback.</div>
+    <div id="sessionHelp" style="display:none" class="sub">Bantuan sesi: <b id="helpSessionId"></b> ·
+      <a href="https://wa.me/6285183202685" target="_blank" rel="noopener noreferrer">WhatsApp admin</a>. Sertakan ID atau catatan sesi.</div>
+    <div id="historyControls" style="display:none; margin:10px 0">
+      <label for="sessionHistory">Catatan sesi di tab ini</label>
+      <select id="sessionHistory"></select>
+      <button class="b-mut" id="btnHistory" type="button">Periksa sesi tersimpan</button>
+    </div>
     <pre id="feedbackPanel" style="display:none; max-height:420px"></pre>
     <div>
       <button class="b-mut" id="btnCopyFb" disabled>Copy Feedback</button>
@@ -489,9 +498,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.14-clarification-adaptive-rc6';
+const HTML_VERSION = 'prod-6.8.15-interview-recovery-rc7';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'rc-6.8.11';
+const EXPECTED_BACKEND_PREFIX = 'rc-6.8.12';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 // Apps Script POST executions can occasionally queue for more than one minute.
 // Keep polling the authenticated session instead of assuming the transcript failed.
@@ -585,6 +594,7 @@ let startFlightActive = false;
 let finalizationFlight = null;
 let feedbackFlight = null;
 let recoverySnapshotSequence = 0;
+let connectionEpoch = 0;
 const state = {
   pc:null, dc:null, localStream:null, remoteStream:null, clientSecret:'', sessionId:'', sessionAccessToken:'', clientRequestId:'',
   connected:false, dataChannelOpen:false, transcript:[], startedAt:null, endedAt:null,
@@ -593,6 +603,10 @@ const state = {
   transcriptSavePayload:null, lastSaveReceipt:null, feedbackResolved:false,
   timerInterval:null, remainingSeconds:0, totalSeconds:420, deadlineAt:0,
   preStartTimer:null, hardDeadlineTimer:null, finalCloseFallbackTimer:null, disconnectTimer:null,
+  stoppingVoice:false,
+  responseWatchdog:null, responseRetryTimer:null, responseRetryCount:0, responseRecords:{}, realtimeFailure:false,
+  audioBlocked:false, audioPlaySequence:0, waitingForRepeat:false,repeatSpeechItems:{},
+  sessionTesterCode:'', terminalPhase:'',
   aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
   responseRequestPending:false, responseRequestKind:'', responseRequestEventId:'',
   queuedResponse:null, finalNoSpeechTimer:null,
@@ -1024,6 +1038,7 @@ el('btnPreviewQ').onclick = async () => {
 function setButtons(stage) {
   const hasCode = el('testerCode').value.trim().length > 0;
   el('btnStart').disabled = stage !== 'idle' || !el('creditConfirm').checked || !hasCode || startFlightActive || state.feedbackBusy || hasUnresolvedFeedback_();
+  el('btnHistory').disabled = stage !== 'idle' || startFlightActive || state.feedbackBusy || hasUnresolvedFeedback_();
   el('btnStop').disabled = stage !== 'live';
   el('btnFeedback').disabled = !(stage === 'stopped' && state.sessionId) && stage !== 'live';
   if (stage === 'live') el('btnFeedback').disabled = false;
@@ -1034,8 +1049,78 @@ function readFeedbackSnapshot_() {
 }
 function hasUnresolvedFeedback_() {
   const pending = readFeedbackSnapshot_();
-  return !!(pending && pending.sessionId && pending.phase !== 'result_rendered');
+  return !!(pending && pending.sessionId && !isTerminalPhase_(pending.phase));
 }
+function isTerminalPhase_(phase) {
+  return ['result_rendered','refunded','closed_for_review'].includes(phase);
+}
+function showSessionHelp_() {
+  el('helpSessionId').textContent = state.sessionId;
+  el('sessionHelp').style.display = 'block';
+}
+function readSessionHistory_() {
+  try { const items=JSON.parse(sessionStorage.getItem('dlpSessionHistory') || '[]'); return Array.isArray(items) ? items : []; }
+  catch (_) { return []; }
+}
+function archiveTerminalSnapshot_() {
+  const snapshot = readFeedbackSnapshot_();
+  if (!snapshot || !isTerminalPhase_(snapshot.phase)) return;
+  const items = readSessionHistory_().filter(item => !(item.sessionId === snapshot.sessionId && item.backendUrl === snapshot.backendUrl));
+  items.push(snapshot);
+  try { sessionStorage.setItem('dlpSessionHistory', JSON.stringify(items)); }
+  catch (_) { throw new Error('Catatan sesi belum dapat diarsipkan. Unduh catatan sesi dan hubungi admin sebelum mulai lagi.'); }
+  refreshSessionHistory_();
+}
+function refreshSessionHistory_() {
+  const items = readSessionHistory_().filter(item => item.backendUrl === getUrl());
+  el('historyControls').style.display = items.length ? 'block' : 'none';
+  el('sessionHistory').innerHTML = '';
+  items.slice().reverse().forEach(item => {
+    const option = document.createElement('option');
+    option.value = item.sessionId;
+    const status = item.phase === 'refunded' ? 'Kredit dikembalikan' : item.phase === 'closed_for_review' ? 'Perlu bantuan' : 'Hasil sesi';
+    option.textContent = item.sessionId + ' — ' + status;
+    el('sessionHistory').appendChild(option);
+  });
+}
+el('btnHistory').onclick = async () => {
+  if (state.connected || state.feedbackBusy || startFlightActive || hasUnresolvedFeedback_()) return;
+  const snapshot = readSessionHistory_().find(item => item.backendUrl === getUrl() && item.sessionId === el('sessionHistory').value);
+  if (!snapshot) return;
+  try {
+    archiveTerminalSnapshot_();
+    sessionStorage.setItem('dlpPendingFeedback', JSON.stringify(snapshot));
+    resetSessionState_();
+    await resumeFeedbackAfterReload_();
+  } catch(e) { setStatus('feedbackStatus', friendlyError(e), 'err'); }
+};
+function applySessionCredits_(data, identity, requestedCode) {
+  if (state.sessionId !== identity.sessionId || (data.sessionId && data.sessionId !== identity.sessionId)) return;
+  // A balance belongs to the session's access code, never a newly typed code.
+  const selected = el('testerCode').value.trim().toUpperCase();
+  if (!requestedCode || selected !== requestedCode.toUpperCase()) return;
+  const c = data.credits;
+  el('pillCredits').textContent = c && Number.isInteger(c.remainingSessions) && c.remainingSessions >= 0 ? String(c.remainingSessions) : '—';
+}
+async function refreshSessionCredits_(identity) {
+  const code = state.sessionTesterCode;
+  try {
+    const data = await jsonp('getSession', {...identity,includeCredits:'1',_t:Date.now()},15000);
+    applySessionCredits_(data, identity, code);
+  } catch (_) {
+    if (state.sessionId === identity.sessionId && code && el('testerCode').value.trim().toUpperCase() === code.toUpperCase()) el('pillCredits').textContent = '—';
+  }
+}
+function sessionTerminalResult_(data, identity) {
+  if (!data || !data.session || (data.sessionId && data.sessionId !== identity.sessionId)) return null;
+  const s = data.session, status = String(s.status || '');
+  if (data.credits && data.credits.refunded === true || /^(SESSION_REFUNDED|STARTUP_FAILED_REFUNDED|STARTUP_CANCELLED_REFUNDED|SESSION_INTEGRITY_FAILED_REFUNDED|INSUFFICIENT_DATA_REFUNDED)$/.test(status)) {
+    return {status,refunded:true,feedbackGenerated:false,terminalPhase:'refunded'};
+  }
+  if (status === 'FEEDBACK_REVIEW_REQUIRED') return {status,reviewRequired:true,terminalPhase:'closed_for_review'};
+  return null;
+}
+
 function transcriptText() {
   return transcriptItemsText_(state.transcript);
 }
@@ -1051,7 +1136,8 @@ async function persistTranscriptRecoverySnapshot_(phase) {
     sessionId:state.sessionId,
     sessionAccessToken:state.sessionAccessToken,
     backendUrl:getUrl(),
-    phase:phase || 'transcript_updated',
+    phase:state.terminalPhase || phase || 'transcript_updated',
+    testerCode:state.sessionTesterCode,
     transcript:JSON.parse(JSON.stringify(state.transcript)),
     startedAt:state.startedAt ? state.startedAt.toISOString() : '',
     endedAt:(state.endedAt || new Date()).toISOString(),
@@ -1070,7 +1156,7 @@ async function persistTranscriptRecoverySnapshot_(phase) {
 }
 function pushTranscript(role, text, meta = {}) {
   const clean = String(text || '').trim();
-  if (!clean) return;
+  if (!clean || state.transcriptSavePayload) return;
   if (role === 'ai' && containsInternalCueFingerprint(clean)) {
     markIntegrityFailure('assistant_internal_cue_fingerprint', { text: clean.slice(0, 240), responseId: meta.responseId || '' });
     return;
@@ -1142,12 +1228,13 @@ function getPhase() {
 }
 function setMic(enabled) {
   if (!state.localStream) return;
+  if (enabled && (state.stoppingVoice || state.audioBlocked || state.realtimeFailure)) enabled = false;
   state.localStream.getAudioTracks().forEach(t => { t.enabled = enabled; });
   updateVizState();
 }
 function scheduleMicResume(ms) {
   clearTimeout(state.micResumeTimer);
-  state.micResumeTimer = setTimeout(() => { if (state.connected && !state.finalized && !state.finalCloseResponseId) setMic(true); }, ms);
+  state.micResumeTimer = setTimeout(() => { if (state.connected && !state.finalized && !state.stoppingVoice && !state.finalCloseResponseId && !state.aiResponding && !state.responseRequestPending) setMic(true); }, ms);
 }
 const RESPONSE_PRIORITY = { normal:10, idle_nudge:20, wrap_up:60, premature_close_override:70, final_close:100 };
 // Match a present request, not a hypothetical work practice or reported speech.
@@ -1206,7 +1293,8 @@ function queueResponse(kind, reason) {
 function canCreateResponse() {
   return !!(
     state.connected && state.dataChannelOpen && state.dc && state.dc.readyState === 'open' &&
-    (!state.candidateStarted || state.clientStartedReported) &&
+    (!state.candidateStarted || state.clientStartedReported) && (!state.waitingForRepeat || state.finalCloseRequested) &&
+    !state.stoppingVoice && !state.audioBlocked && !state.realtimeFailure && !state.responseRetryTimer &&
     !state.aiResponding && !state.responseRequestPending && !state.candidateSpeaking && !state.turnGraceTimer &&
     state.pendingTranscriptions === 0 && !state.awaitingAnswer && !state.finalized
   );
@@ -1217,7 +1305,7 @@ function createManagedResponse(kind, reason) {
     return false;
   }
   const eventId = 'dlp_' + kind + '_' + Date.now() + '_' + (++state.eventSeq);
-  const response = {};
+  const response = {metadata:{dlp_event_id:eventId}};
   const instructions = responseInstructionsFor(kind);
   if (instructions) response.instructions = instructions;
   try {
@@ -1226,6 +1314,7 @@ function createManagedResponse(kind, reason) {
     state.responseRequestEventId = eventId;
     state.dc.send(JSON.stringify({ type:'response.create', event_id:eventId, response }));
     setMic(false);
+    armResponseWatchdog_(eventId, '', 30000);
     logFlow('[DLP_CUE_SENT]', { kind, reason:reason || '', eventId, manualResponseCreate:true });
     return true;
   } catch (e) {
@@ -1233,6 +1322,7 @@ function createManagedResponse(kind, reason) {
     state.responseRequestKind = '';
     state.responseRequestEventId = '';
     markIntegrityFailure('response_create_send_failed', { kind, error:String(e.message || e) });
+    failRealtimeSafely_('response_send_failed');
     return false;
   }
 }
@@ -1249,7 +1339,7 @@ function finishSpeechItem_(itemId) {
 }
 function scheduleCandidateResponse_(reason) {
   clearTurnGrace_();
-  if (state.finalized || state.candidateSpeaking || state.pendingTranscriptions > 0) return;
+  if (state.finalized || state.waitingForRepeat || state.candidateSpeaking || state.pendingTranscriptions > 0) return;
   // Only shorten the first short greeting, never a substantive candidate answer.
   const waitMs = state.openingPending && state.openingGreeting ? 400 : CANDIDATE_TURN_GRACE_MS;
   state.turnGraceTimer = setTimeout(() => {
@@ -1420,24 +1510,36 @@ function overridePrematureClose(responseId) {
 async function handleRealtimeEvent(raw) {
   let ev; try { ev = JSON.parse(raw); } catch(e){ return; }
   const type = ev.type || '';
+  if (!state.connected) return;
 
   if (type === 'error') {
-    const code = (ev.error && ev.error.code) || '';
-    logFlow('[DLP_REALTIME_ERROR]', { code, event:ev });
-    if (code === 'conversation_already_has_active_response' || /active_response/i.test(JSON.stringify(ev))) {
-      const collidedKind = state.responseRequestKind || 'normal';
-      state.responseRequestPending = false;
-      markIntegrityFailure('active_response_collision', { code, requestedKind:collidedKind });
-      state.responseRequestKind = ''; state.responseRequestEventId = '';
-      queueResponse(collidedKind, 'retry_after_active_response_collision');
+    const code = String(ev.error && ev.error.code || '');
+    const rejectedId = String(ev.error && ev.error.event_id || '');
+    logFlow('[DLP_REALTIME_ERROR]', {code, rejectedId});
+    if (rejectedId && rejectedId !== state.responseRequestEventId) return; // An old/cancel event cannot alter a new response.
+    if (state.realtimeFailure || state.finalized) return;
+    if (rejectedId && state.responseRequestPending && !state.activeResponseId &&
+        /^(rate_limit_exceeded|server_error)$/.test(code) && state.responseRetryCount < 1) {
+      const kind = state.responseRequestKind;
+      clearTimeout(state.responseWatchdog);
+      state.responseRequestPending = false; state.responseRequestKind = ''; state.responseRequestEventId = '';
+      state.responseRetryCount++;
+      const epoch = connectionEpoch;
+      setStatus('voiceStatus', 'Respons suara tertunda. Mencoba kembali satu kali pada sesi yang sama…', 'warn');
+      state.responseRetryTimer = setTimeout(() => {
+        state.responseRetryTimer = null;
+        if (epoch === connectionEpoch && state.connected && !state.finalized) createManagedResponse(state.finalCloseRequested ? 'final_close' : kind, 'confirmed_rejection_retry');
+      }, 2000);
       return;
     }
+    failRealtimeSafely_('provider_error:' + code);
     return;
   }
 
   if (type === 'input_audio_buffer.speech_started') {
     clearTurnGrace_();
     state.activeSpeechItems[ev.item_id || 'unidentified'] = true;
+    if (state.waitingForRepeat && ev.item_id) state.repeatSpeechItems[ev.item_id] = true;
     state.candidateSpeaking = true;
     state.awaitingAnswer = true;
     clearTimeout(state.finalNoSpeechTimer);
@@ -1464,6 +1566,13 @@ async function handleRealtimeEvent(raw) {
     finishSpeechItem_(key);
     state.lastUserTranscriptAt = Date.now();
     pushTranscript('user', ev.transcript || '', { itemId:ev.item_id || '' });
+    if (state.waitingForRepeat && state.repeatSpeechItems[key] && String(ev.transcript || '').trim() && !state.finalized && !state.finalCloseRequested) {
+      state.waitingForRepeat = false;
+      removeIntegrityFlag('input_transcription_unresolved');
+      markIntegrityWarning('input_transcription_repeated', {itemId:key});
+      persistTranscriptRecoverySnapshot_('transcription_recovered').catch(()=>{});
+    }
+    if (state.finalized || state.realtimeFailure || state.stoppingVoice) return;
     if (state.openingPending) state.openingGreeting = false; // Continued speech gets the full answer grace.
     if (state.prematureClosePending && state.prematureCloseCorrectionDelivered && String(ev.transcript || '').trim()) {
       markPrematureCloseRecovered_({ itemId:ev.item_id || '', recovery:'candidate_answered_after_override' });
@@ -1502,19 +1611,42 @@ async function handleRealtimeEvent(raw) {
     if (key) state.completedSpeechItems[key] = true;
     finishSpeechItem_(key);
     state.awaitingAnswer = state.candidateSpeaking || state.pendingTranscriptions > 0;
-    markIntegrityFailure('input_transcription_failed', { itemId:ev.item_id || '', error:ev.error || null });
-    queueResponse(state.finalCloseRequested ? 'final_close' : 'normal', 'transcription_failed');
-    scheduleCandidateResponse_('transcription_failed');
+    markIntegrityWarning('input_transcription_failed', {itemId:key});
+    markIntegrityFailure('input_transcription_unresolved', {itemId:key});
+    state.waitingForRepeat = true;
+    state.repeatSpeechItems = {};
+    persistTranscriptRecoverySnapshot_('transcription_retry_needed').catch(()=>{});
+    clearTurnGrace_();
+    // Stay on this question: do not generate a normal response from a missing answer.
+    state.queuedResponse = null;
+    if (state.finalCloseRequested) {
+      queueResponse('final_close', 'transcription_failed_at_close');
+      state.awaitingAnswer = false;
+      flushManagedResponse('transcription_failed_at_close');
+    } else {
+      state.awaitingAnswer = true;
+      setStatus('voiceStatus', 'Jawaban belum berhasil dicatat. Silakan ulangi jawaban terakhir; pertanyaan belum dilanjutkan.', 'warn');
+      if (!state.aiResponding && !state.responseRequestPending) setMic(true);
+    }
     return;
   }
 
   if (type === 'response.created') {
-    state.openingPending = false;
-    const responseId = ev.response && ev.response.id ? ev.response.id : '';
-    if (!state.responseRequestPending) {
-      markIntegrityFailure('unexpected_server_response_created', { responseId, serverResponseCreateSuspected:true });
-      try { state.dc.send(JSON.stringify({ type:'response.cancel', response_id:responseId || undefined })); } catch(e) {}
+    const responseId = ev.response && ev.response.id || '';
+    const requestId = ev.response && ev.response.metadata && ev.response.metadata.dlp_event_id || '';
+    if (!responseId) { failRealtimeSafely_('missing_response_id'); return; }
+    if (state.responseRecords[responseId]) return; // Duplicate created event.
+    if (state.finalized || state.realtimeFailure || !state.responseRequestPending ||
+        (requestId && requestId !== state.responseRequestEventId)) {
+      try { state.dc.send(JSON.stringify({type:'response.cancel',response_id:responseId})); } catch (_) {}
+      logFlow('[DLP_STALE_RESPONSE_IGNORED]', {responseId});
+      if (!state.finalized && !state.realtimeFailure && !requestId) failRealtimeSafely_('unowned_response');
+      return;
     }
+    state.openingPending = false;
+    state.responseRecords[responseId] = {done:false,stopped:false,textSeen:{}};
+    clearTimeout(state.responseWatchdog);
+    armResponseWatchdog_('', responseId, 90000);
     state.aiResponding = true;
     state.activeResponseId = responseId;
     state.activeResponseKind = state.responseRequestKind || 'unexpected_server';
@@ -1531,9 +1663,16 @@ async function handleRealtimeEvent(raw) {
   }
 
   if (type === 'response.done') {
-    const responseId = ev.response && ev.response.id ? ev.response.id : state.activeResponseId;
+    const responseId = ev.response && ev.response.id || '';
+    const record = state.responseRecords[responseId];
+    if (!responseId || responseId !== state.activeResponseId || !record || record.done) return;
+    record.done = true;
+    const status = ev.response && ev.response.status;
+    logFlow('[DLP_RESPONSE_DONE]', {responseId,status});
+    if (status !== 'completed') { failRealtimeSafely_('response_' + String(status || 'unknown')); return; }
     state.activeResponseDone = true;
-    logFlow('[DLP_RESPONSE_DONE]', { responseId, status:ev.response && ev.response.status });
+    state.responseRetryCount = 0;
+    if (record.stopped) { completeResponsePlayback_(responseId); return; }
     // Prefer the playback-stopped event, but do not let a missing WebRTC audio
     // event strand a completed session in STARTED forever.
     if (state.activeResponseKind === 'final_close' && responseId === state.finalCloseResponseId) {
@@ -1542,13 +1681,40 @@ async function handleRealtimeEvent(raw) {
     return;
   }
 
+  if (type === 'output_audio_buffer.started') {
+    if (ev.response_id === state.activeResponseId && state.audioBlocked) markIntegrityFailure('audio_playback_failed', {});
+    return;
+  }
   if (type === 'output_audio_buffer.stopped') {
-    const responseId = ev.response_id || state.activeResponseId;
-    const responseKind = responseId && responseId === state.activeResponseId ? state.activeResponseKind : '';
-    logFlow('[DLP_OUTPUT_AUDIO_STOPPED]', { responseId, responseKind });
-    state.aiResponding = false;
-    state.activeResponseDone = true;
+    const responseId = ev.response_id || '';
+    const record = state.responseRecords[responseId];
+    if (!responseId || responseId !== state.activeResponseId || !record || record.stopped) return;
+    record.stopped = true;
+    if (record.done) completeResponsePlayback_(responseId);
+    return;
+  }
 
+  if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done' || type === 'response.output_text.done') {
+    const aiText = ev.transcript || ev.text || '';
+    const responseId = ev.response_id || state.activeResponseId || '';
+    const record = state.responseRecords[responseId];
+    if (!record || state.transcriptSavePayload || record.textSeen[aiText]) return;
+    record.textSeen[aiText] = true;
+    pushTranscript('ai', aiText, { responseId });
+    if (!state.finalized && isClosingPhrase(aiText) && (!state.finalCloseResponseId || responseId !== state.finalCloseResponseId)) {
+      overridePrematureClose(responseId);
+    }
+    return;
+  }
+}
+function completeResponsePlayback_(responseId) {
+  const record = state.responseRecords[responseId];
+  if (!record || record.settled || responseId !== state.activeResponseId || state.realtimeFailure) return;
+  record.settled = true;
+  const responseKind = state.activeResponseKind;
+  clearTimeout(state.responseWatchdog);
+  state.aiResponding = false;
+  logFlow('[DLP_OUTPUT_AUDIO_STOPPED]', {responseId,responseKind});
     if (responseKind === 'final_close' && responseId === state.finalCloseResponseId) {
       state.finalCloseAudioCompleted = true;
       requestFinalization_('verified_final_close_audio_stopped', 700);
@@ -1576,42 +1742,91 @@ async function handleRealtimeEvent(raw) {
     updateVizState();
     setStatus('voiceStatus', 'Giliran kamu. Silakan jawab.', 'ok');
     scheduleFinalCloseIfNoSpeech();
-    return;
-  }
+}
 
-  if (type === 'response.output_audio_transcript.done' || type === 'response.audio_transcript.done' || type === 'response.output_text.done') {
-    const aiText = ev.transcript || ev.text || '';
-    const responseId = ev.response_id || state.activeResponseId || '';
-    pushTranscript('ai', aiText, { responseId });
-    if (!state.finalized && isClosingPhrase(aiText) && (!state.finalCloseResponseId || responseId !== state.finalCloseResponseId)) {
-      overridePrematureClose(responseId);
+function armResponseWatchdog_(requestId, responseId, ms) {
+  clearTimeout(state.responseWatchdog);
+  const epoch = connectionEpoch;
+  state.responseWatchdog = setTimeout(() => {
+    if (epoch !== connectionEpoch || !state.connected || state.finalized) return;
+    if ((requestId && requestId === state.responseRequestEventId && state.responseRequestPending) ||
+        (responseId && responseId === state.activeResponseId && state.aiResponding)) failRealtimeSafely_('response_timeout');
+  }, ms);
+}
+function failRealtimeSafely_(reason) {
+  if (state.realtimeFailure || state.finalized) return;
+  state.realtimeFailure = true;
+  clearTimeout(state.responseWatchdog); clearTimeout(state.responseRetryTimer); state.responseRetryTimer = null;
+  clearTurnGrace_();
+  state.queuedResponse = null;
+  markIntegrityFailure('realtime_response_failed', {reason});
+  setMic(false);
+  try { if (state.activeResponseId) state.dc.send(JSON.stringify({type:'response.cancel',response_id:state.activeResponseId})); } catch (_) {}
+  state.aiResponding = false; state.responseRequestPending = false;
+  state.responseRequestKind = ''; state.responseRequestEventId = '';
+  setStatus('voiceStatus', 'Layanan suara mengalami gangguan. Sesi dihentikan dan jawaban yang tercatat akan disimpan untuk pemeriksaan.', 'err');
+  Promise.resolve(handleConnectionFailure_(reason)).catch(e => {
+    stopVoice(); setButtons('stopped');
+    setStatus('feedbackStatus', 'Pemulihan belum selesai. Gunakan tombol Feedback untuk memeriksa sesi yang sama.', 'warn');
+    logDebug({voiceRecoveryError:String(e.message || e)});
+  });
+}
+async function playRemoteAudio_() {
+  const epoch = connectionEpoch, sequence = ++state.audioPlaySequence;
+  // A MediaStream play() promise can wait for the first audio packet.
+  // Only an explicit playback rejection blocks the mic; waiting must not deadlock the greeting.
+  try {
+    await el('remoteAudio').play();
+    if (epoch !== connectionEpoch || sequence !== state.audioPlaySequence || !state.pc) return;
+    state.audioBlocked = false;
+   
+    el('btnEnableAudio').style.display = 'none'; el('audioNotice').style.display = 'none';
+    if (state.audioCtx && state.audioCtx.state === 'suspended') state.audioCtx.resume().catch(()=>{});
+    if (state.connected && !state.finalized && !state.aiResponding && !state.responseRequestPending && !state.finalCloseResponseId) {
+      if (state.queuedResponse && !state.awaitingAnswer) flushManagedResponse('audio_enabled');
+      else setMic(true);
     }
-    return;
+  } catch (_) {
+    if (epoch !== connectionEpoch || sequence !== state.audioPlaySequence || !state.pc) return;
+    state.audioBlocked = true;
+    if (state.aiResponding) markIntegrityFailure('audio_playback_failed', {});
+    el('btnEnableAudio').style.display = 'block'; el('audioNotice').style.display = 'block';
+    el('audioNotice').textContent = 'Suara belum aktif. Ketuk Aktifkan suara sebelum menjawab. Waktu sesi yang sudah dimulai tetap berjalan.';
+    setMic(false);
   }
 }
+el('btnEnableAudio').onclick = () => playRemoteAudio_();
+
 async function connectRealtime() {
   const pc = new RTCPeerConnection(); state.pc = pc;
+  const epoch = ++connectionEpoch;
+  const current = () => epoch === connectionEpoch && state.pc === pc;
   pc.ontrack = (e) => {
-    const a = el('remoteAudio'); a.srcObject = e.streams[0]; a.play().catch(()=>{});
+    if (!current()) return;
+    const a = el('remoteAudio'); a.srcObject = e.streams[0];
+    playRemoteAudio_();
     state.remoteStream = e.streams[0];
     if (state.audioCtx) { state.aiAnalyser = setupAnalyser(state.remoteStream); if (state.aiAnalyser) state.aiBuf = new Uint8Array(state.aiAnalyser.fftSize); }
   };
   state.localStream.getTracks().forEach(t => pc.addTrack(t, state.localStream));
   const dc = pc.createDataChannel('oai-events'); state.dc = dc;
   dc.addEventListener('message', (e) => {
+    if (!current()) return;
     Promise.resolve(handleRealtimeEvent(e.data)).catch(err => {
       logDebug({realtimeEventError:String(err && err.message ? err.message : err)});
       if (state.candidateStarted && !state.finalized) requestFinalization_('connection_failure');
     });
   });
   dc.addEventListener('close', () => {
-    if (state.connected && !state.finalized) handleConnectionFailure_('data_channel_closed');
+    if (current() && state.connected && !state.finalized) handleConnectionFailure_('data_channel_closed');
   });
 
   const dcReady = new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Realtime data channel open timeout')), 15000);
     dc.addEventListener('open', () => {
+      if (!current()) { clearTimeout(timer); reject(new Error('CONNECTION_SUPERSEDED')); return; }
       clearTimeout(timer); state.dataChannelOpen = true; state.connected = true;
+      if (!state.aiResponding && !state.responseRequestPending) setMic(true);
       setStatus('voiceStatus', 'Terhubung. Ucapkan "Good morning" untuk memulai — Yuliana menunggu kamu bicara dulu.', 'ok');
       if (isCadetSession_()) setStatus('voiceStatus', 'Terhubung dengan ' + (state.sessionMeta.interviewerRole || 'interviewer Cadet') + '. Ucapkan “Good morning” untuk memulai.', 'ok');
       updateVizState(); armIdleNudges(); resolve(true);
@@ -1619,12 +1834,14 @@ async function connectRealtime() {
   });
 
   pc.onconnectionstatechange = () => {
+    if (!current()) return;
     logFlow('[DLP_PC_STATE]', { connectionState:pc.connectionState });
     if (pc.connectionState === 'connected') clearTimeout(state.disconnectTimer);
     if (pc.connectionState === 'disconnected' && state.connected && !state.finalized) {
+      setStatus('voiceStatus', 'Koneksi terganggu. Menunggu sambungan kembali; jangan menutup halaman.', 'warn');
       clearTimeout(state.disconnectTimer);
       state.disconnectTimer = setTimeout(() => {
-        if (pc.connectionState === 'disconnected' && !state.finalized) handleConnectionFailure_('disconnected_timeout');
+        if (current() && pc.connectionState === 'disconnected' && !state.finalized) handleConnectionFailure_('disconnected_timeout');
       }, 5000);
     }
     if (pc.connectionState === 'failed' && state.connected && !state.finalized) handleConnectionFailure_('failed');
@@ -1642,13 +1859,15 @@ async function connectRealtime() {
 async function handleConnectionFailure_(reason) {
   clearInterval(state.timerInterval);
   if (!state.candidateStarted) {
+    state.stoppingVoice = true; setMic(false);
     setStatus('voiceStatus', 'Koneksi gagal sebelum interview dimulai. Laporan sesi dikirim untuk pemeriksaan kredit.', 'err');
     await reportClientStartFailure_(reason || 'connection_failure_before_start');
     stopVoice();
     setButtons('idle');
     return;
   }
-  const closingNormally = state.finalCloseRequested || state.remainingSeconds <= 0 || state.activeResponseKind === 'final_close';
+  const closingNormally = !state.realtimeFailure && state.finalCloseResponseId && state.activeResponseDone &&
+    state.activeResponseKind === 'final_close' && state.pendingTranscriptions === 0 && !state.candidateSpeaking;
   if (closingNormally) {
     state.aiResponding = false;
     state.responseRequestPending = false;
@@ -1662,6 +1881,8 @@ async function handleConnectionFailure_(reason) {
 }
 function resetSessionState_() {
   clearTurnGrace_();
+  connectionEpoch++;
+  clearTimeout(state.responseWatchdog); clearTimeout(state.responseRetryTimer);
   recoverySnapshotSequence++;
   clearInterval(state.timerInterval);
   clearTimeout(state.preStartTimer); clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer); clearTimeout(state.disconnectTimer);
@@ -1673,6 +1894,10 @@ function resetSessionState_() {
     candidateStarted:false, clientStartedReported:false, openingPending:false, openingGreeting:false, candidateSpeaking:false, pendingTranscriptions:0,
     activeSpeechItems:{}, pendingSpeechItems:{}, completedSpeechItems:{}, turnGraceTimer:null,
     transcriptSavePayload:null, lastSaveReceipt:null, feedbackResolved:false,
+    stoppingVoice:false,
+    responseWatchdog:null,responseRetryTimer:null,responseRetryCount:0,responseRecords:{},realtimeFailure:false,
+    audioBlocked:false,audioPlaySequence:0,waitingForRepeat:false,repeatSpeechItems:{},
+    sessionTesterCode:'',terminalPhase:'',
     remainingSeconds:0, deadlineAt:0, aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
     responseRequestPending:false, responseRequestKind:'', responseRequestEventId:'', queuedResponse:null,
     awaitingAnswer:false, wrapUpRequested:false, wrapUpDelivered:false,
@@ -1702,7 +1927,9 @@ el('btnStart').onclick = async () => {
     if (!getUrl()) { setStatus('voiceStatus', 'Layanan belum siap. Hubungi admin sebelum memulai interview.', 'err'); return; }
     setButtons('busy');
     const pendingRecovery = await recoverPendingStartup_({preferResume:true, maxWaitMs:20000});
+    archiveTerminalSnapshot_();
     resetSessionState_();
+    el('sessionHelp').style.display = 'none';
     try { sessionStorage.removeItem('dlpPendingFeedback'); } catch (_) {}
     state.clientRequestId = pendingRecovery && pendingRecovery.resumed
       ? pendingRecovery.bootstrap.clientRequestId
@@ -1727,7 +1954,9 @@ el('btnStart').onclick = async () => {
 
     setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn');
     const params = mapParams();
+    state.sessionTesterCode = params.testerCode;
     const health = await jsonp('health', {_t:Date.now()}, 30000);
+    if (String(health.appVersion || '').indexOf(EXPECTED_BACKEND_PREFIX) !== 0) throw new Error('BACKEND_VERSION_MISMATCH: Pasangan versi backend belum sesuai. Kredit belum dipotong.');
     if (health.lifecycleProtocol !== 'lifecycle-qwen-v2' || health.transcriptProtocol !== 'transcript-ack-v1' || health.feedbackProtocol !== 'feedback-commit-v1' || health.feedbackErrorProtocol !== 'feedback-error-v1') throw new Error('BACKEND_VERSION_MISMATCH: Deploy Code.gs feedback-error-recovery pasangan HTML ini. Credit belum dipotong; periksa URL /exec.');
     if (/Cadet$/.test(params.rank)) await assertCadetCapabilityBeforeStart_(params);
     let token;
@@ -1802,6 +2031,10 @@ el('btnStart').onclick = async () => {
   }
 };
 function stopVoice() {
+  connectionEpoch++;
+  clearTimeout(state.responseWatchdog); clearTimeout(state.responseRetryTimer); state.responseRetryTimer = null;
+  el('btnEnableAudio').style.display = 'none'; el('audioNotice').style.display = 'none';
+  try { el('remoteAudio').pause(); el('remoteAudio').srcObject = null; } catch (_) {}
   clearTurnGrace_();
   clearInterval(state.timerInterval); clearTimeout(state.micResumeTimer);
   clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
@@ -1826,6 +2059,7 @@ async function waitForRealtimeDrain_(timeoutMs) {
   return false;
 }
 async function gracefulStopAndDrain_() {
+  state.stoppingVoice = true;
   clearTurnGrace_();
   setMic(false);
   const drained = await waitForRealtimeDrain_(7000);
@@ -2107,6 +2341,9 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
       continue;
     }
     data = observed.result;
+    if (identity.sessionId !== state.sessionId) throw new Error('SESSION_CHANGED_DURING_FEEDBACK');
+    const terminal = sessionTerminalResult_(data, identity);
+    if (terminal) return terminal;
     const session = data && data.session;
     if (!session) throw new Error('FEEDBACK_SESSION_NOT_FOUND');
     const status = String(session.status || '');
@@ -2125,7 +2362,7 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
     }
     const failure = session.feedbackFailure || (/FEEDBACK_RESULT_UNCERTAIN/.test(String(session.error || ''))
       ? {code:'FEEDBACK_RESULT_UNCERTAIN', stage:'UNKNOWN_LEGACY_FAILURE', validatedResult:false} : null);
-    if (status === 'FEEDBACK_REVIEW_REQUIRED') throw feedbackStoppedError_(failure || {code:status}, identity.sessionId);
+    if (status === 'FEEDBACK_REVIEW_REQUIRED') return {status,reviewRequired:true,terminalPhase:'closed_for_review'};
     if (status === 'FEEDBACK_GENERATING' && failure) {
       // getSession already attempted cached-result recovery. Retry reads a few times
       // only if a valid result exists or this is an older, unclassified failure.
@@ -2187,6 +2424,7 @@ function runFeedbackFlow() {
 async function executeFeedbackFlow_() {
   if (state.feedbackBusy) return;
   state.feedbackBusy = true;
+  const flowSessionId = state.sessionId;
   try {
     if (!state.sessionId) throw new Error('Belum ada session.');
     if (!state.finalizationEvidence) captureFinalizationEvidence_('manual_feedback');
@@ -2202,9 +2440,16 @@ async function executeFeedbackFlow_() {
     let expectedHash = payload ? payload.expectedHash : (pending && pending.sessionId === state.sessionId ? pending.expectedHash : '');
     let saved = null;
     try {
-      const existing = await jsonp('getSession', {...identity, _t:Date.now()}, 15000);
+      const existing = await jsonp('getSession', {...identity, includeCredits:'1', _t:Date.now()}, 15000);
+      if (state.sessionId !== identity.sessionId) throw new Error('SESSION_CHANGED_DURING_FEEDBACK');
       saved = existing.session || {};
-    } catch (_) { /* An unavailable read does not prove that the save failed. */ }
+      applySessionCredits_(existing, identity, state.sessionTesterCode);
+      const terminal = sessionTerminalResult_(existing, identity);
+      if (terminal) { renderFeedbackResult_(terminal); return; }
+    } catch (e) {
+      if (state.sessionId !== flowSessionId || state.feedbackResolved) throw e;
+      /* An unavailable read does not prove that the save failed. */
+    }
     if (saved && !saved.startedAt && /STARTUP.*(?:CANCELLED|FAILED)|STARTUP_CANCELLED/.test(saved.status)) {
       recoverySnapshotSequence++;
       try { sessionStorage.removeItem('dlpPendingFeedback'); } catch (_) {}
@@ -2245,8 +2490,12 @@ async function executeFeedbackFlow_() {
     setStatus('feedbackStatus', 'Membuat feedback kamu…', 'warn');
     await persistTranscriptRecoverySnapshot_('transcript_confirmed');
     const data = await requestFeedbackWithRecovery_(identity, expectedHash);
+    if (state.sessionId !== identity.sessionId) return;
     renderFeedbackResult_(data);
+    await refreshSessionCredits_(identity);
   } catch(e) {
+    if (state.sessionId !== flowSessionId) return;
+    showSessionHelp_();
     clearInterval(state.timerInterval);
     clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer);
     logDebug({feedbackFlowError:String(e.message || e), sessionId:state.sessionId,
@@ -2255,13 +2504,18 @@ async function executeFeedbackFlow_() {
     setStatus('voiceStatus', e.feedbackStopped
       ? 'Interview selesai. Proses feedback mengalami kendala; detail tersedia di bawah.'
       : 'Interview selesai. Feedback belum terkonfirmasi; periksa pesan di bawah dan gunakan Feedback untuk sesi yang sama.', 'warn');
-  } finally { state.feedbackBusy=false; setButtons(state.feedbackResolved ? 'idle' : 'stopped'); }
+  } finally { if (state.sessionId === flowSessionId) { state.feedbackBusy=false; setButtons(state.feedbackResolved ? 'idle' : 'stopped'); } }
 }
 function renderFeedbackResult_(data) {
     clearInterval(state.timerInterval);
     clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer);
     const feedbackResultStatus = String(data.status || '');
-    if (data.reviewRequired) {
+    if (data.terminalPhase === 'refunded' || data.refunded === true) {
+      state.lastFeedback = 'Kredit sesi ini sudah dikembalikan. Kamu dapat memulai sesi berikutnya jika kode masih memiliki kredit. Catatan sesi ini tetap tersedia.';
+      el('feedbackPanel').style.display='block'; el('feedbackPanel').textContent=state.lastFeedback;
+      setStatus('feedbackStatus', 'Kredit sesi sudah dikembalikan.', 'ok');
+      setStatus('voiceStatus', 'Sesi sebelumnya sudah ditutup. Periksa sisa kredit sebelum memulai sesi berikutnya.', 'ok');
+    } else if (data.reviewRequired) {
       logDebug({sessionOutcome:data});
       state.lastFeedback = 'Transkrip tersimpan. Sesi perlu diperiksa admin. Simpan catatan sesi saat menghubungi admin.';
       el('feedbackPanel').style.display='block';
@@ -2291,6 +2545,11 @@ function renderFeedbackResult_(data) {
         logDebug({reportingStorageWarning:true, sessionId:state.sessionId});
       }
     }
+    state.terminalPhase = data.terminalPhase || (data.refunded ? 'refunded' : data.reviewRequired ? 'closed_for_review' : 'result_rendered');
+    if (state.terminalPhase === 'closed_for_review') {
+      showSessionHelp_();
+      setStatus('voiceStatus', 'Sesi ini perlu bantuan admin. Kredit belum dinyatakan kembali. Kamu boleh memakai sisa kredit untuk latihan baru; hasil lama dapat diperiksa dari catatan sesi.', 'warn');
+    }
     state.feedbackResolved = true;
     recoverySnapshotSequence++; // No older async digest may resurrect a pending phase.
     el('btnCopyFb').disabled = false;
@@ -2298,8 +2557,10 @@ function renderFeedbackResult_(data) {
     el('btnDownload').disabled = !state.sessionId;
     const pending = readFeedbackSnapshot_();
     if (pending && (!state.sessionId || pending.sessionId === state.sessionId)) {
-      pending.phase = 'result_rendered';
-      try { sessionStorage.setItem('dlpPendingFeedback', JSON.stringify(pending)); } catch (_) {}
+      pending.phase = state.terminalPhase;
+      pending.lastFeedback = state.lastFeedback;
+      try { sessionStorage.setItem('dlpPendingFeedback', JSON.stringify(pending)); }
+      catch (_) { state.feedbackResolved = false; showSessionHelp_(); setStatus('feedbackStatus', 'Hasil tersedia, tetapi catatan pemulihan belum tersimpan. Unduh catatan sesi sebelum melanjutkan.', 'warn'); }
     }
 }
 el('btnFeedback').onclick = () => state.sessionId
@@ -2312,6 +2573,9 @@ async function resumeFeedbackAfterReload_() {
   // Hydrate BEFORE the first network request, so a failed recovery read is retryable.
   state.sessionId = pending.sessionId;
   state.sessionAccessToken = pending.sessionAccessToken;
+  state.sessionTesterCode = pending.testerCode || '';
+  // A terminal snapshot is rechecked, never used as proof of a refund.
+  state.terminalPhase = '';
   state.transcript = Array.isArray(pending.transcript) ? pending.transcript : [];
   state.startedAt = pending.startedAt ? new Date(pending.startedAt) : null;
   state.endedAt = pending.endedAt ? new Date(pending.endedAt) : new Date();
@@ -2319,8 +2583,10 @@ async function resumeFeedbackAfterReload_() {
   state.integrityFlags = Array.isArray(pending.integrityFlags) ? pending.integrityFlags : [];
   state.finalizationEvidence = pending.finalizationEvidence || null;
   state.finalized = true;
+  el('transcriptPanel').innerHTML = '';
+  el('feedbackPanel').style.display = 'none';
+  el('feedbackPanel').textContent = '';
   if (state.transcript.length) {
-    el('transcriptPanel').innerHTML = '';
     state.transcript.forEach(item => {
       const div = document.createElement('div');
       const user = String(item.role).toLowerCase() === 'user';
@@ -2356,6 +2622,7 @@ window.addEventListener('beforeunload', () => { if (state.sessionId && !state.ca
 el('webAppUrl').value = DEFAULT_WEB_APP_URL;
 el('testerCode').value = sessionStorage.getItem('dlpTesterCode') || '';
 refreshSetup();
+refreshSessionHistory_();
 setButtons('idle');
 updateVizState();
 
