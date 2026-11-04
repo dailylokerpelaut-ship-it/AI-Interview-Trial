@@ -498,9 +498,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.15-interview-recovery-rc7';
+const HTML_VERSION = 'prod-6.8.16-diagnostics-rc8a';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
-const EXPECTED_BACKEND_PREFIX = 'rc-6.8.12';
+const EXPECTED_BACKEND_PREFIX = 'rc-6.8.13';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
 // Apps Script POST executions can occasionally queue for more than one minute.
 // Keep polling the authenticated session instead of assuming the transcript failed.
@@ -621,6 +621,74 @@ const state = {
   audioCtx:null, userAnalyser:null, aiAnalyser:null, userBuf:null, aiBuf:null,
   vizRaf:0, aiSilentFrames:0, audioReactive:false
 };
+
+// RC8A: observation only. Never used for credit, eligibility or turn decisions.
+const DIAGNOSTIC_LIMIT = 400;
+const DIAGNOSTIC_STORAGE_KEY = 'dlpDiagnosticsV1';
+const DIAGNOSTIC_PAGE_ID = 'page-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
+const DIAGNOSTIC_FIELDS = new Set(('backendVersion phase awaitingAnswer candidateSpeaking pendingTranscriptions aiResponding activeResponseId activeResponseKind responseId responseKind eventId requestEventId itemId rejectedId status code errorType errorCode statusReason flag reason kind source connectionState audioStartMs audioEndMs waitMs waitedMs attempt transport expectedItems serverItems expectedChars serverChars hashExact hashOk itemsOk statusOk dispatched remainingSeconds changed enabled transcriptChars outputTokens inputTokens totalTokens audioOutputTokens textOutputTokens maxOutputTokens model voice transcriptionModel language turnDetectionType threshold prefixPaddingMs silenceDurationMs createResponse interruptResponse noiseReduction providerElapsedMs feedbackCached reviewRequired refunded terminalPhase').split(' '));
+let diagnosticBuffer = null;
+function diagnosticFields_(input) {
+  const out = {};
+  Object.keys(input || {}).forEach(key => {
+    if (!DIAGNOSTIC_FIELDS.has(key)) return;
+    const v = input[key];
+    if (typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))) out[key] = v;
+    // No free-text errors, transcripts, URLs or nested provider payloads.
+    else if (typeof v === 'string' && v.length <= 96 && /^[A-Za-z0-9_.:\[\]-]*$/.test(v) && !/(?:sk-|ek_|Bearer)/i.test(v)) out[key] = v;
+  });
+  return out;
+}
+function ensureDiagnostics_() {
+  const sid = state.sessionId || '';
+  if (!diagnosticBuffer || diagnosticBuffer.sessionId !== sid) {
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem(DIAGNOSTIC_STORAGE_KEY) || 'null'); } catch (_) {}
+    if (sid && saved && saved.schemaVersion === 1 && saved.sessionId === sid && Array.isArray(saved.events)) {
+      diagnosticBuffer = {schemaVersion:1,sessionId:sid,htmlVersion:saved.htmlVersion,events:saved.events.slice(-DIAGNOSTIC_LIMIT),droppedEvents:Number(saved.droppedEvents)||0,config:saved.config || {}};
+    } else if (diagnosticBuffer && !diagnosticBuffer.sessionId) diagnosticBuffer.sessionId = sid;
+    else diagnosticBuffer = {schemaVersion:1,sessionId:sid,htmlVersion:HTML_VERSION,events:[],droppedEvents:0,config:{}};
+  }
+  return diagnosticBuffer;
+}
+function recordDiagnostic_(event, fields = {}) {
+  try {
+    if (!/^\[DLP_[A-Z0-9_]+\]$/.test(event)) return;
+    const d = ensureDiagnostics_();
+    const mono = typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : null;
+    d.events.push(Object.assign({event,at:new Date().toISOString(),pageId:DIAGNOSTIC_PAGE_ID,monotonicMs:mono},diagnosticFields_(fields)));
+    if (d.events.length > DIAGNOSTIC_LIMIT) { d.events.shift(); d.droppedEvents++; }
+    if (d.sessionId) sessionStorage.setItem(DIAGNOSTIC_STORAGE_KEY, JSON.stringify(d));
+  } catch (_) { /* Diagnostic/storage failures must never affect an interview. */ }
+}
+function realtimeDiagnosticFields_(s) {
+  const input = s && s.audio && s.audio.input || {}, output = s && s.audio && s.audio.output || {};
+  const vad = input.turn_detection || {}, transcription = input.transcription || {};
+  return diagnosticFields_({model:s && s.model,maxOutputTokens:s && s.max_output_tokens,voice:output.voice,
+    transcriptionModel:transcription.model,language:transcription.language,turnDetectionType:vad.type,
+    threshold:vad.threshold,prefixPaddingMs:vad.prefix_padding_ms,silenceDurationMs:vad.silence_duration_ms,
+    createResponse:vad.create_response,interruptResponse:vad.interrupt_response,noiseReduction:input.noise_reduction && input.noise_reduction.type});
+}
+function bindDiagnosticConfig_(meta) {
+  try {
+    const config = meta && meta.selectionSummary && meta.selectionSummary.realtimeDiagnostics || {};
+    ensureDiagnostics_().config = {backendVersion:diagnosticFields_({backendVersion:meta && meta.appVersion}).backendVersion,requested:diagnosticFields_(config.requested),bootstrapReturned:diagnosticFields_(config.bootstrapReturned)};
+    recordDiagnostic_('[DLP_DIAGNOSTIC_CONFIG]', {providerElapsedMs:config.providerElapsedMs});
+  } catch (_) {}
+}
+function exportDiagnostics_() {
+  try { return JSON.parse(JSON.stringify(ensureDiagnostics_())); }
+  catch (_) { return {schemaVersion:1,unavailable:true}; }
+}
+function buildSessionDownload_() {
+  const meta = {}, source = state.sessionMeta || {};
+  // Explicit allowlist; never export credentials or arbitrary backend metadata.
+  'appVersion responseOwner productMode userCategory focus mode department rank previousRank previousVesselType targetVesselType durationMinutes realtimeModel transcribeModel feedbackModel voice promptVersion feedbackPromptVersion questionBankVersion selectedQuestionIds'.split(' ').forEach(key => {
+    if (typeof source[key] === 'string' || typeof source[key] === 'number') meta[key] = source[key];
+  });
+  return {sessionId:state.sessionId,htmlVersion:HTML_VERSION,meta,integrityFlags:state.integrityFlags,
+    transcript:state.transcript,feedback:state.lastFeedback,diagnostics:exportDiagnostics_()};
+}
 
 // ---------------- helpers ----------------
 function getUrl() { return (el('webAppUrl').value || DEFAULT_WEB_APP_URL).trim(); }
@@ -1178,6 +1246,7 @@ function containsInternalCueFingerprint(text) {
   return /FRONTEND\s+(?:TIMER\s+)?CUE|WRAP_UP_60_SECONDS|FINAL_CLOSE|SYSTEM CORRECTION|CANDIDATE_SILENT_NUDGE|manualResponseCreate|cueReason/i.test(String(text || ''));
 }
 function markIntegrityFailure(flag, detail) {
+  recordDiagnostic_('[DLP_INTEGRITY_FAILED]', {flag,reason:detail && detail.reason});
   if (state.integrityFlags.indexOf(flag) < 0) state.integrityFlags.push(flag);
   logDebug({ tag:'[DLP_INTEGRITY_FAILED]', flag, detail:detail || null });
 }
@@ -1205,6 +1274,8 @@ function finalizePrematureCloseIntegrity_() {
   });
 }
 function logFlow(tag, extra = {}) {
+  recordDiagnostic_(tag, Object.assign({phase:getPhase(),awaitingAnswer:state.awaitingAnswer,candidateSpeaking:state.candidateSpeaking,
+    pendingTranscriptions:state.pendingTranscriptions,aiResponding:state.aiResponding,activeResponseId:state.activeResponseId,activeResponseKind:state.activeResponseKind},extra));
   logDebug(Object.assign({
     tag,
     seq: ++state.eventSeq,
@@ -1229,6 +1300,7 @@ function getPhase() {
 function setMic(enabled) {
   if (!state.localStream) return;
   if (enabled && (state.stoppingVoice || state.audioBlocked || state.realtimeFailure)) enabled = false;
+  if (state.localStream.getAudioTracks().some(t => t.enabled !== enabled)) recordDiagnostic_('[DLP_MIC_CHANGED]', {enabled});
   state.localStream.getAudioTracks().forEach(t => { t.enabled = enabled; });
   updateVizState();
 }
@@ -1512,10 +1584,14 @@ async function handleRealtimeEvent(raw) {
   const type = ev.type || '';
   if (!state.connected) return;
 
+  if (type === 'session.created' || type === 'session.updated') {
+    recordDiagnostic_(type === 'session.created' ? '[DLP_SESSION_CREATED]' : '[DLP_SESSION_UPDATED]', realtimeDiagnosticFields_(ev.session));
+  }
+
   if (type === 'error') {
     const code = String(ev.error && ev.error.code || '');
     const rejectedId = String(ev.error && ev.error.event_id || '');
-    logFlow('[DLP_REALTIME_ERROR]', {code, rejectedId});
+    logFlow('[DLP_REALTIME_ERROR]', {code, rejectedId, errorType:ev.error && ev.error.type});
     if (rejectedId && rejectedId !== state.responseRequestEventId) return; // An old/cancel event cannot alter a new response.
     if (state.realtimeFailure || state.finalized) return;
     if (rejectedId && state.responseRequestPending && !state.activeResponseId &&
@@ -1565,6 +1641,7 @@ async function handleRealtimeEvent(raw) {
     clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
     finishSpeechItem_(key);
     state.lastUserTranscriptAt = Date.now();
+    recordDiagnostic_('[DLP_TRANSCRIPTION_RECEIVED]', {itemId:key,transcriptChars:String(ev.transcript || '').length});
     pushTranscript('user', ev.transcript || '', { itemId:ev.item_id || '' });
     if (state.waitingForRepeat && state.repeatSpeechItems[key] && String(ev.transcript || '').trim() && !state.finalized && !state.finalCloseRequested) {
       state.waitingForRepeat = false;
@@ -1608,6 +1685,7 @@ async function handleRealtimeEvent(raw) {
   if (type === 'conversation.item.input_audio_transcription.failed') {
     const key = ev.item_id || '';
     if (key && state.completedSpeechItems[key]) return;
+    recordDiagnostic_('[DLP_TRANSCRIPTION_FAILED]', {itemId:key,errorType:ev.error && ev.error.type,errorCode:ev.error && ev.error.code});
     if (key) state.completedSpeechItems[key] = true;
     finishSpeechItem_(key);
     state.awaitingAnswer = state.candidateSpeaking || state.pendingTranscriptions > 0;
@@ -1644,6 +1722,7 @@ async function handleRealtimeEvent(raw) {
       return;
     }
     state.openingPending = false;
+    const requestEventId = state.responseRequestEventId;
     state.responseRecords[responseId] = {done:false,stopped:false,textSeen:{}};
     clearTimeout(state.responseWatchdog);
     armResponseWatchdog_('', responseId, 90000);
@@ -1658,7 +1737,7 @@ async function handleRealtimeEvent(raw) {
     state.responseRequestEventId = '';
     state.aiSilentFrames = 0;
     setMic(false); updateVizState();
-    logFlow('[DLP_RESPONSE_CREATED]', { responseId, responseKind:state.activeResponseKind });
+    logFlow('[DLP_RESPONSE_CREATED]', { responseId, requestEventId, responseKind:state.activeResponseKind });
     return;
   }
 
@@ -1668,7 +1747,11 @@ async function handleRealtimeEvent(raw) {
     if (!responseId || responseId !== state.activeResponseId || !record || record.done) return;
     record.done = true;
     const status = ev.response && ev.response.status;
-    logFlow('[DLP_RESPONSE_DONE]', {responseId,status});
+    const details = ev.response.status_details || {}, usage = ev.response.usage || {}, outputUsage = usage.output_token_details || {};
+    logFlow('[DLP_RESPONSE_DONE]', {responseId,status,statusReason:details.reason,errorType:details.error && details.error.type,
+      errorCode:details.error && details.error.code,maxOutputTokens:ev.response.max_output_tokens,
+      outputTokens:usage.output_tokens,inputTokens:usage.input_tokens,totalTokens:usage.total_tokens,
+      audioOutputTokens:outputUsage.audio_tokens,textOutputTokens:outputUsage.text_tokens});
     if (status !== 'completed') { failRealtimeSafely_('response_' + String(status || 'unknown')); return; }
     state.activeResponseDone = true;
     state.responseRetryCount = 0;
@@ -1682,6 +1765,7 @@ async function handleRealtimeEvent(raw) {
   }
 
   if (type === 'output_audio_buffer.started') {
+    if (ev.response_id === state.activeResponseId) recordDiagnostic_('[DLP_OUTPUT_AUDIO_STARTED]', {responseId:ev.response_id});
     if (ev.response_id === state.activeResponseId && state.audioBlocked) markIntegrityFailure('audio_playback_failed', {});
     return;
   }
@@ -1689,6 +1773,7 @@ async function handleRealtimeEvent(raw) {
     const responseId = ev.response_id || '';
     const record = state.responseRecords[responseId];
     if (!responseId || responseId !== state.activeResponseId || !record || record.stopped) return;
+    recordDiagnostic_('[DLP_OUTPUT_AUDIO_STOP_RECEIVED]', {responseId});
     record.stopped = true;
     if (record.done) completeResponsePlayback_(responseId);
     return;
@@ -1826,6 +1911,7 @@ async function connectRealtime() {
     dc.addEventListener('open', () => {
       if (!current()) { clearTimeout(timer); reject(new Error('CONNECTION_SUPERSEDED')); return; }
       clearTimeout(timer); state.dataChannelOpen = true; state.connected = true;
+      recordDiagnostic_('[DLP_DATA_CHANNEL_OPEN]');
       if (!state.aiResponding && !state.responseRequestPending) setMic(true);
       setStatus('voiceStatus', 'Terhubung. Ucapkan "Good morning" untuk memulai — Yuliana menunggu kamu bicara dulu.', 'ok');
       if (isCadetSession_()) setStatus('voiceStatus', 'Terhubung dengan ' + (state.sessionMeta.interviewerRole || 'interviewer Cadet') + '. Ucapkan “Good morning” untuk memulai.', 'ok');
@@ -1880,6 +1966,8 @@ async function handleConnectionFailure_(reason) {
   return finalizeSession('connection_failure');
 }
 function resetSessionState_() {
+  diagnosticBuffer = null;
+  try { sessionStorage.removeItem(DIAGNOSTIC_STORAGE_KEY); } catch (_) {}
   clearTurnGrace_();
   connectionEpoch++;
   clearTimeout(state.responseWatchdog); clearTimeout(state.responseRetryTimer);
@@ -1986,6 +2074,7 @@ el('btnStart').onclick = async () => {
     }
     state.sessionMeta = token;
     state.sessionId = token.sessionId;
+    bindDiagnosticConfig_(token);
     state.sessionAccessToken = token.sessionAccessToken || '';
     if (token.clientRequestId && token.clientRequestId !== state.clientRequestId) {
       throw new Error('CLIENT_REQUEST_ID_MISMATCH: backend mengembalikan request ID yang berbeda.');
@@ -2176,6 +2265,7 @@ function transcriptWirePayload_(payload) {
   return wire;
 }
 async function saveTranscriptViaHiddenForm(payload, transport = 'form_post') {
+  recordDiagnostic_('[DLP_TRANSCRIPT_SUBMIT]', {transport});
   payload = payload || await prepareTranscriptSave_();
   const wirePayload = transcriptWirePayload_(payload);
   state.lastSaveReceipt = null;
@@ -2425,6 +2515,7 @@ async function executeFeedbackFlow_() {
   if (state.feedbackBusy) return;
   state.feedbackBusy = true;
   const flowSessionId = state.sessionId;
+  recordDiagnostic_('[DLP_FEEDBACK_FLOW_STARTED]');
   try {
     if (!state.sessionId) throw new Error('Belum ada session.');
     if (!state.finalizationEvidence) captureFinalizationEvidence_('manual_feedback');
@@ -2550,6 +2641,7 @@ function renderFeedbackResult_(data) {
       showSessionHelp_();
       setStatus('voiceStatus', 'Sesi ini perlu bantuan admin. Kredit belum dinyatakan kembali. Kamu boleh memakai sisa kredit untuk latihan baru; hasil lama dapat diperiksa dari catatan sesi.', 'warn');
     }
+    recordDiagnostic_('[DLP_FEEDBACK_RENDERED]', {status:feedbackResultStatus,feedbackCached:!!data.feedbackCached,reviewRequired:!!data.reviewRequired,refunded:!!data.refunded,terminalPhase:state.terminalPhase});
     state.feedbackResolved = true;
     recoverySnapshotSequence++; // No older async digest may resurrect a pending phase.
     el('btnCopyFb').disabled = false;
@@ -2607,8 +2699,7 @@ async function resumeFeedbackAfterReload_() {
 el('btnCopyFb').onclick = () => navigator.clipboard.writeText(state.lastFeedback || '');
 el('btnCopyTr').onclick = () => navigator.clipboard.writeText(transcriptText());
 el('btnDownload').onclick = () => {
-  const safeMeta = Object.assign({}, state.sessionMeta || {}); delete safeMeta.value; delete safeMeta.clientSecret; delete safeMeta.expiresAt; delete safeMeta.sessionAccessToken;
-  const blob = new Blob([JSON.stringify({ sessionId: state.sessionId, meta: safeMeta, integrityFlags: state.integrityFlags, transcript: state.transcript, feedback: state.lastFeedback }, null, 2)], { type:'application/json' });
+  const blob = new Blob([JSON.stringify(buildSessionDownload_(), null, 2)], { type:'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = (state.sessionId || 'session') + '.json'; a.click();
 };
