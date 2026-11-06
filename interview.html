@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.8.15-interview-recovery-rc7 -->
+<!-- DLP AI Interview frontend prod-6.8.20-transcript-recovery-rc8e -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -98,6 +98,12 @@
   .status.warn::before { background:var(--warn); box-shadow:0 0 8px var(--warn); }
   .status.err { border-color:rgba(248,113,113,0.4); color:var(--err); }
   .status.err::before { background:var(--err); box-shadow:0 0 8px var(--err); }
+  .status.loading::before {
+    width:12px; height:12px; border:2px solid rgba(45,212,191,0.25);
+    border-top-color:var(--teal); background:transparent; box-shadow:none;
+    animation:statusSpin 0.8s linear infinite;
+  }
+  @keyframes statusSpin { to { transform:rotate(360deg); } }
 
   .pill {
     display:inline-block; background:#0a1830; border:1px solid var(--line); border-radius:99px;
@@ -203,6 +209,7 @@
   }
   @media (prefers-reduced-motion:reduce) {
     .sonar-core, .timer, .sonar-ring { animation:none !important; transition:opacity 0.2s linear !important; }
+    .status.loading::before { animation:none !important; border-color:var(--teal); }
   }
 </style>
   <!-- Google Analytics GA4 -->
@@ -426,7 +433,7 @@
         <span class="pill">Mode: <b id="pillMode">—</b></span>
         
       </div>
-      <div class="status" id="voiceStatus">Masukkan kode akses, centang konfirmasi, lalu klik Start Interview.</div>
+      <div class="status" id="voiceStatus" role="status" aria-live="polite">Masukkan kode akses, centang konfirmasi, lalu klik Start Interview.</div>
       <button class="b-acc btn-block" id="btnEnableAudio" style="display:none" type="button">Aktifkan suara</button>
       <div class="status warn" id="audioNotice" style="display:none" role="status"></div>
       <audio id="remoteAudio" autoplay playsinline></audio>
@@ -442,7 +449,7 @@
   </div>
   <div class="card">
     <h2>Feedback</h2>
-    <div class="status" id="feedbackStatus">Belum ada feedback.</div>
+    <div class="status" id="feedbackStatus" role="status" aria-live="polite">Belum ada feedback.</div>
     <div id="sessionHelp" style="display:none" class="sub">Bantuan sesi: <b id="helpSessionId"></b> ·
       <a href="https://wa.me/6285183202685" target="_blank" rel="noopener noreferrer">WhatsApp admin</a>. Sertakan ID atau catatan sesi.</div>
     <div id="historyControls" style="display:none; margin:10px 0">
@@ -498,7 +505,7 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.16-diagnostics-rc8a';
+const HTML_VERSION = 'prod-6.8.20-transcript-recovery-rc8e';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'rc-6.8.13';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
@@ -593,6 +600,7 @@ const el = (id) => document.getElementById(id);
 let startFlightActive = false;
 let finalizationFlight = null;
 let feedbackFlight = null;
+let prestartCloseFlight = null;
 let recoverySnapshotSequence = 0;
 let connectionEpoch = 0;
 const state = {
@@ -602,10 +610,10 @@ const state = {
   activeSpeechItems:{}, pendingSpeechItems:{}, completedSpeechItems:{}, turnGraceTimer:null,
   transcriptSavePayload:null, lastSaveReceipt:null, feedbackResolved:false,
   timerInterval:null, remainingSeconds:0, totalSeconds:420, deadlineAt:0,
-  preStartTimer:null, hardDeadlineTimer:null, finalCloseFallbackTimer:null, disconnectTimer:null,
+  preStartTimer:null, hardDeadlineTimer:null, finalCloseFallbackTimer:null, disconnectTimer:null, noSpeechNoticeTimer:null,
   stoppingVoice:false,
   responseWatchdog:null, responseRetryTimer:null, responseRetryCount:0, responseRecords:{}, realtimeFailure:false,
-  audioBlocked:false, audioPlaySequence:0, waitingForRepeat:false,repeatSpeechItems:{},
+  audioBlocked:false, audioPlaySequence:0, waitingForRepeat:false,transcriptRecoveryPending:false,repeatSpeechItems:{},
   sessionTesterCode:'', terminalPhase:'',
   aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
   responseRequestPending:false, responseRequestKind:'', responseRequestEventId:'',
@@ -696,7 +704,7 @@ function logDebug(x) {
   const line = typeof x === 'string' ? x : JSON.stringify(x, null, 1);
   el('debugLog').textContent = '[' + new Date().toLocaleTimeString() + '] ' + line + '\n' + el('debugLog').textContent;
 }
-function setStatus(id, msg, kind) {
+function setStatus(id, msg, kind, loading = false) {
   if (id === 'voiceStatus' || id === 'feedbackStatus') {
     const original = String(msg || '');
     msg = original.replace(/\bdebit\b/gi, 'pemotongan credit')
@@ -705,7 +713,7 @@ function setStatus(id, msg, kind) {
       .replace(/\bSTARTED\b/g, 'dimulai');
     if (msg !== original) logDebug({statusDetail:original});
   }
-  const n = el(id); n.textContent = msg; n.className = 'status' + (kind ? ' ' + kind : '');
+  const n = el(id); n.textContent = msg; n.className = 'status' + (kind ? ' ' + kind : '') + (loading ? ' loading' : '');
 }
 
 // ---------------- audio-reactive sonar ----------------
@@ -1308,6 +1316,59 @@ function scheduleMicResume(ms) {
   clearTimeout(state.micResumeTimer);
   state.micResumeTimer = setTimeout(() => { if (state.connected && !state.finalized && !state.stoppingVoice && !state.finalCloseResponseId && !state.aiResponding && !state.responseRequestPending) setMic(true); }, ms);
 }
+function armNoSpeechNotice_() {
+  clearTimeout(state.noSpeechNoticeTimer);
+  state.noSpeechNoticeTimer = setTimeout(() => {
+    state.noSpeechNoticeTimer = null;
+    if (!state.connected || state.finalized || !state.candidateStarted || !state.awaitingAnswer ||
+        state.candidateSpeaking || state.pendingTranscriptions || state.aiResponding || state.responseRequestPending) return;
+    const tracks = state.localStream && state.localStream.getAudioTracks();
+    const active = tracks && tracks.some(t => t.enabled && t.readyState !== 'ended');
+    setStatus('voiceStatus', active
+      ? 'Belum ada ucapan yang terdeteksi. Jika sudah berbicara, periksa mikrofon lalu ulangi jawaban; pertanyaan masih menunggu.'
+      : 'Mikrofon belum aktif. Periksa izin dan perangkat mikrofon sebelum mengulangi jawaban.', 'warn');
+    recordDiagnostic_('[DLP_NO_SPEECH_NOTICE]', {enabled:!!active});
+  }, 20000);
+}
+function isClearlyIncompleteTranscript_(text) {
+  const clean = String(text || '').trim();
+  return /^(?:the|a|an|but it is|it is|um+|uh+|mm+|hmm+)[.!?, ]*$/i.test(clean) ||
+    /\b(?:from|to|with|of|in|on|at|for|into|before|after|under|near|around|by)\s+(?:the|a|an)[.!?, ]*$/i.test(clean);
+}
+// These turns can ask for help, but are not evidence that a lost answer was repeated.
+function isRecoveryControlTranscript_(text) {
+  const clean = String(text || '').trim();
+  return isClarificationRequest_(clean) ||
+    /^(?:(?:hello|hi|good morning)[,.!? ]*)?(?:can you hear me[?!. ]*)?$/i.test(clean) ||
+    /^(?:can|could) you (?:please )?(?:simplify|make (?:it|that|the question) (?:simple|simpler)|use (?:simple|basic) english)\b/i.test(clean);
+}
+function holdCandidateTranscript_(key, reason) {
+  if (!state.connected || state.transcriptSavePayload) return;
+  clearTurnGrace_();
+  state.waitingForRepeat = true;
+  state.transcriptRecoveryPending = true;
+  // A continuation already speaking can recover this turn. A delayed older result cannot.
+  state.repeatSpeechItems = Object.assign({}, state.activeSpeechItems);
+  state.queuedResponse = null;
+  markIntegrityWarning(reason, {itemId:key});
+  markIntegrityFailure('input_transcription_unresolved', {itemId:key,reason});
+  logFlow('[DLP_TRANSCRIPT_RETRY_WAIT]', {itemId:key,reason});
+  persistTranscriptRecoverySnapshot_('transcription_retry_needed').catch(()=>{});
+  if (state.finalized || state.stoppingVoice || state.realtimeFailure) return;
+  state.awaitingAnswer = true;
+  if (state.finalCloseRequested) {
+    // Closing remains possible; unresolved evidence must still reach backend review.
+    queueResponse('final_close', 'transcription_unresolved_at_close');
+    state.awaitingAnswer = state.candidateSpeaking || state.pendingTranscriptions > 0;
+    flushManagedResponse('transcription_unresolved_at_close');
+  } else {
+    setStatus('voiceStatus', reason === 'input_transcription_fragment'
+      ? 'Yang tercatat baru potongan ucapan. Silakan lanjutkan atau ulangi jawaban; Yuliana menunggu.'
+      : 'Jawaban belum berhasil dicatat. Silakan ulangi jawaban terakhir; pertanyaan belum dilanjutkan.', 'warn');
+    if (!state.aiResponding && !state.responseRequestPending) setMic(true);
+    armNoSpeechNotice_();
+  }
+}
 const RESPONSE_PRIORITY = { normal:10, idle_nudge:20, wrap_up:60, premature_close_override:70, final_close:100 };
 // Match a present request, not a hypothetical work practice or reported speech.
 function isClarificationRequest_(text) {
@@ -1329,6 +1390,9 @@ function isClarificationRequest_(text) {
 }
 function responseInstructionsFor(kind) {
   const lastUser = [...state.transcript].reverse().find(t => String(t.role).toLowerCase() === 'user');
+  if (kind !== 'final_close' && !state.openingPending && state.transcriptRecoveryPending && lastUser && isRecoveryControlTranscript_(lastUser.text)) {
+    return 'The last candidate answer has not been captured reliably. Briefly repeat or simplify ONLY the same unanswered interview question in simple English (or Indonesian if requested). Do not move to another topic, provide answer hints, or treat a greeting or clarification request as the missing answer. Ask once, then wait for the candidate to repeat the answer.';
+  }
   if (kind !== 'final_close' && lastUser && isClarificationRequest_(lastUser.text)) {
     return 'The candidate explicitly requests clarification of the current question. Rephrase ONLY that same question in simple English, or translate it into Indonesian if requested. Use the listed simpler question/translation when available. Do not add answer categories, examples, hints, equipment lists, or phrases such as "You can mention" or "You can talk about". Complete the translation, then wait for the answer. Once answered, continue; do not repeat merely because the answer describes asking for help. Never delay final close.';
   }
@@ -1411,7 +1475,7 @@ function finishSpeechItem_(itemId) {
 }
 function scheduleCandidateResponse_(reason) {
   clearTurnGrace_();
-  if (state.finalized || state.waitingForRepeat || state.candidateSpeaking || state.pendingTranscriptions > 0) return;
+  if (state.finalized || (state.waitingForRepeat && !state.finalCloseRequested) || state.candidateSpeaking || state.pendingTranscriptions > 0) return;
   // Only shorten the first short greeting, never a substantive candidate answer.
   const waitMs = state.openingPending && state.openingGreeting ? 400 : CANDIDATE_TURN_GRACE_MS;
   state.turnGraceTimer = setTimeout(() => {
@@ -1613,9 +1677,11 @@ async function handleRealtimeEvent(raw) {
   }
 
   if (type === 'input_audio_buffer.speech_started') {
+    if (!state.connected || state.transcriptSavePayload || (ev.item_id && state.completedSpeechItems[ev.item_id])) return;
+    clearTimeout(state.noSpeechNoticeTimer);
     clearTurnGrace_();
     state.activeSpeechItems[ev.item_id || 'unidentified'] = true;
-    if (state.waitingForRepeat && ev.item_id) state.repeatSpeechItems[ev.item_id] = true;
+    if (state.transcriptRecoveryPending && ev.item_id) state.repeatSpeechItems[ev.item_id] = true;
     state.candidateSpeaking = true;
     state.awaitingAnswer = true;
     clearTimeout(state.finalNoSpeechTimer);
@@ -1635,16 +1701,31 @@ async function handleRealtimeEvent(raw) {
   }
 
   if (type === 'conversation.item.input_audio_transcription.completed') {
+    if (!state.connected || state.transcriptSavePayload) return;
     const key = ev.item_id || '';
     if (key && state.completedSpeechItems[key]) return;
     if (key) state.completedSpeechItems[key] = true;
     clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
     finishSpeechItem_(key);
+    const cleanTranscript = String(ev.transcript || '').trim();
+    recordDiagnostic_('[DLP_TRANSCRIPTION_RECEIVED]', {itemId:key,transcriptChars:cleanTranscript.length});
+    if (!cleanTranscript) {
+      holdCandidateTranscript_(key, 'input_transcription_empty');
+      return;
+    }
     state.lastUserTranscriptAt = Date.now();
-    recordDiagnostic_('[DLP_TRANSCRIPTION_RECEIVED]', {itemId:key,transcriptChars:String(ev.transcript || '').length});
     pushTranscript('user', ev.transcript || '', { itemId:ev.item_id || '' });
-    if (state.waitingForRepeat && state.repeatSpeechItems[key] && String(ev.transcript || '').trim() && !state.finalized && !state.finalCloseRequested) {
+    if (isClearlyIncompleteTranscript_(cleanTranscript)) {
+      holdCandidateTranscript_(key, 'input_transcription_fragment');
+      return;
+    }
+    if (state.transcriptRecoveryPending && !state.finalized && !state.stoppingVoice && !state.realtimeFailure && isRecoveryControlTranscript_(cleanTranscript)) {
+      // Allow clarification on the same question without declaring the lost answer recovered.
       state.waitingForRepeat = false;
+    } else if (state.transcriptRecoveryPending && state.repeatSpeechItems[key] && !state.finalized && !state.stoppingVoice && !state.realtimeFailure && !state.finalCloseRequested) {
+      state.waitingForRepeat = false;
+      state.transcriptRecoveryPending = false;
+      state.repeatSpeechItems = {};
       removeIntegrityFlag('input_transcription_unresolved');
       markIntegrityWarning('input_transcription_repeated', {itemId:key});
       persistTranscriptRecoverySnapshot_('transcription_recovered').catch(()=>{});
@@ -1658,7 +1739,7 @@ async function handleRealtimeEvent(raw) {
       state.candidateStarted = true;
       state.openingPending = true;
       state.openingGreeting = /^(?:good (?:morning|afternoon|evening)|hello|hi)(?:[,.! ]+(?:ma['’]?am|mam|sir))?[.! ]*$/i.test(String(ev.transcript || '').trim());
-      setStatus('voiceStatus', 'Ucapan diterima. Mengonfirmasi Start; Yuliana akan segera merespons…', 'warn');
+      setStatus('voiceStatus', 'Ucapan diterima. Mengonfirmasi Start; Yuliana akan segera merespons…', 'warn', true);
       // Do not mute a candidate who has already continued speaking.
       if (state.openingGreeting && !state.candidateSpeaking && state.pendingTranscriptions === 0) setMic(false);
       logFlow('[DLP_OPENING_ACK_WAIT]', {itemId:ev.item_id || ''});
@@ -1673,7 +1754,7 @@ async function handleRealtimeEvent(raw) {
       }
       await persistTranscriptRecoverySnapshot_('started_confirmed');
       if (state.finalized || !state.connected) return;
-      setStatus('voiceStatus', 'Start terkonfirmasi. Yuliana sedang menyiapkan respons…', 'warn');
+      setStatus('voiceStatus', 'Start terkonfirmasi. Yuliana sedang menyiapkan respons…', 'warn', true);
     }
     state.awaitingAnswer = state.candidateSpeaking || state.pendingTranscriptions > 0;
     logFlow('[DLP_AWAITING_CLEAR]', { reason:'transcription_completed', itemId:ev.item_id || '' });
@@ -1683,29 +1764,13 @@ async function handleRealtimeEvent(raw) {
   }
 
   if (type === 'conversation.item.input_audio_transcription.failed') {
+    if (!state.connected || state.transcriptSavePayload) return;
     const key = ev.item_id || '';
     if (key && state.completedSpeechItems[key]) return;
     recordDiagnostic_('[DLP_TRANSCRIPTION_FAILED]', {itemId:key,errorType:ev.error && ev.error.type,errorCode:ev.error && ev.error.code});
     if (key) state.completedSpeechItems[key] = true;
     finishSpeechItem_(key);
-    state.awaitingAnswer = state.candidateSpeaking || state.pendingTranscriptions > 0;
-    markIntegrityWarning('input_transcription_failed', {itemId:key});
-    markIntegrityFailure('input_transcription_unresolved', {itemId:key});
-    state.waitingForRepeat = true;
-    state.repeatSpeechItems = {};
-    persistTranscriptRecoverySnapshot_('transcription_retry_needed').catch(()=>{});
-    clearTurnGrace_();
-    // Stay on this question: do not generate a normal response from a missing answer.
-    state.queuedResponse = null;
-    if (state.finalCloseRequested) {
-      queueResponse('final_close', 'transcription_failed_at_close');
-      state.awaitingAnswer = false;
-      flushManagedResponse('transcription_failed_at_close');
-    } else {
-      state.awaitingAnswer = true;
-      setStatus('voiceStatus', 'Jawaban belum berhasil dicatat. Silakan ulangi jawaban terakhir; pertanyaan belum dilanjutkan.', 'warn');
-      if (!state.aiResponding && !state.responseRequestPending) setMic(true);
-    }
+    holdCandidateTranscript_(key, 'input_transcription_failed');
     return;
   }
 
@@ -1824,6 +1889,7 @@ function completeResponsePlayback_(responseId) {
     state.awaitingAnswer = true;
     logFlow('[DLP_AWAITING_SET]', { reason:'assistant_audio_stopped' });
     scheduleMicResume(500);
+    armNoSpeechNotice_();
     updateVizState();
     setStatus('voiceStatus', 'Giliran kamu. Silakan jawab.', 'ok');
     scheduleFinalCloseIfNoSpeech();
@@ -1973,7 +2039,7 @@ function resetSessionState_() {
   clearTimeout(state.responseWatchdog); clearTimeout(state.responseRetryTimer);
   recoverySnapshotSequence++;
   clearInterval(state.timerInterval);
-  clearTimeout(state.preStartTimer); clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer); clearTimeout(state.disconnectTimer);
+  clearTimeout(state.preStartTimer); clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer); clearTimeout(state.disconnectTimer); clearTimeout(state.noSpeechNoticeTimer);
   clearTimeout(state.finalNoSpeechTimer); clearTimeout(state.micResumeTimer);
   clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
   Object.assign(state, {
@@ -1984,7 +2050,7 @@ function resetSessionState_() {
     transcriptSavePayload:null, lastSaveReceipt:null, feedbackResolved:false,
     stoppingVoice:false,
     responseWatchdog:null,responseRetryTimer:null,responseRetryCount:0,responseRecords:{},realtimeFailure:false,
-    audioBlocked:false,audioPlaySequence:0,waitingForRepeat:false,repeatSpeechItems:{},
+    audioBlocked:false,audioPlaySequence:0,waitingForRepeat:false,transcriptRecoveryPending:false,repeatSpeechItems:{},
     sessionTesterCode:'',terminalPhase:'',
     remainingSeconds:0, deadlineAt:0, aiResponding:false, activeResponseId:'', activeResponseKind:'', activeResponseDone:false,
     responseRequestPending:false, responseRequestKind:'', responseRequestEventId:'', queuedResponse:null,
@@ -1997,6 +2063,7 @@ function resetSessionState_() {
   });
   finalizationFlight = null;
   feedbackFlight = null;
+  prestartCloseFlight = null;
 }
 el('btnStart').onclick = async () => {
   if (startFlightActive || state.connected || state.feedbackBusy) {
@@ -2004,7 +2071,7 @@ el('btnStart').onclick = async () => {
     return;
   }
   if (hasUnresolvedFeedback_()) {
-    setStatus('voiceStatus', 'Memulihkan hasil sesi sebelumnya sebelum Start baru. Tidak ada debit baru.', 'warn');
+    setStatus('voiceStatus', 'Memulihkan hasil sesi sebelumnya sebelum Start baru. Tidak ada debit baru.', 'warn', true);
     if (state.sessionId) await runFeedbackFlow();
     else await resumeFeedbackAfterReload_();
     return;
@@ -2025,7 +2092,7 @@ el('btnStart').onclick = async () => {
     logFlow('[DLP_START_SINGLE_FLIGHT]', { clientRequestId:state.clientRequestId });
     el('transcriptPanel').innerHTML = '<span class="sub">Menunggu...</span>';
     el('feedbackPanel').style.display='none';
-    setStatus('voiceStatus', 'Meminta izin microphone...', 'warn');
+    setStatus('voiceStatus', 'Meminta izin microphone...', 'warn', true);
     state.localStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:true, noiseSuppression:true, autoGainControl:true } });
 
     // set up Web Audio for amplitude-reactive sonar (after user gesture, so resume works)
@@ -2040,7 +2107,7 @@ el('btnStart').onclick = async () => {
       }
     } catch (acErr) { logDebug({ audioCtxFail: String(acErr.message || acErr) }); state.audioReactive = false; }
 
-    setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn');
+    setStatus('voiceStatus', 'Membuat session (validasi kode & mode)...', 'warn', true);
     const params = mapParams();
     state.sessionTesterCode = params.testerCode;
     const health = await jsonp('health', {_t:Date.now()}, 30000);
@@ -2050,7 +2117,7 @@ el('btnStart').onclick = async () => {
     let token;
     if (pendingRecovery && pendingRecovery.resumed) {
       token = pendingRecovery.bootstrap;
-      setStatus('voiceStatus', 'Session sebelumnya berhasil dipulihkan tanpa debit baru. Menghubungkan voice…', 'warn');
+      setStatus('voiceStatus', 'Session sebelumnya berhasil dipulihkan tanpa debit baru. Menghubungkan voice…', 'warn', true);
     } else {
       params.startupToken = persistStartupIdentity_();
       try {
@@ -2066,7 +2133,7 @@ el('btnStart').onclick = async () => {
         token = await Promise.race([directCreate, earlyRecovery]);
       } catch (createError) {
         if (!/JSONP timeout|JSONP script load failed/i.test(String(createError && createError.message ? createError.message : createError))) throw createError;
-        setStatus('voiceStatus', 'Response Start terlambat. Memeriksa session yang sama—jangan klik ulang…', 'warn');
+        setStatus('voiceStatus', 'Response Start terlambat. Memeriksa session yang sama—jangan klik ulang…', 'warn', true);
         token = await recoverStartupBootstrap_(readPendingStartup_(), STARTUP_RECOVERY_MAX_WAIT_MS);
         if (!token) throw createError;
         logFlow('[DLP_START_RESPONSE_RECOVERED]', {sessionId:token.sessionId || ''});
@@ -2094,7 +2161,7 @@ el('btnStart').onclick = async () => {
     el('pillCredits').textContent = (token.creditsRemaining === null || token.creditsRemaining === undefined) ? '—' : token.creditsRemaining;
     el('pillSession').textContent = token.sessionId;
     el('durationMinutes').value = token.durationMinutes || 7;
-    setStatus('voiceStatus', 'Menghubungkan voice...', 'warn');
+    setStatus('voiceStatus', 'Menghubungkan voice...', 'warn', true);
     await connectRealtime();
     state.connected = true;
     setButtons('live');
@@ -2127,7 +2194,7 @@ function stopVoice() {
   clearTurnGrace_();
   clearInterval(state.timerInterval); clearTimeout(state.micResumeTimer);
   clearTimeout(state.idleNudgeTimer1); clearTimeout(state.idleNudgeTimer2);
-  clearTimeout(state.preStartTimer); clearTimeout(state.finalNoSpeechTimer); clearTimeout(state.disconnectTimer); clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer);
+  clearTimeout(state.preStartTimer); clearTimeout(state.finalNoSpeechTimer); clearTimeout(state.disconnectTimer); clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer); clearTimeout(state.noSpeechNoticeTimer);
   stopVizLoop();
   state.connected = false; state.dataChannelOpen = false;
   try { if (state.dc) state.dc.close(); } catch(e){}
@@ -2172,7 +2239,44 @@ function gracefulFinalizeWithoutFeedback(source) {
   logFlow('[DLP_FINALIZE_NO_FEEDBACK]', { source });
   stopVoice(); setButtons('stopped');
 }
+function closeUnstartedSession_(source) {
+  if (prestartCloseFlight) return prestartCloseFlight;
+  prestartCloseFlight = (async () => {
+    if (state.candidateSpeaking || state.pendingTranscriptions > 0) {
+      setStatus('voiceStatus', 'Ucapan masih diproses. Tunggu sebentar, lalu tekan tombol sekali lagi.', 'warn');
+      return;
+    }
+    captureFinalizationEvidence_(source);
+    setButtons('busy');
+    state.stoppingVoice = true;
+    setMic(false);
+    stopVoice();
+    setStatus('voiceStatus', 'Menutup sesi awal dan memeriksa status kredit…', 'warn', true);
+    const result = await reportClientStartFailure_(source);
+    const closed = result && result.ok &&
+      (result.refunded || result.alreadyRefunded) && /REFUNDED/.test(String(result.status || ''));
+    if (closed) {
+      state.finalized = true;
+      recoverySnapshotSequence++;
+      try { sessionStorage.removeItem('dlpPendingStartup'); } catch (_) {}
+      renderFeedbackResult_({status:result.status,refunded:true,terminalPhase:'refunded'});
+      if (Number.isInteger(result.remainingSessions) && result.remainingSessions >= 0) {
+        el('pillCredits').textContent = String(result.remainingSessions);
+      } else {
+        await refreshSessionCredits_({sessionId:state.sessionId,sessionAccessToken:state.sessionAccessToken});
+      }
+      setButtons('idle');
+    } else {
+      el('pillCredits').textContent = '—';
+      setButtons('stopped');
+      setStatus('voiceStatus', 'Status sesi awal belum terkonfirmasi. Kredit belum dinyatakan kembali. Tekan Feedback untuk memeriksa sesi yang sama atau hubungi admin dengan Session ID.', 'warn');
+      showSessionHelp_();
+    }
+  })().finally(() => { prestartCloseFlight = null; });
+  return prestartCloseFlight;
+}
 el('btnStop').onclick = async () => {
+  if (!state.candidateStarted) return closeUnstartedSession_('manual_stop_before_start');
   captureFinalizationEvidence_('manual_stop');
   await gracefulStopAndDrain_();
   setButtons('stopped');
@@ -2197,7 +2301,7 @@ async function finalizeSession(source) {
     }
     await persistTranscriptRecoverySnapshot_('voice_stopped');
     setButtons('stopped');
-    setStatus('voiceStatus', 'Sesi selesai. Menyimpan transcript dan mengambil feedback otomatis...', 'warn');
+    setStatus('voiceStatus', 'Sesi selesai. Menyimpan transcript dan mengambil feedback otomatis...', 'warn', true);
     await runFeedbackFlow();
   })();
   try {
@@ -2390,7 +2494,7 @@ async function confirmSaved(maxWaitMs = TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS, payl
 
     const elapsedSeconds = Math.floor((Date.now() - startedWaitingAt) / 1000);
     const received = state.lastSaveReceipt && state.lastSaveReceipt.stage === 'RECEIVED';
-    setStatus('feedbackStatus', (received ? 'Server menerima transcript; memverifikasi penyimpanan… ' : 'Memeriksa apakah server menerima transcript… ') + elapsedSeconds + ' detik. Salinan sesi tetap dipertahankan.', 'warn');
+    setStatus('feedbackStatus', (received ? 'Server menerima transcript; memverifikasi penyimpanan… ' : 'Memeriksa apakah server menerima transcript… ') + elapsedSeconds + ' detik. Salinan sesi tetap dipertahankan.', 'warn', true);
     const remainingMs = maxWaitMs - (Date.now() - startedWaitingAt);
     if (remainingMs <= 0) break;
     await sleep_(Math.min(TRANSCRIPT_CONFIRM_POLL_MS, remainingMs));
@@ -2439,7 +2543,7 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
     const status = String(session.status || '');
     if (readFirst && !dispatched && (status === 'CREATING' || status === 'CREATED' || status === 'STARTED')) {
       logFlow('[DLP_FEEDBACK_STATUS]', { status, dispatched });
-      setStatus('feedbackStatus', 'Menunggu transcript sesi sebelumnya selesai disimpan…', 'warn');
+      setStatus('feedbackStatus', 'Menunggu transcript sesi sebelumnya selesai disimpan…', 'warn', true);
       await sleep_(FEEDBACK_RECOVERY_POLL_MS);
       continue;
     }
@@ -2459,7 +2563,7 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
       const mayRecover = failure.validatedResult || failure.stage === 'UNKNOWN_LEGACY_FAILURE';
       failedRecoveryReads++;
       if (!mayRecover || failedRecoveryReads >= 3) throw feedbackStoppedError_(failure, identity.sessionId);
-      setStatus('feedbackStatus', 'Pembuatan feedback mengalami kendala. Memeriksa apakah hasil yang sama masih dapat dipulihkan…', 'warn');
+      setStatus('feedbackStatus', 'Pembuatan feedback mengalami kendala. Memeriksa apakah hasil yang sama masih dapat dipulihkan…', 'warn', true);
       const recovered = await Promise.race([directResult, sleep_(FEEDBACK_RECOVERY_POLL_MS).then(() => null)]);
       if (recovered) return recovered.result;
       continue;
@@ -2488,7 +2592,7 @@ async function requestFeedbackWithRecovery_(identity, expectedHash, readFirst = 
       throw new Error('Feedback belum tersedia. Status sesi: ' + status + '. Transkrip tetap tersimpan.');
     }
     const seconds = Math.floor((Date.now()-startedWaitingAt)/1000);
-    setStatus('feedbackStatus', (status === 'FEEDBACK_GENERATING' ? 'Membuat feedback kamu… ' : 'Menunggu server memulai feedback… ') + seconds + ' detik. Memeriksa hasil sesi yang sama.', 'warn');
+    setStatus('feedbackStatus', (status === 'FEEDBACK_GENERATING' ? 'Membuat feedback kamu… ' : 'Menunggu server memulai feedback… ') + seconds + ' detik. Memeriksa hasil sesi yang sama.', 'warn', true);
     const late = await Promise.race([directResult, sleep_(FEEDBACK_RECOVERY_POLL_MS).then(() => null)]);
     if (late) return late.result;
   }
@@ -2516,6 +2620,7 @@ async function executeFeedbackFlow_() {
   state.feedbackBusy = true;
   const flowSessionId = state.sessionId;
   recordDiagnostic_('[DLP_FEEDBACK_FLOW_STARTED]');
+  setStatus('feedbackStatus', 'Memeriksa sesi dan menyiapkan feedback…', 'warn', true);
   try {
     if (!state.sessionId) throw new Error('Belum ada session.');
     if (!state.finalizationEvidence) captureFinalizationEvidence_('manual_feedback');
@@ -2562,11 +2667,11 @@ async function executeFeedbackFlow_() {
     if (!confirmed) {
       if (!payload) throw new Error('TRANSCRIPT_SAVE_NOT_CONFIRMED');
       if (saved && /FEEDBACK_GENERAT/.test(saved.status)) throw new Error('TRANSCRIPT_CHANGED_DURING_FEEDBACK');
-      setStatus('feedbackStatus', 'Mengirim transcript ke server…', 'warn');
+      setStatus('feedbackStatus', 'Mengirim transcript ke server…', 'warn', true);
       await saveTranscriptViaHiddenForm(payload, 'form_post');
       confirmed = await confirmSaved(TRANSCRIPT_CONFIRM_INITIAL_WAIT_MS, payload);
       if (!confirmed) {
-        setStatus('feedbackStatus', 'Konfirmasi belum diterima. Mencoba jalur alternatif dengan transcript yang sama…', 'warn');
+        setStatus('feedbackStatus', 'Konfirmasi belum diterima. Mencoba jalur alternatif dengan transcript yang sama…', 'warn', true);
         await saveTranscriptViaHiddenForm(payload, 'fetch_no_cors');
         confirmed = await confirmSaved(TRANSCRIPT_CONFIRM_RETRY_WAIT_MS, payload);
       }
@@ -2578,7 +2683,7 @@ async function executeFeedbackFlow_() {
       throw new Error('TRANSCRIPT_SAVE_NOT_CONFIRMED');
     }
 
-    setStatus('feedbackStatus', 'Membuat feedback kamu…', 'warn');
+    setStatus('feedbackStatus', 'Membuat feedback kamu…', 'warn', true);
     await persistTranscriptRecoverySnapshot_('transcript_confirmed');
     const data = await requestFeedbackWithRecovery_(identity, expectedHash);
     if (state.sessionId !== identity.sessionId) return;
@@ -2656,7 +2761,9 @@ function renderFeedbackResult_(data) {
     }
 }
 el('btnFeedback').onclick = () => state.sessionId
-  ? (state.connected && !state.finalized ? finalizeSession('manual_feedback') : runFeedbackFlow())
+  ? (!state.candidateStarted && !state.feedbackResolved
+      ? closeUnstartedSession_('manual_feedback_before_start')
+      : (state.connected && !state.finalized ? finalizeSession('manual_feedback') : runFeedbackFlow()))
   : resumeFeedbackAfterReload_();
 async function resumeFeedbackAfterReload_() {
   const pending = readFeedbackSnapshot_();
@@ -2693,7 +2800,7 @@ async function resumeFeedbackAfterReload_() {
   }
   el('pillSid').textContent = pending.sessionId;
   el('btnStart').disabled = true;
-  setStatus('feedbackStatus', 'Memeriksa feedback sesi sebelumnya…', 'warn');
+  setStatus('feedbackStatus', 'Memeriksa feedback sesi sebelumnya…', 'warn', true);
   await runFeedbackFlow();
 }
 el('btnCopyFb').onclick = () => navigator.clipboard.writeText(state.lastFeedback || '');
