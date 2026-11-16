@@ -14,13 +14,14 @@
     write(key, value) { try { localStorage.setItem('dlp.prep.v1.'+key, JSON.stringify(value)); return true; } catch { return false; } }
   };
   // Strict event vocabulary. No audio, answer text, URL query, code, user ID or form values.
-  const allowed = new Set(['prep_view','prep_return','path_select','rank_select','exercise_start','discussion_open','exercise_next','product_click','exercise_complete','plan_day_complete','plan_reset']);
+  const allowed = new Set(['prep_view','prep_return','path_select','rank_select','exercise_start','discussion_open','exercise_next','product_click','exercise_complete','plan_day_complete','plan_reset','simulator_offer_view']);
   const paths = new Set(['cadet','rating','deck-officer','marine-engineer',...Object.keys(groups)]);
   function track(event, extra = {}) {
     if (!allowed.has(event)) return;
     const params = {page_type:config.kind, prep_rank:config.group, exercise_id:config.question || 'none'};
     if (paths.has(extra.path)) params.selected_path = extra.path;
-    if (['seafarer_book','engineer_book'].includes(extra.product)) params.product = extra.product;
+    if (['seafarer_book','engineer_book','ai_interview_simulator'].includes(extra.product)) params.product = extra.product;
+    if (event === 'exercise_next' && typeof extra.offerSeen === 'boolean') params.simulator_offer_seen = extra.offerSeen;
     if (Number.isInteger(extra.day) && extra.day >= 1 && extra.day <= 7) params.plan_day = extra.day;
     if (typeof extra.completed === 'boolean') params.completed = extra.completed;
     const querySource = new URLSearchParams(location.search).get('utm_source');
@@ -66,14 +67,53 @@
     const engineerBook = $('engineer-book-template');
     if (book && engineerBook) book.replaceChildren(engineerBook.content.cloneNode(true));
 
-    const next = document.querySelector('[data-event="exercise_next"]');
-    if (next) setEngineerTrack(next, requestedTrack);
+    document.querySelectorAll('[data-event="exercise_next"]').forEach(link => setEngineerTrack(link, requestedTrack));
     const trackPath = groups[requestedTrack]?.[0] ?? 'marine-engineer';
     document.querySelectorAll('[data-question-list]').forEach(link => {
       link.href = `/preparation/${trackPath}/#soal-umum`;
     });
   }
-  document.querySelectorAll('[data-event]').forEach(link => link.addEventListener('click',() => track(link.dataset.event,{path:link.dataset.path,product:link.dataset.product})));
+  const lessonEnding = $('lesson-ending');
+  const simulatorOffer = $('simulator-offer');
+  let simulatorOfferSeen = false;
+  let offerObserver;
+
+  function recordOfferView() {
+    if (simulatorOfferSeen || !lessonEnding || lessonEnding.hidden) return;
+    simulatorOfferSeen = true;
+    offerObserver?.disconnect();
+    track('simulator_offer_view', {product: 'ai_interview_simulator'});
+  }
+
+  function showLessonEnding() {
+    if (!lessonEnding || !simulatorOffer) return;
+    const offerKey = 'dlp.prep.v1.simulator-offer-shown';
+    try {
+      if (sessionStorage.getItem(offerKey)) return;
+      sessionStorage.setItem(offerKey, '1');
+    } catch { return; }
+
+    lessonEnding.hidden = false;
+    if (typeof IntersectionObserver === 'function') {
+      offerObserver = new IntersectionObserver(entries => {
+        if (!document.hidden && entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= 0.5)) {
+          recordOfferView();
+        }
+      }, {threshold: 0.5});
+      offerObserver.observe(simulatorOffer);
+    }
+    lessonEnding.querySelector('a')?.focus({preventScroll: true});
+    lessonEnding.scrollIntoView({block: 'nearest'});
+  }
+
+  document.querySelectorAll('[data-event]').forEach(link => link.addEventListener('click', () => {
+    if (link.id === 'simulator-offer-link') recordOfferView();
+    track(link.dataset.event, {
+      path: link.dataset.path,
+      product: link.dataset.product,
+      offerSeen: simulatorOffer ? simulatorOfferSeen : undefined,
+    });
+  }));
 
   const planTrack = $('plan-track');
   if (planTrack) {
@@ -218,8 +258,13 @@
     $('completion-status').textContent = saved ? '' : 'Progres tidak dapat disimpan. Tanda selesai hanya bertahan selama halaman ini terbuka.';
     renderCompletion();
     track('exercise_complete');
+    showLessonEnding();
   });
-  function dispose(){disposed=true;stopRecording(true);pauseTimer();}
+  function dispose(){
+    disposed=true;stopRecording(true);pauseTimer();
+    offerObserver?.disconnect();
+    if (lessonEnding) lessonEnding.hidden = true;
+  }
   window.addEventListener('pagehide',dispose);
   window.addEventListener('beforeunload',dispose);
   window.addEventListener('pageshow',()=>{disposed=false;buttons();renderCompletion();});

@@ -57,3 +57,37 @@
 .lesson-progress-count progress::-webkit-progress-value { background: var(--green); }
 .lesson-progress-count progress::-moz-progress-bar { background: var(--green); }
 #soal-umum, #soal-khusus { scroll-margin-top: 16px; }
+
+.lesson-ending {
+  margin: 12px 0 16px;
+}
+.lesson-ending-next {
+  margin-bottom: 12px;
+}
+.simulator-offer {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+}
+.simulator-offer h4 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.simulator-offer p {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.simulator-offer a {
+  display: inline-block;
+  padding: 10px 0;
+  color: var(--green);
+  font-size: 14px;
+  font-weight: 650;
+  margin-right: 10px;
+}
+.discussion[open]:has(.lesson-ending:not([hidden])) + #lesson-next-card {
+  display: none;
+}
