@@ -505,9 +505,9 @@
 // CONFIG
 // =====================================================================
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec'; 
-const HTML_VERSION = 'prod-6.8.22-live-cue-rc3';
+const HTML_VERSION = 'prod-6.8.22-live-interviewer-fairness-rc6';
 const LIVE_PROTOCOL = 'dlp-live-v1';
-const LIVE_BACKEND_VERSION = 'rc-6.8.13-live-close-rc2';
+const LIVE_BACKEND_VERSION = 'rc-6.8.13-live-interviewer-fairness-rc5';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'rc-6.8.13';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
@@ -523,6 +523,14 @@ const FEEDBACK_DISPATCH_COOLDOWN_MS = 420000;
 const STARTUP_RECOVERY_MAX_WAIT_MS = 45000;
 const STARTUP_RECOVERY_POLL_MS = 3000;
 const CANDIDATE_TURN_GRACE_MS = 1200;
+// Conservative nudges for GPT-Live, which has no explicit 'turn completed' caption event.
+// Never prompt over an active microphone or AI audio, and never retry a nudge for
+// the same caption turn. Routine timer cues remain the primary continuity aid.
+const LIVE_IDLE_ANSWER_MS = 16000;
+const LIVE_IDLE_AI_ACK_MS = 16000;
+const LIVE_IDLE_OPENING_MS = 20000;
+const LIVE_IDLE_QUIET_AUDIO_MS = 6500;
+const LIVE_IDLE_CUE_COOLDOWN_MS = 9000;
 
 document.getElementById('htmlVerLabel').textContent = HTML_VERSION;
 
@@ -2849,6 +2857,11 @@ let liveTimerCues = new Set();
 let livePrematureCloseTimer = null;
 let livePeerEpoch = 0;
 let liveInhibitUnloading = false;
+let liveLastDirectiveAt = 0;
+let liveIdleGuard = {
+  lastUserCaptionAt:0,lastAiCaptionAt:0,lastMicActivityAt:0,lastAiActivityAt:0,
+  sentTurnKeys:new Set(),pendingNudge:false
+};
 
 function liveEnsureState_() {
   if (typeof state.liveProviderSessionId !== 'string') state.liveProviderSessionId = '';
@@ -3092,6 +3105,12 @@ function liveSetStatusFromEvent_(evt) {
 }
 function liveHandleEvent_(evt) {
   if(!evt || typeof evt!=='object')return;
+  if(evt.type==='session.instructions.appended') {
+    const id=String(evt.client_event_id||'');
+    if(id.startsWith('dlp-') && id.endsWith('-'+state.sessionId))
+      recordDiagnostic_(id.startsWith('dlp-idle-')?'[DLP_LIVE_IDLE_ACK]':'[DLP_LIVE_TIME_CUE_ACK]',{cueId:id.slice(0,80)});
+    return;
+  }
   if(evt.type==='session.input_transcript.delta' || evt.type==='session.output_transcript.delta') {
     liveAcceptCaption_(evt);return;
   }
@@ -3114,6 +3133,8 @@ function liveAcceptCaption_(evt) {
   }
   if(liveCaptionEvents.length>=5000)return;
   liveEventIds.set(id,compact);liveCaptionEvents.push(compact);
+  if(evt.type==='session.input_transcript.delta')liveIdleGuard.lastUserCaptionAt=Date.now();
+  else {liveIdleGuard.lastAiCaptionAt=Date.now();liveIdleGuard.pendingNudge=false;}
   const sorted=liveCaptionEvents.slice().sort((a,b)=>a.start_ms-b.start_ms||a.end_ms-b.end_ms);
   const turns=[], last={};
   for(const e of sorted) {
@@ -3165,12 +3186,68 @@ function liveSchedulePrematureCloseRecovery_() {
     }
   },1800);
 }
+// A quiet caption stream is not proof that a spoken turn ended: GPT-Live
+// does not provide a reliable end-of-turn caption event. Require a recent
+// *completed-looking* transcript, elapsed idle time, and silent mic/AI audio.
+// One steering instruction only for each transcript turn; never response.create.
+function liveContinuityCheck_() {
+  if(!state.candidateStarted||!state.clientStartedReported||!state.connected||
+     liveClosing||state.finalized||state.liveClosedEvent||!state.deadlineAt||
+     state.dc?.readyState!=='open'||state.audioBlocked||!state.startedAt)return false;
+  const remaining=Math.ceil((state.deadlineAt-Date.now())/1000);
+  if(remaining<=50)return false; // never open a fresh question near wrap-up
+  const now=Date.now();
+  if(liveIdleGuard.pendingNudge||now-liveLastDirectiveAt<LIVE_IDLE_CUE_COOLDOWN_MS)return false;
+  // Without a running analyser we cannot safely infer who has the floor.
+  if(!state.userAnalyser||!state.aiAnalyser||state.audioCtx?.state!=='running')return false;
+  try {
+    if(readLevel(state.userAnalyser,state.userBuf)>0.018)liveIdleGuard.lastMicActivityAt=now;
+    if(readLevel(state.aiAnalyser,state.aiBuf)>0.018)liveIdleGuard.lastAiActivityAt=now;
+  }catch(_){return false;}
+  if(now-liveIdleGuard.lastMicActivityAt<LIVE_IDLE_QUIET_AUDIO_MS||
+     now-liveIdleGuard.lastAiActivityAt<LIVE_IDLE_QUIET_AUDIO_MS)return false;
+  const turns=state.transcript||[];
+  if(!turns.length){
+    if(now-state.startedAt.getTime()<LIVE_IDLE_OPENING_MS)return false;
+    const key='idle-opening';
+    if(liveIdleGuard.sentTurnKeys.has(key))return false;
+    if(liveTimeCue_('The application is still in an active interview. If the opening question has not been spoken, introduce yourself briefly and ask the first assigned question now. Do not speak over the candidate.',key)){
+      liveIdleGuard.sentTurnKeys.add(key);liveIdleGuard.pendingNudge=true;
+      recordDiagnostic_('[DLP_LIVE_IDLE_NUDGE]',{kind:'opening',remainingSeconds:remaining});return true;
+    }
+    return false;
+  }
+  const last=turns[turns.length-1];
+  if(!last||!Number.isFinite(last.end_ms))return false;
+  const recent=last.role==='user'?liveIdleGuard.lastUserCaptionAt:liveIdleGuard.lastAiCaptionAt;
+  const required=last.role==='user'?LIVE_IDLE_ANSWER_MS:LIVE_IDLE_AI_ACK_MS;
+  if(!recent||now-recent<required)return false;
+  // Candidate might still be considering a question; do not replace it.
+  // Even after AI short acknowledgements, a quiet pause must be substantial.
+  if(last.role==='ai' && /[?？]\s*$/.test(last.text||''))return false;
+  const lastUser=turns.filter(t=>t.role==='user').slice(-1)[0];
+  if(lastUser && /\b(?:i\s+(?:want|would like|need)\s+to\s+|please\s+)(?:stop|end|finish)\s+(?:(?:the|this|my|our)\s+)?(?:interview|session)\b/i.test(lastUser.text))return false;
+  const key='idle-'+last.role+'-'+Math.round(last.end_ms);
+  if(liveIdleGuard.sentTurnKeys.has(key))return false;
+  const message=last.role==='user'
+    ? 'Interview is still active with about '+remaining+' seconds left. If the candidate has finished their answer, ask ONE short relevant unused interview question now. If they are still speaking or thinking, give them room. No repeat, no early closing and no waiting for the clock.'
+    : 'Interview is still active with about '+remaining+' seconds left. If your last words did not ask an open interview question and the candidate is not speaking, ask ONE short unused relevant question. If the candidate is considering a question, remain silent. Do not close early.';
+  if(liveTimeCue_(message,key)){
+    liveIdleGuard.sentTurnKeys.add(key);liveIdleGuard.pendingNudge=true;
+    recordDiagnostic_('[DLP_LIVE_IDLE_NUDGE]',{kind:last.role,remainingSeconds:remaining});
+    return true;
+  }
+  return false;
+}
 function liveTimeCue_(content,key) {
   if(!state.candidateStarted||liveClosing||liveTimerCues.has(key)||state.dc?.readyState!=='open')return false;
   try {
-    state.dc.send(JSON.stringify({type:'session.thinking.append',event_id:'dlp-'+key+'-'+state.sessionId,
+    // Time cues direct interviewer behavior; Live documents instructions.append for
+    // behavioral controls. thinking.append only adds silent context.
+    state.dc.send(JSON.stringify({type:'session.instructions.append',event_id:'dlp-'+key+'-'+state.sessionId,
       delegation_id:null,content:content}));
     liveTimerCues.add(key);
+    liveLastDirectiveAt=Date.now();
     recordDiagnostic_('[DLP_LIVE_TIME_CUE_SENT]',{key});
     return true;
   } catch(e){logDebug({liveTimeCueFailed:String(e)});return false;}
@@ -3184,9 +3261,10 @@ function liveTickTimer_() {
   if(remain<=240 && remain>180)liveTimeCue_('Application time cue: about four minutes remain. Continue the interview. After planned questions, ask short relevant unused follow-ups or fallback questions one at a time. Do not close.','240s');
   if(remain<=180 && remain>120)liveTimeCue_('Application time cue: about three minutes remain. Continue with a relevant unused short question. Do not give a final invitation or close.','180s');
   if(remain<=120 && remain>90)liveTimeCue_('Application time cue: about two minutes remain. Continue naturally with short relevant questions and listen for the answer. Do not close yet.','120s');
-  if(remain<=90 && remain>0)liveTimeCue_('Application time cue: about 90 seconds remain. Do not introduce long topics. Continue naturally, with at most one short follow-up if useful.','90s');
-  if(remain<=45 && remain>0)liveTimeCue_('Application time cue: 45 seconds remain. Wrap up. Only a brief follow-up if really needed.','45s');
+  if(remain<=90 && remain>45)liveTimeCue_('Application time cue: about 90 seconds remain. Keep asking one unused short relevant question after each completed answer until the final 45 seconds. No long topics, repeated questions, early thanks, or waiting for the clock.','90s');
+  if(remain<=45 && remain>20)liveTimeCue_('Application time cue: 45 seconds remain. Begin the final wrap-up naturally. Finish the current answer, then ask at most one brief follow-up or final invitation. Do not close before time expires.','45s');
   if(remain<=20 && remain>0)liveTimeCue_('Application time cue: 20 seconds remain. No new question. Allow the candidate to finish.','20s');
+  if(remain>50)liveContinuityCheck_();
   if(remain===0) {
     clearInterval(state.timerInterval);state.timerInterval=null;
     liveTimeCue_('Application time cue: interview duration has elapsed. Thank the candidate briefly and conclude now.','0s');
@@ -3281,6 +3359,8 @@ function liveResetLocal_() {
   liveEventIds=new Map();liveCaptionEvents=[];liveSessionStarted=false;
   liveCloseWait=null;liveStartedWait=null;liveClosing=false;liveCloseIssued=false;
   liveTimerCues=new Set();livePeerEpoch++;
+  liveLastDirectiveAt=0;
+  liveIdleGuard={lastUserCaptionAt:0,lastAiCaptionAt:0,lastMicActivityAt:0,lastAiActivityAt:0,sentTurnKeys:new Set(),pendingNudge:false};
   state.liveProviderSessionId='';state.liveClosedEvent=null;
 }
 async function startLiveInterview_() {
@@ -3366,6 +3446,8 @@ async function startLiveInterview_() {
     state.clientStartedReported=true;
     state.candidateStarted=true;
     state.connected=true;
+    liveIdleGuard.lastMicActivityAt=Date.now();
+    liveIdleGuard.lastAiActivityAt=Date.now();
     liveSetMic_(true);
     setButtons('live');updateVizState();startVizLoop();
     liveStartTimer_();
