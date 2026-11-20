@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DLP AI Interview frontend prod-6.8.21-credit-notice-rc8h -->
+<!-- DLP AI Interview frontend prod-6.8.22-live-close-rc2 (staging candidate; test before production deployment) -->
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -417,7 +417,7 @@
       </div>
 
       <div class="hint-box">
-        Setelah koneksi siap, <b>sapa Yuliana dulu</b> — ucapkan "Good morning". Saat Yuliana bicara, microphone dikunci sebentar agar suara tidak terpotong.
+        Setelah koneksi berhasil dikonfirmasi, dengarkan pertanyaan pertama dari AI, lalu jawab dengan suara jelas. Jangan menutup halaman sebelum feedback tersimpan.
       </div>
 
       <div style="margin-top:14px">
@@ -445,7 +445,7 @@
 <div class="grid-2">
   <div class="card">
     <h2>Live Transcript</h2>
-    <div class="transcript" id="transcriptPanel"><span class="sub">Transcript akan muncul di sini. Sapa Yuliana lebih dulu — ucapkan "Good morning".</span></div>
+    <div class="transcript" id="transcriptPanel"><span class="sub">Transcript dari percakapan AI dan kandidat akan muncul di sini.</span></div>
   </div>
   <div class="card">
     <h2>Feedback</h2>
@@ -504,8 +504,10 @@
 // =====================================================================
 // CONFIG
 // =====================================================================
-const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec';
-const HTML_VERSION = 'prod-6.8.21-credit-notice-rc8h';
+const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyObGroM4MvKxVXvFckvBAkCTZ04pzG3VtEIjEuwOfI2Znwa65zDOhQFCUYWPw7yWf8/exec'; 
+const HTML_VERSION = 'prod-6.8.22-live-cue-rc3';
+const LIVE_PROTOCOL = 'dlp-live-v1';
+const LIVE_BACKEND_VERSION = 'rc-6.8.13-live-close-rc2';
 const OPENAI_REALTIME_SDP_URL = 'https://api.openai.com/v1/realtime/calls';
 const EXPECTED_BACKEND_PREFIX = 'rc-6.8.13';
 const RESPONSE_OWNER_REQUIRED = 'frontend';
@@ -846,6 +848,7 @@ async function reportClientStarted_() {
       sessionId: state.sessionId,
       sessionAccessToken: state.sessionAccessToken,
       startedAt: state.startedAt ? state.startedAt.toISOString() : new Date().toISOString(),
+      ...(state.liveProviderSessionId ? {protocol:LIVE_PROTOCOL,providerSessionId:state.liveProviderSessionId} : {}),
       _t: Date.now()
     }, 30000);
     if (d.status !== 'STARTED') throw new Error('STARTUP_NOT_CONFIRMED: ' + d.status);
@@ -1076,9 +1079,10 @@ el('btnHealth').onclick = async () => {
     const integrityOk = d.startIdempotency === 'clientRequestId+sessionReservation' &&
       d.creditWriteVerification === true &&
       d.prematureClosePolicy === 'recovered_warning_unrecovered_critical';
-    const compatible = verOk && modeOk && ratingOk && ownerOk && integrityOk;
+    const compatible = verOk && modeOk && ratingOk && ownerOk && integrityOk &&
+      d.appVersion === LIVE_BACKEND_VERSION && d.liveProtocol === LIVE_PROTOCOL && d.liveEnabled === true;
     const detail = compatible
-      ? ' · Officer + AB/Oiler ready'
+      ? ' · GPT-Live STAGING ready (subject to live trial)'
       : ' — PERHATIAN: backend belum kompatibel penuh dengan frontend 6.8';
     setStatus('backendStatus', 'Health OK · ' + d.appVersion + detail, compatible ? 'ok' : 'warn');
   } catch (e) { setStatus('backendStatus', 'Health FAILED: ' + friendlyError(e), 'err'); }
@@ -1211,6 +1215,7 @@ async function persistTranscriptRecoverySnapshot_(phase) {
   const snapshot = {
     sessionId:state.sessionId,
     sessionAccessToken:state.sessionAccessToken,
+    liveProviderSessionId:state.liveProviderSessionId || '',
     backendUrl:getUrl(),
     phase:state.terminalPhase || phase || 'transcript_updated',
     testerCode:state.sessionTesterCode,
@@ -1220,6 +1225,7 @@ async function persistTranscriptRecoverySnapshot_(phase) {
     totalSeconds:state.totalSeconds,
     integrityFlags:state.integrityFlags.slice(),
     finalizationEvidence:JSON.parse(JSON.stringify(state.finalizationEvidence || null)),
+    liveClosedEvent:JSON.parse(JSON.stringify(state.liveClosedEvent || null)),
     savePayload:state.transcriptSavePayload,
     savedAt:new Date().toISOString()
   };
@@ -1998,7 +2004,6 @@ async function connectRealtime() {
     }
     if (pc.connectionState === 'failed' && state.connected && !state.finalized) handleConnectionFailure_('failed');
   };
-
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   const r = await fetch(OPENAI_REALTIME_SDP_URL, { method:'POST', body:offer.sdp,
@@ -2348,6 +2353,7 @@ async function prepareTranscriptSave_() {
     endedAt:(state.endedAt || new Date()).toISOString(),
     duration:String(currentDurationSeconds_()),
     finalizationEvidence:JSON.stringify(state.finalizationEvidence || {}),
+    ...(state.liveProviderSessionId ? {protocol:LIVE_PROTOCOL,providerSessionId:state.liveProviderSessionId} : {}),
     notes:'Saved from ' + HTML_VERSION + '; integrityFlags=' + state.integrityFlags.join('|')
   };
   payload.expectedHash = await sha256Hex_(normalizeTranscriptForCompare_(transcriptItemsText_(items)));
@@ -2702,6 +2708,11 @@ async function executeFeedbackFlow_() {
       : 'Interview selesai. Feedback belum terkonfirmasi; periksa pesan di bawah dan gunakan Feedback untuk sesi yang sama.', 'warn');
   } finally { if (state.sessionId === flowSessionId) { state.feedbackBusy=false; setButtons(state.feedbackResolved ? 'idle' : 'stopped'); } }
 }
+function publicFeedbackForCandidate_(raw) {
+  return String(raw || '').split(/(?=^## )/m)
+    .filter(section => !/^## (?:Evidence Summary|Cakupan Percakapan)(?:\s|$)/i.test(section))
+    .join('').trim();
+}
 function renderFeedbackResult_(data) {
     clearInterval(state.timerInterval);
     clearTimeout(state.hardDeadlineTimer); clearTimeout(state.finalCloseFallbackTimer);
@@ -2731,7 +2742,7 @@ function renderFeedbackResult_(data) {
       setStatus('feedbackStatus', 'Data sesi belum cukup untuk memberikan penilaian' + (data.refunded ? ', credit dikembalikan.' : '.'), 'warn');
     } else {
       if (!String(data.feedback || '').trim()) throw new Error('Feedback kosong. Transkrip tersimpan; coba tombol Feedback untuk sesi ini.');
-      state.lastFeedback = data.feedback || '';
+      state.lastFeedback = publicFeedbackForCandidate_(data.feedback || '');
       el('feedbackPanel').style.display='block';
       el('feedbackPanel').textContent=state.lastFeedback;
       const recovered = data.outcome === 'COMPLETED_RECOVERED';
@@ -2772,6 +2783,8 @@ async function resumeFeedbackAfterReload_() {
   // Hydrate BEFORE the first network request, so a failed recovery read is retryable.
   state.sessionId = pending.sessionId;
   state.sessionAccessToken = pending.sessionAccessToken;
+  state.liveProviderSessionId = pending.liveProviderSessionId || '';
+  state.liveClosedEvent = pending.liveClosedEvent || null;
   state.sessionTesterCode = pending.testerCode || '';
   // A terminal snapshot is rechecked, never used as proof of a refund.
   state.terminalPhase = '';
@@ -2811,13 +2824,617 @@ el('btnDownload').onclick = () => {
   a.download = (state.sessionId || 'session') + '.json'; a.click();
 };
 el('btnClearDebug').onclick = () => { el('debugLog').textContent = ''; };
-window.addEventListener('beforeunload', () => { if (state.sessionId && !state.candidateStarted) reportClientStartFailureKeepalive_('page_unload_before_start'); if (state.connected) stopVoice(); });
+window.addEventListener('beforeunload', () => { if (state.sessionId && !state.candidateStarted && !readPendingStartup_()) reportClientStartFailureKeepalive_('page_unload_before_start'); if (state.connected) stopVoice(); });
+
+// ============================================================================
+// GPT-Live-1.1 transport: isolated from the legacy Realtime response.create path.
+// Staging candidate. Nothing runs unless backend health explicitly matches.
+// Browser never receives OPENAI_API_KEY and never POSTs to OpenAI directly.
+// ============================================================================
+const LIVE_RECOVERY_POLL_MS = 3000;
+const LIVE_CREATE_WAIT_MS = 120000;
+const LIVE_CLOSED_WAIT_MS = 14000;
+const LIVE_STARTED_WAIT_MS = 30000;
+let liveStartupFlight = null;
+let liveFinalizationFlight = null;
+let liveEventIds = new Map();
+let liveCaptionEvents = [];
+let liveStartedWait = null;
+let liveCloseWait = null;
+let liveClosing = false;
+let liveSessionStarted = false;
+let liveLastStatus = '';
+let liveCloseIssued = false;
+let liveTimerCues = new Set();
+let livePrematureCloseTimer = null;
+let livePeerEpoch = 0;
+let liveInhibitUnloading = false;
+
+function liveEnsureState_() {
+  if (typeof state.liveProviderSessionId !== 'string') state.liveProviderSessionId = '';
+  if (!state.liveClosedEvent) state.liveClosedEvent = null;
+}
+function liveJsonSafe_(value) {
+  try { return JSON.parse(JSON.stringify(value)); } catch (_) { return null; }
+}
+function liveReportStatus_(s, kind='warn', loading=false) {
+  setStatus('voiceStatus',s,kind,loading);
+}
+function livePersistStartup_(pending) {
+  // This identity is durable BEFORE submitting a POST that can deduct a credit.
+  const encoded = JSON.stringify(pending);
+  sessionStorage.setItem('dlpPendingStartup',encoded);
+  if (sessionStorage.getItem('dlpPendingStartup') !== encoded) throw new Error('Browser tidak bisa menyimpan identitas sesi. Start dibatalkan sebelum kredit dipotong.');
+}
+function liveStartIdentity_() {
+  state.clientRequestId = createClientRequestId_();
+  return persistStartupIdentity_();
+}
+async function liveFetchHealth_() {
+  const health = await jsonp('health',{_t:Date.now()},30000);
+  if (health.appVersion !== LIVE_BACKEND_VERSION || health.liveProtocol !== LIVE_PROTOCOL ||
+      health.liveCreateMethod !== 'POST createLiveSession' || health.liveCloseOwner !== 'browser_data_channel' ||
+      health.responseOwner !== 'frontend' || health.startIdempotency !== 'clientRequestId+sessionReservation' ||
+      health.creditWriteVerification !== true ||
+      health.lifecycleProtocol !== 'lifecycle-qwen-v2' || health.transcriptProtocol !== 'transcript-ack-v1' ||
+      health.feedbackProtocol !== 'feedback-commit-v1' || health.feedbackErrorProtocol !== 'feedback-error-v1') {
+    throw new Error('[LIVE_BACKEND_MISMATCH] Backend belum cocok dengan HTML Live ini. Tidak ada permintaan debit yang dikirim.');
+  }
+  if (health.liveEnabled !== true || health.liveModel !== 'gpt-live-1.1') {
+    throw new Error('[LIVE_NOT_ENABLED] Backend trial belum mengaktifkan GPT-Live. Kredit belum dipotong.');
+  }
+  return health;
+}
+function liveSubmitForm_(params) {
+  // Apps Script Web App does not support a readable cross-origin JSON POST. A
+  // form avoids CORS, and recoverStartup is the authenticated receipt. NEVER
+  // use iframe.onload as proof of session creation or credit consumption.
+  const form = document.createElement('form');
+  form.method='POST'; form.action=getUrl(); form.target='hiddenSaveFrame';
+  form.enctype='application/x-www-form-urlencoded'; form.acceptCharset='UTF-8';
+  form.style.display='none';
+  for (const [name,value] of Object.entries(params)) {
+    const item=document.createElement('textarea'); item.name=name; item.value=String(value);
+    form.appendChild(item);
+  }
+  document.body.appendChild(form);
+  try { form.submit(); }
+  finally { setTimeout(()=>{ if(form.isConnected) form.remove(); },60000); }
+}
+async function liveReadStartup_(pending) {
+  return jsonp('recoverStartup',{
+    clientRequestId:pending.clientRequestId,
+    startupToken:pending.startupToken,
+    offerHash:pending.offerHash,
+    _t:Date.now()
+  },20000);
+}
+async function livePollBootstrap_(pending,maxWaitMs=LIVE_CREATE_WAIT_MS) {
+  const started=Date.now(); let lastErr=null;
+  while(Date.now()-started<maxWaitMs) {
+    try {
+      const r=await liveReadStartup_(pending);
+      if(r.ok===true && r.recoverable===true && r.bootstrap) return r.bootstrap;
+      if(r.status==='STARTED' || r.started) {
+        throw new Error('[STARTUP_ALREADY_STARTED] Sesi sudah dimulai. Jangan membuat sesi baru.');
+      }
+      if(/REFUNDED|CANCELLED|FAILED/.test(String(r.status||''))) {
+        throw new Error('[STARTUP_CANCELLED] Persiapan sesi dibatalkan. Periksa kredit sebelum mencoba lagi.');
+      }
+      if(r.status==='CREATED' && r.recoverable===false &&
+          /live_bootstrap_expired|live_bootstrap_unavailable/.test(r.reason||'')) {
+        throw new Error('[LIVE_BOOTSTRAP_UNAVAILABLE] Sesi belum dimulai dan perlu dibatalkan dengan identitas yang sama.');
+      }
+    }catch(e){
+      lastErr=e;
+      if(/STARTUP_ALREADY_STARTED|STARTUP_CANCELLED|LIVE_BOOTSTRAP_UNAVAILABLE|LIVE_OFFER_CONFLICT|SESSION_ACCESS_DENIED/.test(String(e.message||e))) throw e;
+    }
+    await sleep_(LIVE_RECOVERY_POLL_MS);
+  }
+  throw new Error('[LIVE_CREATE_UNCERTAIN] Respons Start belum dapat dipastikan. Identitas disimpan; jangan memulai sesi baru. ' +(lastErr?'Periksa koneksi.':''));
+}
+async function liveCancelUnstarted_(pending) {
+  const r=await jsonp('cancelStartup',{clientRequestId:pending.clientRequestId,
+    startupToken:pending.startupToken,_t:Date.now()},30000);
+  if(!r || r.ok!==true) throw new Error('[STARTUP_CANCEL_UNCONFIRMED]');
+  if(r.started || r.status==='STARTED') {
+    await liveRememberStartedRecovery_(pending,r.sessionId||'');
+    throw new Error('[STARTUP_ALREADY_STARTED] Sesi lama sudah berjalan. Jangan memulai sesi lain.');
+  }
+  if(!/CANCELLED|REFUNDED|FAILED|NO_DEBIT/.test(String(r.status||''))) {
+    throw new Error('[STARTUP_CANCEL_UNCONFIRMED] Pembatalan belum terverifikasi.');
+  }
+  sessionStorage.removeItem('dlpPendingStartup');
+  if(Number.isInteger(r.remainingSessions)) el('pillCredits').textContent=String(r.remainingSessions);
+  return r;
+}
+async function liveRememberStartedRecovery_(pending,sessionId) {
+  if(!sessionId) return;
+  const snapshot=readFeedbackSnapshot_();
+  if(snapshot && snapshot.sessionId===sessionId) return;
+  const saved={sessionId,sessionAccessToken:pending.startupToken,
+    liveProviderSessionId:pending.providerSessionId||'',backendUrl:pending.backendUrl,
+    startedAt:'',endedAt:new Date().toISOString(),totalSeconds:420,
+    phase:'started_unrecoverable_media',transcript:[],integrityFlags:['connection_failure'],
+    finalizationEvidence:null,savePayload:null,savedAt:new Date().toISOString()};
+  sessionStorage.setItem('dlpPendingFeedback',JSON.stringify(saved));
+}
+async function liveReconcileOldStartup_() {
+  const pending=readPendingStartup_();
+  if(!pending) return;
+  if(pending.backendUrl!==getUrl()) throw new Error('Ada sesi lama di URL backend lain. Kembalikan URL tersebut untuk menyelesaikan sesi tanpa debit baru.');
+  // A refreshed tab NEVER recreates an SDP peer, because the previous peer and
+  // original SDP's ICE credentials are lost. Only cancel an unstarted row.
+  const r=await liveReadStartup_(pending);
+  if(r.status==='STARTED' || r.started) {
+    await liveRememberStartedRecovery_(pending,r.sessionId||'');
+    sessionStorage.removeItem('dlpPendingStartup');
+    throw new Error('[STARTUP_ALREADY_STARTED] Sesi lama sudah dimulai. Periksa hasilnya; tidak ada kredit baru yang dipotong.');
+  }
+  if(/REFUNDED|FAILED|CANCELLED/.test(String(r.status||''))) {
+    sessionStorage.removeItem('dlpPendingStartup'); return;
+  }
+  // Even a PENDING reservation must be tombstoned before a new request ID.
+  await liveCancelUnstarted_(pending);
+}
+async function inspectLivePendingStartupOnLoad_() {
+  const pending=readPendingStartup_();
+  if(!pending || pending.backendUrl!==getUrl()) return;
+  try {
+    const r=await liveReadStartup_(pending);
+    if(r.status==='STARTED' || r.started) {
+      await liveRememberStartedRecovery_(pending,r.sessionId||'');
+      sessionStorage.removeItem('dlpPendingStartup');
+      liveReportStatus_('Sesi sebelumnya sudah dimulai. Memeriksa hasil sesi yang sama.', 'warn');
+      return;
+    }
+    if(/REFUNDED|CANCELLED|FAILED/.test(String(r.status||''))) {
+      sessionStorage.removeItem('dlpPendingStartup'); return;
+    }
+    liveReportStatus_('Ada Start sebelumnya. Klik Start sekali untuk memeriksa dan membatalkan persiapan lama sebelum membuat sesi baru.', 'warn');
+  } catch (_) {
+    liveReportStatus_('Status Start lama belum diketahui. Jangan berulang kali menekan Start; periksa jaringan dan coba sekali lagi.', 'warn');
+  }
+}
+function liveSetMic_(enabled) {
+  if(!state.localStream) return;
+  state.localStream.getAudioTracks().forEach(t=>{t.enabled=!!enabled;});
+}
+async function liveWaitIce_(pc,timeoutMs=7000) {
+  if(pc.iceGatheringState==='complete') return;
+  await new Promise(resolve=>{
+    let done=false; const finish=()=>{if(done)return;done=true;clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',handler);resolve();};
+    const handler=()=>{if(pc.iceGatheringState==='complete')finish();};
+    const timer=setTimeout(finish,timeoutMs);
+    pc.addEventListener('icegatheringstatechange',handler);
+  });
+}
+function liveBuildPeer_() {
+  const pc=new RTCPeerConnection();state.pc=pc;
+  const epoch=++livePeerEpoch;
+  const current=()=>pc===state.pc && epoch===livePeerEpoch;
+  for(const track of state.localStream.getTracks()) pc.addTrack(track,state.localStream);
+  liveSetMic_(false);
+  pc.ontrack=e=>{
+    if(!current())return;
+    const stream=e.streams&&e.streams[0]||new MediaStream([e.track]);
+    state.remoteStream=stream;
+    const a=el('remoteAudio');a.srcObject=stream;
+    a.play().then(()=>{
+      if(current()){state.audioBlocked=false;el('btnEnableAudio').style.display='none';el('audioNotice').style.display='none';}
+    }).catch(()=>{
+      if(!current())return;
+      state.audioBlocked=true;el('btnEnableAudio').style.display='block';
+      el('audioNotice').style.display='block';el('audioNotice').textContent='Suara terblokir browser. Klik Aktifkan suara. Timer tetap berjalan setelah Start dikonfirmasi.';
+    });
+    if(state.audioCtx){state.aiAnalyser=setupAnalyser(stream);if(state.aiAnalyser)state.aiBuf=new Uint8Array(state.aiAnalyser.fftSize);}
+  };
+  pc.onconnectionstatechange=()=>{
+    if(!current())return;
+    recordDiagnostic_('[DLP_LIVE_PEER_STATE]',{connectionState:pc.connectionState});
+    if(state.connected && !liveClosing && !state.finalized &&
+      (pc.connectionState==='failed' || pc.connectionState==='closed')) {
+      markIntegrityFailure('connection_failure',{reason:pc.connectionState});
+      finalizeLiveSession_('connection_failure').catch(e=>logDebug({liveCloseFailed:String(e)}));
+    }
+    if(state.connected && pc.connectionState==='disconnected') {
+      liveReportStatus_('Koneksi kurang stabil. Jawaban yang tertangkap tetap disimpan.', 'warn');
+    }
+  };
+  const dc=pc.createDataChannel('oai-events');state.dc=dc;
+  dc.addEventListener('open',()=>{if(current())state.dataChannelOpen=true;});
+  dc.addEventListener('close',()=>{if(current())state.dataChannelOpen=false;});
+  dc.addEventListener('message',e=>{
+    if(!current())return;
+    try {liveHandleEvent_(JSON.parse(e.data));}
+    catch(err){logDebug({liveEventError:String(err&&err.message||err)});}
+  });
+  return pc;
+}
+function liveSetStatusFromEvent_(evt) {
+  if(evt.type==='session.started') {
+    const id=evt.session && evt.session.id;
+    if(id && id!==state.liveProviderSessionId) {
+      if(liveStartedWait)liveStartedWait.reject(new Error('[LIVE_SESSION_MISMATCH] Provider ID tidak sama.'));
+      return;
+    }
+    liveSessionStarted=true;
+    if(liveStartedWait) liveStartedWait.resolve(evt);
+    return;
+  }
+  if(evt.type==='session.closed') {
+    const usage=evt.usage||{};
+    const positive=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0?v:null;
+    state.liveClosedEvent={type:'session.closed',reason:String(evt.reason||'').slice(0,96),
+      usage:{seconds:positive(usage.seconds),active_seconds:positive(usage.active_seconds),paused_seconds:positive(usage.paused_seconds)}};
+    recordDiagnostic_('[DLP_LIVE_SESSION_CLOSED]',{reason:state.liveClosedEvent.reason,
+      seconds:state.liveClosedEvent.usage.seconds});
+    persistTranscriptRecoverySnapshot_('live_close_confirmed').catch(()=>{});
+    if(liveCloseWait)liveCloseWait.resolve(state.liveClosedEvent);
+    if(state.candidateStarted && !liveClosing && !state.finalized) {
+      finalizeLiveSession_('connection_failure').catch(()=>{});
+    }
+    return;
+  }
+  if(evt.type==='error') {
+    const code=String(evt.error&&evt.error.code||'').slice(0,80);
+    const clientEventId=String(evt.client_event_id||evt.error&&evt.error.event_id||'').slice(0,160);
+    recordDiagnostic_('[DLP_LIVE_PROVIDER_ERROR]',{code,clientEventId});
+    logDebug({liveProviderError:{code,clientEventId,message:String(evt.error&&evt.error.message||'').slice(0,120)}});
+    // A rejected context update is an error for that command, not proof that
+    // the media session failed. The peer state / session.closed handlers own
+    // actual connection loss and finalization.
+    if(state.candidateStarted && !liveClosing && !state.finalized && !state.liveClosedEvent &&
+       /^dlp-/.test(clientEventId)) {
+      liveReportStatus_('Pengingat waktu belum diterima AI. Interview tetap berjalan.', 'warn');
+    }
+  }
+}
+function liveHandleEvent_(evt) {
+  if(!evt || typeof evt!=='object')return;
+  if(evt.type==='session.input_transcript.delta' || evt.type==='session.output_transcript.delta') {
+    liveAcceptCaption_(evt);return;
+  }
+  liveSetStatusFromEvent_(evt);
+}
+function liveAcceptCaption_(evt) {
+  // Caption deltas can arrive before reportClientStarted returns. Keep them as
+  // provisional evidence rather than losing the AI's first question.
+  if(!state.sessionId || state.transcriptSavePayload)return;
+  const id=evt.event_id;
+  if(typeof id!=='string'||!id||id.length>160||typeof evt.delta!=='string'||evt.delta.length>16000||
+      !Number.isFinite(evt.start_ms)||!Number.isFinite(evt.end_ms)||evt.start_ms<0||evt.end_ms<evt.start_ms||
+      evt.end_ms>state.totalSeconds*1000+60000)return;
+  const compact={type:evt.type,delta:evt.delta,start_ms:evt.start_ms,end_ms:evt.end_ms,event_id:id};
+  if(liveEventIds.has(id)) {
+    if(JSON.stringify(liveEventIds.get(id))!==JSON.stringify(compact)) {
+      markIntegrityFailure('connection_failure',{reason:'live_event_id_conflict'});
+    }
+    return;
+  }
+  if(liveCaptionEvents.length>=5000)return;
+  liveEventIds.set(id,compact);liveCaptionEvents.push(compact);
+  const sorted=liveCaptionEvents.slice().sort((a,b)=>a.start_ms-b.start_ms||a.end_ms-b.end_ms);
+  const turns=[], last={};
+  for(const e of sorted) {
+    const role=e.type==='session.input_transcript.delta'?'user':'ai';
+    const prev=last[role];
+    if(prev && e.start_ms-prev.end_ms<=1800) {prev.text+=e.delta;prev.end_ms=Math.max(prev.end_ms,e.end_ms);}
+    else {const turn={role,text:e.delta,start_ms:e.start_ms,end_ms:e.end_ms};turns.push(turn);last[role]=turn;}
+  }
+  turns.sort((a,b)=>a.start_ms-b.start_ms||a.end_ms-b.end_ms);
+  state.transcript=turns.filter(t=>t.text.trim()).map(t=>({role:t.role,text:t.text.trim().replace(/[\r\n]+/g,' '),
+    start_ms:t.start_ms,end_ms:t.end_ms}));
+  if(evt.type==='session.input_transcript.delta')state.lastUserTranscriptAt=Date.now();
+  const panel=el('transcriptPanel');panel.innerHTML='';
+  for(const t of state.transcript){
+    const div=document.createElement('div');div.className=t.role==='user'?'t-user':'t-ai';
+    div.textContent=(t.role==='user'?'Kamu: ':'Yuliana: ')+t.text;
+    panel.appendChild(div);
+  }
+  panel.scrollTop=panel.scrollHeight;
+  el('btnCopyTr').disabled=!state.transcript.length;
+  if(evt.type==='session.output_transcript.delta')liveSchedulePrematureCloseRecovery_();
+  persistTranscriptRecoverySnapshot_('live_caption_updated').catch(e=>{
+    liveReportStatus_('Transkrip belum aman tersimpan di browser. Jangan refresh sebelum sesi selesai.', 'warn');
+    logDebug({liveSnapshotError:String(e)});
+  });
+}
+function liveSchedulePrematureCloseRecovery_() {
+  if(!state.candidateStarted||liveClosing||state.finalized||state.liveClosedEvent||
+     !state.deadlineAt||state.deadlineAt-Date.now()<=45000)return;
+  const spoken=state.transcript.filter(t=>t.role==='ai').slice(-1)[0];
+  if(!spoken||!/(?:concludes? the interview|wait for your written feedback)/i.test(spoken.text))return;
+  clearTimeout(livePrematureCloseTimer);
+  // Caption deltas may arrive mid-sentence. Wait until the closing utterance
+  // settles before steering Live; a closing phrase alone does not end media.
+  livePrematureCloseTimer=setTimeout(()=>{
+    livePrematureCloseTimer=null;
+    const remain=Math.ceil((state.deadlineAt-Date.now())/1000);
+    if(!state.candidateStarted||liveClosing||state.finalized||state.liveClosedEvent||remain<=45)return;
+    const lastAi=state.transcript.filter(t=>t.role==='ai').slice(-1)[0];
+    if(!lastAi||lastAi.start_ms!==spoken.start_ms||
+       !/(?:concludes? the interview|wait for your written feedback)/i.test(lastAi.text))return;
+    const lastUser=state.transcript.filter(t=>t.role==='user').slice(-1)[0];
+    // A clear candidate request to stop remains authoritative.
+    if(lastUser&&/\b(?:i\s+(?:want|would like|need)\s+to\s+|please\s+)(?:stop|end|finish)\s+(?:(?:the|this|my|our)\s+)?(?:interview|session)\b/i.test(lastUser.text))return;
+    const key='premature-close-'+String(spoken.start_ms);
+    if(liveTimeCue_('Application correction: the interview is still running with about '+remain+
+      ' seconds left. Your closing was early. Briefly continue with the next unused relevant question or a short safety/work follow-up. Do not repeat a completed topic and do not mention feedback yet.',key)) {
+      logFlow('[DLP_LIVE_PREMATURE_CLOSE_RECOVERY]',{remainingSeconds:remain});
+    }
+  },1800);
+}
+function liveTimeCue_(content,key) {
+  if(!state.candidateStarted||liveClosing||liveTimerCues.has(key)||state.dc?.readyState!=='open')return false;
+  try {
+    state.dc.send(JSON.stringify({type:'session.thinking.append',event_id:'dlp-'+key+'-'+state.sessionId,
+      delegation_id:null,content:content}));
+    liveTimerCues.add(key);
+    recordDiagnostic_('[DLP_LIVE_TIME_CUE_SENT]',{key});
+    return true;
+  } catch(e){logDebug({liveTimeCueFailed:String(e)});return false;}
+}
+function liveTickTimer_() {
+  const remain=Math.max(0,Math.ceil((state.deadlineAt-Date.now())/1000));
+  state.remainingSeconds=remain;
+  const m=Math.floor(remain/60),s=remain%60;
+  el('timer').textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  el('timer').className='timer'+(remain<=20?' t-danger':remain<=90?' t-warn':'');
+  if(remain<=240 && remain>180)liveTimeCue_('Application time cue: about four minutes remain. Continue the interview. After planned questions, ask short relevant unused follow-ups or fallback questions one at a time. Do not close.','240s');
+  if(remain<=180 && remain>120)liveTimeCue_('Application time cue: about three minutes remain. Continue with a relevant unused short question. Do not give a final invitation or close.','180s');
+  if(remain<=120 && remain>90)liveTimeCue_('Application time cue: about two minutes remain. Continue naturally with short relevant questions and listen for the answer. Do not close yet.','120s');
+  if(remain<=90 && remain>0)liveTimeCue_('Application time cue: about 90 seconds remain. Do not introduce long topics. Continue naturally, with at most one short follow-up if useful.','90s');
+  if(remain<=45 && remain>0)liveTimeCue_('Application time cue: 45 seconds remain. Wrap up. Only a brief follow-up if really needed.','45s');
+  if(remain<=20 && remain>0)liveTimeCue_('Application time cue: 20 seconds remain. No new question. Allow the candidate to finish.','20s');
+  if(remain===0) {
+    clearInterval(state.timerInterval);state.timerInterval=null;
+    liveTimeCue_('Application time cue: interview duration has elapsed. Thank the candidate briefly and conclude now.','0s');
+    // Give the current audio utterance a short chance to finish; never keep a
+    // paid session open indefinitely because the browser lost the timer.
+    clearTimeout(state.hardDeadlineTimer);
+    state.hardDeadlineTimer=setTimeout(()=>finalizeLiveSession_('hard_deadline_grace_expired').catch(()=>{}),6000);
+  }
+}
+function liveStartTimer_() {
+  state.startedAt=state.startedAt||new Date();
+  state.deadlineAt=state.startedAt.getTime()+state.totalSeconds*1000;
+  clearInterval(state.timerInterval);liveTimerCues=new Set();
+  liveTickTimer_();state.timerInterval=setInterval(liveTickTimer_,500);
+}
+function liveCloseEvidence_(source) {
+  const seconds=state.startedAt?Math.min(state.totalSeconds,Math.max(0, (Date.now()-state.startedAt.getTime())/1000)):0;
+  return {version:1,source,protocol:LIVE_PROTOCOL,finalCloseRequested:true,
+    elapsedInterviewSeconds:seconds,
+    pendingTranscriptions:0,candidateSpeaking:false,activeResponseKind:'final_close',
+    lastUserTranscriptAt:state.lastUserTranscriptAt||0,
+    closedEvent:state.liveClosedEvent||null,
+    clientCloseRequested:liveCloseIssued,
+    providerSessionId:state.liveProviderSessionId,
+    closeConfirmed:!!state.liveClosedEvent};
+}
+function liveWaitClosed_() {
+  if(state.liveClosedEvent)return Promise.resolve(state.liveClosedEvent);
+  return new Promise(resolve=>{
+    const timeout=setTimeout(()=>{if(liveCloseWait===wait)liveCloseWait=null;resolve(null);},LIVE_CLOSED_WAIT_MS);
+    const wait={resolve:ev=>{clearTimeout(timeout);if(liveCloseWait===wait)liveCloseWait=null;resolve(ev);}};
+    liveCloseWait=wait;
+  });
+}
+async function finalizeLiveSession_(source='manual_feedback') {
+  if(liveFinalizationFlight)return liveFinalizationFlight;
+  liveFinalizationFlight=(async()=>{
+    if(!state.sessionId||!state.sessionAccessToken)throw new Error('Sesi belum tersedia.');
+    if(!state.clientStartedReported){
+      // Do not manufacture STARTED evidence when provider start was never
+      // acknowledged by the backend. Only release an unstarted reservation.
+      const pending=readPendingStartup_();
+      liveReportStatus_('Menghentikan persiapan sesi dan memeriksa kredit...', 'warn',true);
+      liveSetMic_(false);
+      if(state.dc?.readyState==='open'){try{state.dc.send(JSON.stringify({type:'session.close'}));}catch(_){}}
+      stopVoice();
+      if(pending)await liveCancelUnstarted_(pending);
+      state.finalized=true;setButtons('idle');return;
+    }
+    if(state.finalized)return runFeedbackFlow();
+    liveClosing=true;
+    clearTimeout(livePrematureCloseTimer);livePrematureCloseTimer=null;
+    clearInterval(state.timerInterval);clearTimeout(state.hardDeadlineTimer);
+    liveSetMic_(false);
+    setButtons('busy');
+    // Persist all acknowledged delta snapshots before closing media.
+    await persistTranscriptRecoverySnapshot_('live_close_requested');
+    let closingEvent=state.liveClosedEvent;
+    if(!closingEvent && !liveCloseIssued && state.dc?.readyState==='open'){
+      liveCloseIssued=true;
+      try{state.dc.send(JSON.stringify({type:'session.close'}));}
+      catch(e){logDebug({liveCloseSendFailed:String(e)});}
+    }
+    if(!closingEvent)closingEvent=await liveWaitClosed_();
+    if(!closingEvent){
+      markIntegrityFailure('connection_failure',{reason:'live_close_unconfirmed'});
+    }
+    state.finalizationEvidence=liveCloseEvidence_(source);
+    state.endedAt=new Date();
+    state.finalized=true;
+    await persistTranscriptRecoverySnapshot_('live_closed_or_timeout');
+    stopVoice();
+    setButtons('stopped');
+    liveReportStatus_(closingEvent?'Interview selesai. Menyimpan transkrip dan mengambil feedback...':'Penutupan suara belum terkonfirmasi. Menyimpan catatan untuk pemeriksaan admin.',
+      closingEvent?'warn':'err',true);
+    await runFeedbackFlow();
+  })().finally(()=>{liveFinalizationFlight=null;});
+  return liveFinalizationFlight;
+}
+async function liveAwaitStartEvent_(ms=LIVE_STARTED_WAIT_MS) {
+  if(liveSessionStarted)return;
+  await new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{if(liveStartedWait===wait)liveStartedWait=null;reject(new Error('[LIVE_SESSION_STARTED_TIMEOUT] Tidak menerima session.started.'));},ms);
+    const wait={resolve:()=>{clearTimeout(timer);if(liveStartedWait===wait)liveStartedWait=null;resolve();},
+      reject:e=>{clearTimeout(timer);if(liveStartedWait===wait)liveStartedWait=null;reject(e);}};
+    liveStartedWait=wait;
+  });
+}
+function liveResetLocal_() {
+  clearTimeout(livePrematureCloseTimer);livePrematureCloseTimer=null;
+  stopVoice(); resetSessionState_();
+  liveEventIds=new Map();liveCaptionEvents=[];liveSessionStarted=false;
+  liveCloseWait=null;liveStartedWait=null;liveClosing=false;liveCloseIssued=false;
+  liveTimerCues=new Set();livePeerEpoch++;
+  state.liveProviderSessionId='';state.liveClosedEvent=null;
+}
+async function startLiveInterview_() {
+  if(liveStartupFlight||startFlightActive||state.connected||state.feedbackBusy)return;
+  if(hasUnresolvedFeedback_()){
+    liveReportStatus_('Sesi lama perlu diselesaikan dahulu; tidak membuat sesi baru.', 'warn');
+    if(state.sessionId)await runFeedbackFlow(); else await resumeFeedbackAfterReload_();
+    return;
+  }
+  startFlightActive=true;setButtons('busy');
+  let posted=false;
+  try{
+    if(!getUrl()||!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(getUrl()))
+      throw new Error('[STAGING_URL_REQUIRED] Isi URL /exec Apps Script STAGING melalui panel admin sebelum Start.');
+    await liveReconcileOldStartup_();
+    // Prevent a stale backend URL, bad mode, disabled Live, or unavailable
+    // Cadet plan from consuming any credit.
+    const health=await liveFetchHealth_();
+    const params=mapParams();
+    if(/Cadet$/.test(params.rank))await assertCadetCapabilityBeforeStart_(params);
+    if(!navigator.mediaDevices?.getUserMedia||!window.RTCPeerConnection||!window.crypto?.subtle)
+      throw new Error('Browser tidak mendukung WebRTC dan HTTPS untuk interview suara.');
+    archiveTerminalSnapshot_();
+    liveResetLocal_();
+    el('transcriptPanel').innerHTML='<span class="sub">Menunggu transkrip percakapan...</span>';
+    el('feedbackPanel').style.display='none';el('sessionHelp').style.display='none';
+    state.sessionTesterCode=params.testerCode;
+    liveReportStatus_('Meminta izin mikrofon...', 'warn',true);
+    state.localStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    try{
+      const AC=window.AudioContext||window.webkitAudioContext;
+      if(AC){state.audioCtx=new AC();if(state.audioCtx.state==='suspended')await state.audioCtx.resume();
+        state.userAnalyser=setupAnalyser(state.localStream);if(state.userAnalyser)state.userBuf=new Uint8Array(state.userAnalyser.fftSize);
+        state.audioReactive=!!state.userAnalyser;}
+    }catch(_){state.audioReactive=false;}
+    const pc=liveBuildPeer_();
+    const offer=await pc.createOffer();await pc.setLocalDescription(offer);
+    await liveWaitIce_(pc);
+    const sdp=pc.localDescription&&pc.localDescription.sdp;
+    if(!sdp||sdp.length<100||sdp.length>40000)throw new Error('WebRTC offer tidak valid. Kredit belum dipotong.');
+    const offerHash=await sha256Hex_(sdp);
+    const startupToken=liveStartIdentity_();
+    const pending={clientRequestId:state.clientRequestId,startupToken,offerHash,backendUrl:getUrl(),
+      createdAt:new Date().toISOString()};
+    livePersistStartup_(pending);
+    const request={...params,action:'createLiveSession',protocol:LIVE_PROTOCOL,
+      clientRequestId:state.clientRequestId,startupToken,offerHash,sdp};
+    liveReportStatus_('Membuat sesi Live di server. Jangan tekan Start lagi...', 'warn',true);
+    posted=true;
+    liveSubmitForm_(request); // exactly once for this request ID and offer
+    const bootstrap=await livePollBootstrap_(pending);
+    if(bootstrap.protocol!==LIVE_PROTOCOL||bootstrap.responseOwner!=='live'||
+       bootstrap.clientRequestId!==state.clientRequestId || bootstrap.sessionAccessToken!==startupToken ||
+       bootstrap.offerHash!==offerHash || !bootstrap.sessionId || !bootstrap.providerSessionId ||
+       bootstrap.transport?.type!=='webrtc' || !bootstrap.transport?.sdp)
+      throw new Error('[LIVE_BOOTSTRAP_MISMATCH] Jawaban backend tidak sama dengan permintaan sesi.');
+    state.sessionId=bootstrap.sessionId;
+    state.sessionAccessToken=bootstrap.sessionAccessToken;
+    state.liveProviderSessionId=bootstrap.providerSessionId;
+    state.sessionMeta=bootstrap;
+    state.totalSeconds=(parseInt(bootstrap.durationMinutes,10)||7)*60;
+    state.remainingSeconds=state.totalSeconds;
+    el('durationMinutes').value=String(state.totalSeconds/60);
+    el('pillSid').textContent=state.sessionId;
+    el('pillSession').textContent=state.sessionId;
+    el('pillMode').textContent=bootstrap.productMode||bootstrap.focus||'-';
+    el('pillCredits').textContent=Number.isInteger(bootstrap.creditsRemaining)?String(bootstrap.creditsRemaining):'—';
+    bindDiagnosticConfig_(bootstrap);
+    // Store the provider identity so refresh can save a non-fabricated,
+    // reviewable transcript even when the live WebRTC peer is lost.
+    pending.sessionId=state.sessionId;pending.providerSessionId=state.liveProviderSessionId;
+    livePersistStartup_(pending);
+    await persistTranscriptRecoverySnapshot_('live_created_unstarted');
+    liveReportStatus_('Menghubungkan suara dan menunggu konfirmasi session.started...', 'warn',true);
+    await pc.setRemoteDescription({type:'answer',sdp:bootstrap.transport.sdp});
+    await liveAwaitStartEvent_();
+    // This is the ONLY path to marking a session started. Await the actual
+    // backend receipt, do not trust only a provider event or WebRTC connected.
+    state.startedAt=new Date();
+    const acknowledged=await reportClientStarted_();
+    if(!acknowledged||acknowledged.ok!==true||acknowledged.status!=='STARTED')
+      throw new Error('[LIVE_START_REPORT_UNCONFIRMED] Backend belum mengonfirmasi sesi dimulai.');
+    state.clientStartedReported=true;
+    state.candidateStarted=true;
+    state.connected=true;
+    liveSetMic_(true);
+    setButtons('live');updateVizState();startVizLoop();
+    liveStartTimer_();
+    liveReportStatus_('Connected · interview dimulai. Dengarkan pertanyaan lalu jawab.', 'ok');
+  }catch(e){
+    logDebug({liveStartError:String(e&&e.message||e)});
+    liveReportStatus_(friendlyError(e),'err');
+    if(state.clientStartedReported){
+      await finalizeLiveSession_('connection_failure').catch(err=>logDebug({liveRecoveryFailed:String(err)}));
+    }else{
+      if(state.dc?.readyState==='open'){
+        try{state.dc.send(JSON.stringify({type:'session.close'}));}catch(_){}}
+      stopVoice();
+      const pending=readPendingStartup_();
+      if(posted&&pending){
+        // A lost POST response is not proof of a failed create. Do not create
+        // another request until cancelStartup settles the identical ID.
+        try{await liveCancelUnstarted_(pending);}
+        catch(cancelError){
+          liveReportStatus_('Start gagal, tetapi status reservasi belum pasti. Identitas tetap tersimpan; jangan Start baru sebelum diperiksa.', 'err');
+          logDebug({liveCancelUncertain:String(cancelError)});
+        }
+      }else if(pending&&!posted){
+        // No POST was sent, so locally-created recovery identity is safe to
+        // remove without touching any server-side credit record.
+        sessionStorage.removeItem('dlpPendingStartup');
+      }
+      setButtons('idle');
+    }
+  }finally{
+    startFlightActive=false;updateStartButton();
+  }
+}
+
+// Use the existing UI, credit-safe feedback engine and reporting for Live.
+// Override legacy Realtime click handlers only; never invoke response.create.
+el('btnStart').onclick=()=>startLiveInterview_();
+el('btnStop').onclick=()=>finalizeLiveSession_('manual_stop');
+el('btnFeedback').onclick=()=>state.sessionId ?
+  (state.connected&&!state.finalized ? finalizeLiveSession_('manual_feedback') : runFeedbackFlow()) : resumeFeedbackAfterReload_();
+el('btnEnableAudio').onclick=async()=>{
+  try{
+    await el('remoteAudio').play();
+    state.audioBlocked=false;el('btnEnableAudio').style.display='none';el('audioNotice').style.display='none';
+    if(state.clientStartedReported&&!liveClosing)liveSetMic_(true);
+  }catch(_){liveReportStatus_('Browser belum mengizinkan suara. Aktifkan suara melalui tombol yang tersedia.', 'warn');}
+};
+// A refresh cannot reattach to the original SDP. Persist the transcript; do
+// not claim session.closed and never auto-debit when the tab is reloaded.
+window.addEventListener('pagehide',()=>{
+  if(state.clientStartedReported && !state.finalized && state.dc?.readyState==='open') {
+    try{state.dc.send(JSON.stringify({type:'session.close'}));}catch(_){ }
+  }
+});
+// Keep the latest in-memory snapshot when page is hidden. No synchronous
+// request is allowed to claim a refund or a completed interview.
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden' && state.clientStartedReported && !state.finalized)
+    persistTranscriptRecoverySnapshot_('live_tab_hidden').catch(()=>{});
+});
 
 // ---------------- init ----------------
-// PRODUCTION: URL selalu dari DEFAULT_WEB_APP_URL (hardcoded). localStorage TIDAK dipakai
-// untuk webAppUrl supaya tidak ada user yang stuck di deployment URL lama yang salah.
-// Admin yang mau override sementara cukup edit field di Admin panel — tidak persistent.
-el('webAppUrl').value = DEFAULT_WEB_APP_URL;
+// STAGING: no production URL is bundled. Admin sets STAGING /exec in the hidden panel.
+// URL intentionally not persisted, to avoid using a stale or production endpoint.
+const liveRecoverableSource = [readPendingStartup_(), readFeedbackSnapshot_()].find(x =>
+  x && ((x.offerHash && /^[a-f0-9]{64}$/.test(x.offerHash) && x.startupToken) ||
+        (x.liveProviderSessionId && x.sessionAccessToken)));
+el('webAppUrl').value = (liveRecoverableSource && /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec(?:\?.*)?$/.test(liveRecoverableSource.backendUrl))
+  ? liveRecoverableSource.backendUrl : DEFAULT_WEB_APP_URL;
 el('testerCode').value = sessionStorage.getItem('dlpTesterCode') || '';
 refreshSetup();
 refreshSessionHistory_();
@@ -2846,10 +3463,11 @@ updateVizState();
 </script>
 <script>
 (async () => {
-  try { await inspectPendingStartupOnLoad_(); }
+  try { await inspectLivePendingStartupOnLoad_(); }
   catch (_) { setStatus('voiceStatus', 'Recovery reservasi menunggu koneksi server. Start berikutnya akan memeriksa sesi yang sama.', 'warn'); }
   await resumeFeedbackAfterReload_();
 })();
 </script>
 </body>
 </html>
+
